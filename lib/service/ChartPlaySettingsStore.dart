@@ -347,3 +347,154 @@ class ChartPlaySettingsStore {
     }
   }
 }
+
+/// 视频导出页配置的本地持久化。
+///
+/// 首次未保存过时 [savedSettings] 返回 null，使导出页继续沿用当前播放器快照；
+/// 一旦用户在导出页调整任意选项或开始导出，后续再次打开均恢复上次配置。
+class ChartVideoExportSettingsStore {
+  static final ChartVideoExportSettingsStore _instance =
+      ChartVideoExportSettingsStore._internal();
+  factory ChartVideoExportSettingsStore() => _instance;
+  ChartVideoExportSettingsStore._internal();
+
+  static const String _key = 'chart_video_export_settings_v1';
+
+  SimaiVideoExportSettings? _settings;
+  bool _loaded = false;
+  Future<SimaiVideoExportSettings?>? _loading;
+
+  SimaiVideoExportSettings? get savedSettings => _settings;
+
+  bool get isLoaded => _loaded;
+
+  Future<SimaiVideoExportSettings?> load() {
+    if (_loaded) return Future.value(_settings);
+    return _loading ??= _doLoad();
+  }
+
+  Future<SimaiVideoExportSettings?> _doLoad() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_key);
+      if (raw != null && raw.isNotEmpty) {
+        final decoded = json.decode(raw);
+        if (decoded is Map<String, dynamic>) {
+          _settings = _fromJson(decoded);
+        }
+      }
+    } catch (e) {
+      debugPrint('[ChartVideoExportSettings] 读取失败，使用默认继承: $e');
+      _settings = null;
+    }
+    _loaded = true;
+    _loading = null;
+    return _settings;
+  }
+
+  Future<SimaiVideoExportSettings?> reload() {
+    _loaded = false;
+    _loading = null;
+    _settings = null;
+    return load();
+  }
+
+  /// 同步记入内存，避免防抖写盘前退出或重建丢失最新修改。
+  void remember(SimaiVideoExportSettings settings) {
+    _settings = settings;
+    _loaded = true;
+  }
+
+  Future<void> persist() async {
+    final current = _settings;
+    if (current == null) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_key, json.encode(_toJson(current)));
+    } catch (e) {
+      debugPrint('[ChartVideoExportSettings] 保存失败: $e');
+    }
+  }
+
+  Future<void> saveNow() => persist();
+
+  Future<void> reset() async {
+    _settings = null;
+    _loaded = true;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_key);
+    } catch (e) {
+      debugPrint('[ChartVideoExportSettings] 重置失败: $e');
+    }
+  }
+
+  static Map<String, dynamic> _toJson(SimaiVideoExportSettings s) => {
+        'quality': s.quality.name,
+        'includeMusic': s.includeMusic,
+        'mirrorMode': s.mirrorMode.name,
+        'backgroundMode': s.backgroundMode.name,
+        'speed': s.speed,
+        'rotateSlideStar': s.rotateSlideStar,
+        'pinkSlideStar': s.pinkSlideStar,
+        'standardBreakSlide': s.standardBreakSlide,
+        'showApproachLine': s.showApproachLine,
+        'showHitEffects': s.showHitEffects,
+        'centerDisplayMode': s.centerDisplayMode.name,
+        'showAchievementRate': s.showAchievementRate,
+        'highlightExNotes': s.highlightExNotes,
+        'showCornerInfo': s.showCornerInfo,
+        'showDetailedPerformanceInfo': s.showDetailedPerformanceInfo,
+        'hitSoundEnabled': s.hitSoundEnabled,
+        'musicVolume': s.musicVolume,
+        'musicOffsetMs': s.musicOffsetMs,
+        'hitSoundOffsetMs': s.hitSoundOffsetMs,
+      };
+
+  static SimaiVideoExportSettings _fromJson(Map<String, dynamic> json) {
+    const fallback = SimaiVideoExportSettings();
+    return SimaiVideoExportSettings(
+      quality: ChartPlaySettings._enumByName(
+          SimaiVideoQuality.values, json['quality'], fallback.quality),
+      includeMusic:
+          ChartPlaySettings._bool(json['includeMusic'], fallback.includeMusic),
+      mirrorMode: ChartPlaySettings._enumByName(
+          SimaiMirrorMode.values, json['mirrorMode'], fallback.mirrorMode),
+      backgroundMode: ChartPlaySettings._enumByName(SimaiBackgroundMode.values,
+          json['backgroundMode'], fallback.backgroundMode),
+      speed: ChartPlaySettings._clampDouble(
+          json['speed'], 3.0, 9.0, fallback.speed),
+      rotateSlideStar: ChartPlaySettings._bool(
+          json['rotateSlideStar'], fallback.rotateSlideStar),
+      pinkSlideStar: ChartPlaySettings._bool(
+          json['pinkSlideStar'], fallback.pinkSlideStar),
+      standardBreakSlide: ChartPlaySettings._bool(
+          json['standardBreakSlide'], fallback.standardBreakSlide),
+      showApproachLine: ChartPlaySettings._bool(
+          json['showApproachLine'], fallback.showApproachLine),
+      showHitEffects: ChartPlaySettings._bool(
+          json['showHitEffects'], fallback.showHitEffects),
+      centerDisplayMode: ChartPlaySettings._enumByName(
+          SimaiCenterDisplayMode.values,
+          json['centerDisplayMode'],
+          fallback.centerDisplayMode),
+      showAchievementRate: ChartPlaySettings._bool(
+          json['showAchievementRate'], fallback.showAchievementRate),
+      highlightExNotes: ChartPlaySettings._bool(
+          json['highlightExNotes'], fallback.highlightExNotes),
+      showCornerInfo: ChartPlaySettings._bool(
+          json['showCornerInfo'], fallback.showCornerInfo),
+      showDetailedPerformanceInfo: ChartPlaySettings._bool(
+          json['showDetailedPerformanceInfo'],
+          fallback.showDetailedPerformanceInfo),
+      hitSoundEnabled: ChartPlaySettings._bool(
+          json['hitSoundEnabled'], fallback.hitSoundEnabled),
+      musicVolume: ChartPlaySettings._clampDouble(
+          json['musicVolume'], 0.0, 1.0, fallback.musicVolume),
+      musicOffsetMs: ChartPlaySettings._clampInt(
+          json['musicOffsetMs'], -2000, 2000, fallback.musicOffsetMs),
+      hitSoundOffsetMs: ChartPlaySettings._clampInt(
+          json['hitSoundOffsetMs'], -200, 200, fallback.hitSoundOffsetMs),
+    );
+  }
+}

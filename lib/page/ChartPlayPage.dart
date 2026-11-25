@@ -77,6 +77,7 @@ class _ChartPlayPageState extends State<ChartPlayPage>
   /// 设置落盘防抖：侧边栏每拖一下滑块都会 notifyListeners，
   /// 不防抖会写爆 SharedPreferences。
   Timer? _settingsSaveDebounce;
+  Timer? _videoExportSettingsSaveDebounce;
 
   @override
   void initState() {
@@ -90,8 +91,9 @@ class _ChartPlayPageState extends State<ChartPlayPage>
     RefreshRateUtil.requestMax();
     // 默认竖屏，只有明确点击全屏才主动请求横屏。
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-    // 提前把上次的侧边栏设置读进内存，等控制器建好就能直接套用
+    // 提前把上次的侧边栏与视频导出设置读进内存，等控制器建好就能直接套用
     ChartPlaySettingsStore().load();
+    ChartVideoExportSettingsStore().load();
     // 短期心跳仅输出到调试日志：计时器也停住时，说明 Dart 主线程被阻塞，
     // 并非单纯某个资源 Future 没有完成。最多记录 20 秒，不持续轮询。
     final diagnosticWatch = Stopwatch()..start();
@@ -185,7 +187,62 @@ class _ChartPlayPageState extends State<ChartPlayPage>
   void _flushSettingsNow() {
     _settingsSaveDebounce?.cancel();
     _settingsSaveDebounce = null;
+    _videoExportSettingsSaveDebounce?.cancel();
+    _videoExportSettingsSaveDebounce = null;
     ChartPlaySettingsStore().saveFrom(_controller);
+    unawaited(ChartVideoExportSettingsStore().saveNow());
+  }
+
+  void _onVideoExportSettingsChanged(SimaiVideoExportSettings settings) {
+    ChartVideoExportSettingsStore().remember(settings);
+    if (mounted) setState(() {});
+    _videoExportSettingsSaveDebounce?.cancel();
+    _videoExportSettingsSaveDebounce =
+        Timer(const Duration(milliseconds: 500), () {
+      unawaited(ChartVideoExportSettingsStore().persist());
+    });
+  }
+
+  /// 导出视频时若玩家未开启播放音源，尝试按需读取本地缓存或拉取音源文件。
+  Future<String?> _resolveVideoExportAudio() async {
+    if (!mounted || _isLeaving) return null;
+    final currentPath = _controller?.audioFilePath;
+    if (currentPath != null &&
+        currentPath.isNotEmpty &&
+        await File(currentPath).exists()) {
+      return currentPath;
+    }
+    if (widget.audioFilePath != null &&
+        widget.audioFilePath!.isNotEmpty &&
+        await File(widget.audioFilePath!).exists()) {
+      return widget.audioFilePath;
+    }
+    final cached = await _findCachedAudio();
+    if (cached != null && await cached.exists()) {
+      _audioUrl = cached.path;
+      _audioUrls = <String>[cached.path];
+      return cached.path;
+    }
+    if (_audioUrls.isEmpty) {
+      _ignoreAudioLookupResult = false;
+      try {
+        await _loadAudioUrl().timeout(const Duration(seconds: 8));
+      } catch (e) {
+        debugPrint('[ChartPlay] 导出补拉音源索引失败，改试 AWMC 音源: $e');
+        _audioUrl = ApiUrls.wmcAudioUrl(widget.songId);
+        _audioUrls = <String>[_audioUrl!];
+      }
+    }
+    if (!mounted || _isLeaving) return null;
+    for (final url in _audioUrls) {
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        final path = await _downloadAudioToCache(url);
+        if (path != null && await File(path).exists()) return path;
+      } else if (await File(url).exists()) {
+        return url;
+      }
+    }
+    return null;
   }
 
   /// 播放器仍在初始化时，重复点击左上角返回会让异步 GameWidget 与控制器
@@ -208,7 +265,11 @@ class _ChartPlayPageState extends State<ChartPlayPage>
     // _createController 是同步读内存里的设置的，如果这里不等，
     // 一旦 SharedPreferences 读得比建控制器慢，就会拿默认值建控制器，
     // 退出时再把默认值写回去——用户的设置就被默默清掉了。
-    final settings = await ChartPlaySettingsStore().load();
+    final results = await Future.wait<Object?>([
+      ChartPlaySettingsStore().load(),
+      ChartVideoExportSettingsStore().load(),
+    ]);
+    final settings = results[0]! as ChartPlaySettings;
     if (!mounted || _isLeaving) return;
     _metronomeEnabled = settings.metronomeEnabled;
     _metronomeSoundEnabled = settings.metronomeSoundEnabled;
@@ -398,6 +459,9 @@ class _ChartPlayPageState extends State<ChartPlayPage>
             controller: controller,
             metadata: metadata,
             initialOptions: _videoExportOptions,
+            initialSettings: ChartVideoExportSettingsStore().savedSettings,
+            onSettingsChanged: _onVideoExportSettingsChanged,
+            resolveAudioFilePath: _resolveVideoExportAudio,
             task: task,
             displayFont: AppTheme.font(fontWeight: FontWeight.w700),
             textStyleResolver: _resolveChartTextStyle,
@@ -645,7 +709,10 @@ E
     // capture 一定发生在 dispose 之前。
     _settingsSaveDebounce?.cancel();
     _settingsSaveDebounce = null;
+    _videoExportSettingsSaveDebounce?.cancel();
+    _videoExportSettingsSaveDebounce = null;
     ChartPlaySettingsStore().saveFrom(_controller);
+    unawaited(ChartVideoExportSettingsStore().saveNow());
     _controller?.removeListener(_scheduleSettingsSave);
     _gameplayController?.dispose();
     _controller?.dispose();
@@ -686,6 +753,10 @@ E
                 gameplayController: _gameplayController,
                 videoExportMetadata: _videoMetadata,
                 videoExportOptions: _videoExportOptions,
+                videoExportSettings:
+                    ChartVideoExportSettingsStore().savedSettings,
+                onVideoExportSettingsChanged: _onVideoExportSettingsChanged,
+                resolveVideoExportAudio: _resolveVideoExportAudio,
                 onVideoExported: _onVideoExported,
                 onBack: _leavePlayerPage,
                 disposeController: false,

@@ -15,7 +15,7 @@ String? buildChartPerformanceText({
   required double motionStepP95Ms,
   required double frozenFrameRatio,
 }) {
-  if (!showFps) return null;
+  if (!showFps && !showDetailedPerformanceInfo) return null;
   if (!showDetailedPerformanceInfo) {
     return 'FPS ${measuredFps.toStringAsFixed(1)}';
   }
@@ -72,7 +72,7 @@ class ChartStatusTextComponent extends PositionComponent
   Offset get _cornerPadding {
     if (game.headlessExport) {
       final scale = _exportScale;
-      return Offset(24.0 * scale, 20.0 * scale);
+      return Offset(22.0 * scale, 18.0 * scale);
     }
     return const Offset(10.0, 8.0);
   }
@@ -83,7 +83,7 @@ class ChartStatusTextComponent extends PositionComponent
     return game.withDisplayFont(
       TextStyle(
         color: BpmIndicatorColorTransition.idleColor,
-        fontSize: isExport ? 26.0 * scale : 13.0,
+        fontSize: isExport ? 32.0 * scale : 13.0,
         height: isExport ? 1.18 : 1.15,
         fontWeight: FontWeight.bold,
       ),
@@ -117,9 +117,11 @@ class ChartStatusTextComponent extends PositionComponent
 
   @override
   void render(Canvas canvas) {
-    if (!game.showCornerInfo) return;
+    if (!game.showCornerInfo && !game.showDetailedPerformanceInfo) return;
     _painter?.paint(canvas, Offset.zero);
   }
+
+  void refreshNow() => _refreshText();
 
   void _refreshText() {
     final timing = ChartTimingMapper.timingAtTime(game.chart, game.chartTime);
@@ -148,12 +150,34 @@ class ChartStatusTextComponent extends PositionComponent
       frozenFrameRatio: game.frozenFrameRatio,
     );
     final baseStyle = _resolvedBaseStyle();
-    final bpmText = 'BPM ${bpm.toStringAsFixed(1)}';
-    final detailText = 'M$measure  $progress  [1/$denom]';
     final padding = _cornerPadding;
     final maxLeftWidth = game.size.x > 0
-        ? math.max(80.0, (game.size.x - padding.dx * 2) * 0.56)
+        ? math.max(
+            80.0,
+            (game.size.x - padding.dx * 2) *
+                (game.headlessExport ? 0.60 : 0.56),
+          )
         : double.infinity;
+
+    if (!game.showCornerInfo) {
+      if (performanceText == null) {
+        _painter?.dispose();
+        _painter = null;
+        size = Vector2.zero();
+        return;
+      }
+      final painter = TextPainter(
+        textDirection: TextDirection.ltr,
+        text: TextSpan(style: baseStyle, text: performanceText),
+      )..layout(maxWidth: maxLeftWidth);
+      _painter?.dispose();
+      _painter = painter;
+      size = Vector2(_painter!.width, _painter!.height);
+      return;
+    }
+
+    final bpmText = 'BPM ${bpm.toStringAsFixed(1)}';
+    final detailText = 'M$measure  $progress  [1/$denom]';
 
     TextPainter buildPainter({required bool splitDetailLine}) {
       final secondPart = StringBuffer()

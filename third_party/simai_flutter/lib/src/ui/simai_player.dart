@@ -1041,6 +1041,9 @@ class SimaiPlayerPage extends StatefulWidget {
   final bool disposeController;
   final SimaiVideoMetadata? videoExportMetadata;
   final SimaiVideoExportOptions videoExportOptions;
+  final SimaiVideoExportSettings? videoExportSettings;
+  final ValueChanged<SimaiVideoExportSettings>? onVideoExportSettingsChanged;
+  final Future<String?> Function()? resolveVideoExportAudio;
   final ValueChanged<SimaiVideoExportResult>? onVideoExported;
   final Widget? beforeTimeline;
   final TextStyle? displayFont;
@@ -1057,6 +1060,9 @@ class SimaiPlayerPage extends StatefulWidget {
     this.disposeController = true,
     this.videoExportMetadata,
     this.videoExportOptions = const SimaiVideoExportOptions(),
+    this.videoExportSettings,
+    this.onVideoExportSettingsChanged,
+    this.resolveVideoExportAudio,
     this.onVideoExported,
     this.beforeTimeline,
     this.displayFont,
@@ -1216,6 +1222,9 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
             controller: widget.controller,
             metadata: metadata,
             initialOptions: widget.videoExportOptions,
+            initialSettings: widget.videoExportSettings,
+            onSettingsChanged: widget.onVideoExportSettingsChanged,
+            resolveAudioFilePath: widget.resolveVideoExportAudio,
             task:
                 SimaiVideoExporter.instance.activeTask ??
                 SimaiVideoExporter.instance.lastCompletedTask,

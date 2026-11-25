@@ -121,7 +121,7 @@ class ChartCounterOverlayComponent extends PositionComponent
   Offset get _cornerPadding {
     if (game.headlessExport) {
       final scale = _exportScale;
-      return Offset(24.0 * scale, 20.0 * scale);
+      return Offset(22.0 * scale, 18.0 * scale);
     }
     return const Offset(8.0, 8.0);
   }
@@ -131,7 +131,7 @@ class ChartCounterOverlayComponent extends PositionComponent
     final scale = _exportScale;
     return TextStyle(
       color: Colors.white,
-      fontSize: isExport ? 28.0 * scale : 14.0,
+      fontSize: isExport ? 34.0 * scale : 14.0,
       height: 1.15,
       fontWeight: FontWeight.bold,
       fontFeatures: const [FontFeature.tabularFigures()],
@@ -144,7 +144,7 @@ class ChartCounterOverlayComponent extends PositionComponent
     final scale = _exportScale;
     return TextStyle(
       color: const Color(0xFFFFD54F),
-      fontSize: isExport ? 28.0 * scale : 14.0,
+      fontSize: isExport ? 34.0 * scale : 14.0,
       height: 1.15,
       fontWeight: FontWeight.bold,
       fontFeatures: const [FontFeature.tabularFigures()],

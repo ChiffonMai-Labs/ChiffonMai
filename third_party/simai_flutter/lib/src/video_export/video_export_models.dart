@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../simai_file.dart';
+import '../ui/center_display_mode.dart';
+import '../ui/simai_player.dart';
 
 enum SimaiChartDifficulty {
   basic,
@@ -52,8 +54,8 @@ enum SimaiVideoQuality {
   };
 
   int get height => switch (this) {
-    SimaiVideoQuality.hd720 => 1280,
-    SimaiVideoQuality.fullHd1080 => 1920,
+    SimaiVideoQuality.hd720 => 864,
+    SimaiVideoQuality.fullHd1080 => 1296,
   };
 
   int get videoBitrate => switch (this) {
@@ -62,8 +64,8 @@ enum SimaiVideoQuality {
   };
 
   String get label => switch (this) {
-    SimaiVideoQuality.hd720 => '720 × 1280',
-    SimaiVideoQuality.fullHd1080 => '1080 × 1920',
+    SimaiVideoQuality.hd720 => '720 × 864',
+    SimaiVideoQuality.fullHd1080 => '1080 × 1296',
   };
 }
 
@@ -153,6 +155,9 @@ class SimaiVideoExportOptions {
   ///
   /// A null value inherits the controller snapshot.
   final bool? showCornerInfo;
+
+  /// 覆盖导出时的详细性能信息开关；为 null 时沿用控制器快照。
+  final bool? showDetailedPerformanceInfo;
   final String? outputPath;
 
   const SimaiVideoExportOptions({
@@ -160,6 +165,7 @@ class SimaiVideoExportOptions {
     this.audioMode = SimaiVideoAudioMode.musicAndHitSounds,
     this.hitSoundEnabled,
     this.showCornerInfo,
+    this.showDetailedPerformanceInfo,
     this.outputPath,
   });
 
@@ -170,6 +176,8 @@ class SimaiVideoExportOptions {
     bool inheritHitSoundEnabled = false,
     bool? showCornerInfo,
     bool inheritShowCornerInfo = false,
+    bool? showDetailedPerformanceInfo,
+    bool inheritShowDetailedPerformanceInfo = false,
     String? outputPath,
     bool clearOutputPath = false,
   }) {
@@ -182,8 +190,106 @@ class SimaiVideoExportOptions {
       showCornerInfo: inheritShowCornerInfo
           ? null
           : showCornerInfo ?? this.showCornerInfo,
+      showDetailedPerformanceInfo: inheritShowDetailedPerformanceInfo
+          ? null
+          : showDetailedPerformanceInfo ?? this.showDetailedPerformanceInfo,
       outputPath: clearOutputPath ? null : outputPath ?? this.outputPath,
     );
+  }
+}
+
+/// 视频导出页面的记忆化设置快照，涵盖规格、显示与音频全部选项。
+@immutable
+class SimaiVideoExportSettings {
+  final SimaiVideoQuality quality;
+  final bool includeMusic;
+  final SimaiMirrorMode mirrorMode;
+  final SimaiBackgroundMode backgroundMode;
+  final double speed;
+  final bool rotateSlideStar;
+  final bool pinkSlideStar;
+  final bool standardBreakSlide;
+  final bool showApproachLine;
+  final bool showHitEffects;
+  final SimaiCenterDisplayMode centerDisplayMode;
+  final bool showAchievementRate;
+  final bool highlightExNotes;
+  final bool showCornerInfo;
+  final bool showDetailedPerformanceInfo;
+  final bool hitSoundEnabled;
+  final double musicVolume;
+  final int musicOffsetMs;
+  final int hitSoundOffsetMs;
+
+  const SimaiVideoExportSettings({
+    this.quality = SimaiVideoQuality.fullHd1080,
+    this.includeMusic = true,
+    this.mirrorMode = SimaiMirrorMode.none,
+    this.backgroundMode = SimaiBackgroundMode.judgeLine,
+    this.speed = 8.0,
+    this.rotateSlideStar = true,
+    this.pinkSlideStar = false,
+    this.standardBreakSlide = false,
+    this.showApproachLine = true,
+    this.showHitEffects = true,
+    this.centerDisplayMode = SimaiCenterDisplayMode.achievement,
+    this.showAchievementRate = true,
+    this.highlightExNotes = true,
+    this.showCornerInfo = true,
+    this.showDetailedPerformanceInfo = false,
+    this.hitSoundEnabled = false,
+    this.musicVolume = 0.8,
+    this.musicOffsetMs = 0,
+    this.hitSoundOffsetMs = 0,
+  });
+
+  factory SimaiVideoExportSettings.capture(
+    SimaiPlayerController controller, {
+    required SimaiVideoQuality quality,
+    required bool includeMusic,
+  }) {
+    return SimaiVideoExportSettings(
+      quality: quality,
+      includeMusic: includeMusic,
+      mirrorMode: controller.mirrorMode,
+      backgroundMode: controller.backgroundMode,
+      speed: controller.speed,
+      rotateSlideStar: controller.rotateSlideStar,
+      pinkSlideStar: controller.pinkSlideStar,
+      standardBreakSlide: controller.standardBreakSlide,
+      showApproachLine: controller.showApproachLine,
+      showHitEffects: controller.showHitEffects,
+      centerDisplayMode: controller.centerDisplayMode,
+      showAchievementRate: controller.showAchievementRate,
+      highlightExNotes: controller.highlightExNotes,
+      showCornerInfo: controller.showCornerInfo,
+      showDetailedPerformanceInfo: controller.showDetailedPerformanceInfo,
+      hitSoundEnabled: controller.hitSoundEnabled,
+      musicVolume: controller.musicVolume,
+      musicOffsetMs: controller.musicOffsetMs,
+      hitSoundOffsetMs: controller.hitSoundOffsetMs,
+    );
+  }
+
+  void applyTo(SimaiPlayerController controller) {
+    controller
+      ..mirrorMode = mirrorMode
+      ..backgroundMode = backgroundMode
+      ..speed = speed
+      ..rotateSlideStar = rotateSlideStar
+      ..pinkSlideStar = pinkSlideStar
+      ..standardBreakSlide = standardBreakSlide
+      ..showApproachLine = showApproachLine
+      ..showHitEffects = showHitEffects
+      ..centerDisplayMode = centerDisplayMode
+      ..showAchievementRate = showAchievementRate
+      ..highlightExNotes = highlightExNotes
+      ..showCornerInfo = showCornerInfo
+      ..showDetailedPerformanceInfo = showDetailedPerformanceInfo
+      ..hitSoundEnabled = hitSoundEnabled
+      ..musicVolume = musicVolume
+      ..musicOffsetMs = musicOffsetMs
+      ..hitSoundOffsetMs = hitSoundOffsetMs;
   }
 }
 
@@ -338,6 +444,10 @@ class SimaiVideoExportTask {
 }
 
 class SimaiVideoLayout {
+  static const double designWidth = 1080.0;
+  static const double designHeight = 1296.0;
+  static const double aspectRatio = designWidth / designHeight;
+
   final Size videoSize;
   final Rect headerRect;
   final Rect coverRect;
@@ -362,15 +472,15 @@ class SimaiVideoLayout {
     if (videoSize.width <= 0 || videoSize.height <= 0) {
       throw ArgumentError.value(videoSize, 'videoSize', 'Must be positive.');
     }
-    final expectedHeight = videoSize.width * 16 / 9;
+    final expectedHeight = videoSize.width * designHeight / designWidth;
     if ((videoSize.height - expectedHeight).abs() > 0.01) {
       throw ArgumentError.value(
         videoSize,
         'videoSize',
-        'Video export layout requires a 9:16 portrait size.',
+        'Video export layout requires a 5:6 portrait size.',
       );
     }
-    final scale = videoSize.width / 1080.0;
+    final scale = videoSize.width / designWidth;
     Rect scaledRect(double left, double top, double width, double height) {
       return Rect.fromLTWH(
         left * scale,
@@ -382,9 +492,9 @@ class SimaiVideoLayout {
 
     return SimaiVideoLayout(
       videoSize: videoSize,
-      headerRect: scaledRect(48, 64, 984, 196),
-      coverRect: scaledRect(72, 88, 148, 148),
-      contentRect: scaledRect(48, 468, 984, 984),
+      headerRect: scaledRect(48, 40, 984, 196),
+      coverRect: scaledRect(72, 64, 148, 148),
+      contentRect: scaledRect(48, 272, 984, 984),
       scale: scale,
     );
   }

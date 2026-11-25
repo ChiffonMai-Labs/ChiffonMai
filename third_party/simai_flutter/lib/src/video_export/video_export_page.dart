@@ -2,13 +2,17 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter_soloud/flutter_soloud.dart';
 
+import '../audio/soloud_audio_player.dart';
 import '../ui/center_display_mode.dart';
 import '../ui/simai_game.dart';
 import '../ui/simai_player.dart';
 import 'video_export_models.dart';
+import 'video_export_timeline.dart';
 import 'video_exporter.dart';
 import 'video_frame_renderer.dart';
 
@@ -23,6 +27,9 @@ class SimaiVideoExportPage extends StatefulWidget {
   final SimaiPlayerController controller;
   final SimaiVideoMetadata metadata;
   final SimaiVideoExportOptions initialOptions;
+  final SimaiVideoExportSettings? initialSettings;
+  final ValueChanged<SimaiVideoExportSettings>? onSettingsChanged;
+  final Future<String?> Function()? resolveAudioFilePath;
   final SimaiVideoExportTask? task;
   final ValueChanged<SimaiVideoExportResult>? onVideoExported;
   final TextStyle? displayFont;
@@ -34,6 +41,9 @@ class SimaiVideoExportPage extends StatefulWidget {
     required this.controller,
     required this.metadata,
     this.initialOptions = const SimaiVideoExportOptions(),
+    this.initialSettings,
+    this.onSettingsChanged,
+    this.resolveAudioFilePath,
     this.task,
     this.onVideoExported,
     this.displayFont,
@@ -47,11 +57,12 @@ class SimaiVideoExportPage extends StatefulWidget {
 
 class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     with TickerProviderStateMixin {
-  static const Size _previewRenderSize = Size(360, 640);
+  static const Size _previewRenderSize = Size(600, 720);
 
   late final TabController _tabController;
   late final Ticker _previewTicker;
   late SimaiVideoQuality _quality;
+  late bool _includeMusic;
   late final bool _wasPlaying;
   late final Future<void> _pauseSourceFuture;
 
@@ -59,6 +70,18 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
   SimaiPlayerController? _configurationController;
   SimaiPlayerController? _previewController;
   SimaiVideoFrameRenderer? _previewRenderer;
+  SoLoudAudioPlayer? _previewMusicPlayer;
+  String? _loadedPreviewMusicFile;
+  String? _loadedPreviewMusicAsset;
+  bool _previewMusicReady = false;
+  bool _previewAudioPlayActive = false;
+  AudioSource? _previewHitSource;
+  bool _previewHitLoading = false;
+  final List<SoundHandle> _previewHitVoices = <SoundHandle>[];
+  List<int> _previewHitEventsUs = const <int>[];
+  int _previewHitIndex = 0;
+  bool _resolvingAudio = false;
+  Future<String?>? _audioResolveFuture;
   ui.Image? _previewImage;
   Object? _previewError;
   double _previewTime = 0;
@@ -89,8 +112,14 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
   bool _localFileDeleted = false;
   bool _disposed = false;
 
-  bool get _audioEnabled =>
-      widget.initialOptions.audioMode != SimaiVideoAudioMode.silent;
+  bool get _hasAudioSource {
+    final settings = _settingsController;
+    return (settings.audioFilePath != null &&
+            settings.audioFilePath!.isNotEmpty) ||
+        (settings.audioAsset != null && settings.audioAsset!.isNotEmpty);
+  }
+
+  bool get _audioEnabled => _includeMusic && _hasAudioSource;
 
   bool get _selectedQualitySupported => _qualitySupport[_quality] == true;
 
@@ -99,8 +128,8 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
 
   SimaiVideoExportOptions get _selectedOptions {
     final settings = _settingsController;
-    final initialAudioMode = widget.initialOptions.audioMode;
-    final selectedAudioMode = initialAudioMode == SimaiVideoAudioMode.silent
+    final useMusic = _includeMusic && _hasAudioSource;
+    final selectedAudioMode = !useMusic
         ? SimaiVideoAudioMode.silent
         : settings.hitSoundEnabled
         ? SimaiVideoAudioMode.musicAndHitSounds
@@ -108,8 +137,9 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     return widget.initialOptions.copyWith(
       quality: _quality,
       audioMode: selectedAudioMode,
-      hitSoundEnabled: _audioEnabled && settings.hitSoundEnabled,
+      hitSoundEnabled: useMusic && settings.hitSoundEnabled,
       showCornerInfo: settings.showCornerInfo,
+      showDetailedPerformanceInfo: settings.showDetailedPerformanceInfo,
     );
   }
 
@@ -127,19 +157,33 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
         widget.task ??
         SimaiVideoExporter.instance.activeTask ??
         SimaiVideoExporter.instance.lastCompletedTask;
-    _quality = activeTask?.options.quality ?? widget.initialOptions.quality;
+    final initialSettings = widget.initialSettings;
+    _quality =
+        activeTask?.options.quality ??
+        initialSettings?.quality ??
+        widget.initialOptions.quality;
+    _includeMusic = activeTask != null
+        ? activeTask.options.audioMode != SimaiVideoAudioMode.silent
+        : initialSettings?.includeMusic ??
+              (widget.initialOptions.audioMode != SimaiVideoAudioMode.silent);
     if (activeTask == null) {
       final configuration = createSimaiVideoExportControllerSnapshot(
         widget.controller,
       );
-      configuration.hitSoundEnabled =
-          widget.initialOptions.audioMode ==
-              SimaiVideoAudioMode.musicAndHitSounds &&
-          (widget.initialOptions.hitSoundEnabled ??
-              widget.controller.hitSoundEnabled);
-      configuration.showCornerInfo =
-          widget.initialOptions.showCornerInfo ??
-          widget.controller.showCornerInfo;
+      if (initialSettings != null) {
+        initialSettings.applyTo(configuration);
+      } else {
+        configuration.hitSoundEnabled =
+            _includeMusic &&
+            (widget.initialOptions.hitSoundEnabled ??
+                widget.controller.hitSoundEnabled);
+        configuration.showCornerInfo =
+            widget.initialOptions.showCornerInfo ??
+            widget.controller.showCornerInfo;
+        configuration.showDetailedPerformanceInfo =
+            widget.initialOptions.showDetailedPerformanceInfo ??
+            widget.controller.showDetailedPerformanceInfo;
+      }
       _configurationController = configuration;
     }
     _wasPlaying = widget.controller.isPlaying;
@@ -155,6 +199,11 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     } else {
       unawaited(_loadQualitySupport());
       _startPreviewPreparation();
+      if (_includeMusic && !_hasAudioSource) {
+        unawaited(_ensureMusicResolved(notifyOnMissing: false));
+      } else if (_includeMusic) {
+        unawaited(_preparePreviewAudio());
+      }
     }
   }
 
@@ -174,6 +223,7 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     _queuedResetWindow = false;
     _previewImage?.dispose();
     _previewImage = null;
+    unawaited(_disposePreviewAudio());
     unawaited(_disposePreviewResourcesWhenIdle());
     _configurationController?.dispose();
     _configurationController = null;
@@ -282,6 +332,8 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     if (_previewDuration > 0 && _previewTime >= _previewDuration) {
       _previewTime = _previewDuration;
       _setPreviewPlaying(false);
+    } else {
+      _advancePreviewAudio();
     }
     _queuePreviewFrame();
   }
@@ -298,8 +350,10 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     _lastTickElapsed = null;
     if (value) {
       _previewTicker.start();
+      unawaited(_startPreviewAudioPlayback());
     } else {
       _previewTicker.stop();
+      unawaited(_pausePreviewAudioPlayback());
     }
   }
 
@@ -307,6 +361,8 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     if (!_previewReady) return;
     _setPreviewPlaying(false);
     _previewTime = 0;
+    _previewHitIndex = _lowerBoundHitEvent(0);
+    unawaited(_seekPreviewMusic(0));
     _queuePreviewFrame(resetWindow: true);
   }
 
@@ -404,6 +460,327 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     }
   }
 
+  void _notifySettingsChanged() {
+    final callback = widget.onSettingsChanged;
+    if (callback == null || _task != null) return;
+    callback(
+      SimaiVideoExportSettings.capture(
+        _settingsController,
+        quality: _quality,
+        includeMusic: _includeMusic,
+      ),
+    );
+  }
+
+  void _rebuildPreviewHitEvents() {
+    final controller = _settingsController;
+    _previewHitEventsUs = buildSimaiHitSoundEventTimesUs(
+      controller.chart,
+      userOffsetMs: controller.hitSoundOffsetMs,
+    );
+    _previewHitIndex = _lowerBoundHitEvent((_previewTime * 1000000).round());
+  }
+
+  Future<String?> _ensureMusicResolved({required bool notifyOnMissing}) async {
+    if (_hasAudioSource) {
+      unawaited(_preparePreviewAudio());
+      return _settingsController.audioFilePath;
+    }
+    final resolver = widget.resolveAudioFilePath;
+    if (resolver == null) {
+      if (mounted && _includeMusic) {
+        setState(() => _includeMusic = false);
+        _notifySettingsChanged();
+        if (notifyOnMissing) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('未找到可用音源，已切换为静音导出')),
+          );
+        }
+      }
+      return null;
+    }
+    final existingFuture = _audioResolveFuture;
+    if (existingFuture != null) return existingFuture;
+    if (mounted) setState(() => _resolvingAudio = true);
+    final task = () async {
+      try {
+        final path = await resolver();
+        if (_disposed) return null;
+        if (path != null && path.isNotEmpty) {
+          final cfg = _configurationController;
+          if (cfg != null) {
+            cfg.audioAsset = null;
+            cfg.audioFilePath = path;
+          }
+          if (mounted) setState(() {});
+          _notifySettingsChanged();
+          if (_includeMusic) {
+            await _preparePreviewAudio();
+          }
+          return path;
+        }
+        if (mounted && _includeMusic) {
+          setState(() => _includeMusic = false);
+          _notifySettingsChanged();
+          if (notifyOnMissing) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('未找到可用音源，已切换为静音导出')),
+            );
+          }
+        }
+        return null;
+      } catch (e) {
+        debugPrint('[VideoExport] 加载音源失败: $e');
+        if (mounted && _includeMusic) {
+          setState(() => _includeMusic = false);
+          _notifySettingsChanged();
+          if (notifyOnMissing) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('未找到可用音源，已切换为静音导出')),
+            );
+          }
+        }
+        return null;
+      } finally {
+        _audioResolveFuture = null;
+        if (mounted) setState(() => _resolvingAudio = false);
+      }
+    }();
+    _audioResolveFuture = task;
+    return task;
+  }
+
+  Future<void> _preparePreviewAudio() async {
+    if (_disposed || !_includeMusic || _task != null) return;
+    final settings = _settingsController;
+    final filePath = settings.audioFilePath;
+    final asset = settings.audioAsset;
+    if ((filePath == null || filePath.isEmpty) &&
+        (asset == null || asset.isEmpty)) {
+      return;
+    }
+    _rebuildPreviewHitEvents();
+    if (settings.hitSoundEnabled) {
+      unawaited(_preparePreviewHitSound());
+    }
+    final alreadyLoaded =
+        _previewMusicReady &&
+        _loadedPreviewMusicFile == filePath &&
+        _loadedPreviewMusicAsset == asset;
+    if (alreadyLoaded) {
+      unawaited(_previewMusicPlayer?.setVolume(settings.musicVolume));
+      return;
+    }
+
+    _previewMusicReady = false;
+    _previewAudioPlayActive = false;
+    _loadedPreviewMusicFile = filePath;
+    _loadedPreviewMusicAsset = asset;
+    final player = _previewMusicPlayer ??= SoLoudAudioPlayer();
+    try {
+      await _pauseSourceFuture;
+      if (_disposed ||
+          !_includeMusic ||
+          _loadedPreviewMusicFile != filePath ||
+          _loadedPreviewMusicAsset != asset) {
+        return;
+      }
+      if (filePath != null && filePath.isNotEmpty) {
+        await player.loadFile(filePath);
+      } else {
+        await player.loadAsset(asset!);
+      }
+      if (_disposed ||
+          !_includeMusic ||
+          _loadedPreviewMusicFile != filePath ||
+          _loadedPreviewMusicAsset != asset) {
+        return;
+      }
+      _previewMusicReady = true;
+      await player.setRate(1.0);
+      await player.setVolume(settings.musicVolume);
+      if (_previewPlaying && _tabController.index == 1) {
+        unawaited(_startPreviewAudioPlayback());
+      }
+    } catch (e) {
+      debugPrint('[VideoExportPreview] 预览音乐加载失败: $e');
+      _previewMusicReady = false;
+    }
+  }
+
+  Future<void> _preparePreviewHitSound() async {
+    if (_disposed || _previewHitSource != null || _previewHitLoading) return;
+    _previewHitLoading = true;
+    try {
+      await ensureSoLoudInitialized(SoLoud.instance);
+      if (_disposed) return;
+      const assetPath = 'packages/simai_flutter/assets/answer.wav';
+      final src = kIsWeb
+          ? await SoLoud.instance.loadAsset(assetPath, mode: LoadMode.disk)
+          : await SoLoud.instance.loadAsset(assetPath);
+      if (_disposed) {
+        unawaited(SoLoud.instance.disposeSource(src));
+        return;
+      }
+      _previewHitSource = src;
+    } catch (e) {
+      debugPrint('[VideoExportPreview] 预览正解音加载失败: $e');
+    } finally {
+      _previewHitLoading = false;
+    }
+  }
+
+  Future<void> _startPreviewAudioPlayback() async {
+    if (_disposed || !_includeMusic || !_previewPlaying) return;
+    _rebuildPreviewHitEvents();
+    if (_settingsController.hitSoundEnabled && _previewHitSource == null) {
+      unawaited(_preparePreviewHitSound());
+    }
+    if (!_previewMusicReady) {
+      unawaited(_preparePreviewAudio());
+      return;
+    }
+    final musicSeconds =
+        _previewTime - _settingsController.effectiveMusicOffsetSeconds;
+    if (musicSeconds >= 0) {
+      _previewAudioPlayActive = true;
+      await _seekAndPlayPreviewMusic(musicSeconds);
+    } else {
+      _previewAudioPlayActive = false;
+      await _seekPreviewMusic(0);
+    }
+  }
+
+  Future<void> _seekAndPlayPreviewMusic(double musicSeconds) async {
+    final player = _previewMusicPlayer;
+    if (player == null || !_previewMusicReady || _disposed) return;
+    try {
+      final pos = Duration(
+        microseconds: math.max(0, (musicSeconds * 1000000).round()),
+      );
+      await player.seek(pos);
+      if (_disposed || !_previewPlaying || !_includeMusic) return;
+      await player.setVolume(_settingsController.musicVolume);
+      await player.play();
+    } catch (e) {
+      debugPrint('[VideoExportPreview] 预览音乐播放失败: $e');
+    }
+  }
+
+  Future<void> _seekPreviewMusic(double musicSeconds) async {
+    final player = _previewMusicPlayer;
+    if (player == null || !_previewMusicReady || _disposed) return;
+    try {
+      final pos = Duration(
+        microseconds: math.max(0, (musicSeconds * 1000000).round()),
+      );
+      await player.pause();
+      await player.seek(pos);
+    } catch (_) {}
+  }
+
+  Future<void> _pausePreviewAudioPlayback() async {
+    _previewAudioPlayActive = false;
+    _stopPreviewHitVoices();
+    final player = _previewMusicPlayer;
+    if (player == null || !_previewMusicReady) return;
+    try {
+      await player.pause();
+    } catch (_) {}
+  }
+
+  void _advancePreviewAudio() {
+    if (!_includeMusic || !_previewPlaying) return;
+    final musicSeconds =
+        _previewTime - _settingsController.effectiveMusicOffsetSeconds;
+    if (_previewMusicReady && musicSeconds >= 0 && !_previewAudioPlayActive) {
+      _previewAudioPlayActive = true;
+      unawaited(_seekAndPlayPreviewMusic(musicSeconds));
+    }
+    if (_settingsController.hitSoundEnabled &&
+        _previewHitSource != null &&
+        _previewHitEventsUs.isNotEmpty) {
+      final nowUs = (_previewTime * 1000000).round();
+      var triggered = 0;
+      while (_previewHitIndex < _previewHitEventsUs.length &&
+          _previewHitEventsUs[_previewHitIndex] <= nowUs) {
+        final deltaUs = nowUs - _previewHitEventsUs[_previewHitIndex];
+        _previewHitIndex++;
+        if (deltaUs <= 60000) {
+          triggered++;
+        }
+      }
+      if (triggered > 0) {
+        _playPreviewHitVoice(triggered);
+      }
+    }
+  }
+
+  void _playPreviewHitVoice(int voiceCount) {
+    final src = _previewHitSource;
+    if (src == null || !SoLoud.instance.isInitialized || _disposed) return;
+    _previewHitVoices.removeWhere(
+      (handle) => !SoLoud.instance.getIsValidVoiceHandle(handle),
+    );
+    final baseGain = _settingsController.hitSoundVolume.clamp(0.0, 1.0);
+    final gain = baseGain / math.sqrt(voiceCount);
+    if (gain <= 0) return;
+    try {
+      final handle = SoLoud.instance.play(src, volume: gain);
+      if (!handle.isError) {
+        _previewHitVoices.add(handle);
+      }
+    } catch (_) {}
+  }
+
+  void _stopPreviewHitVoices() {
+    if (_previewHitVoices.isEmpty || !SoLoud.instance.isInitialized) {
+      _previewHitVoices.clear();
+      return;
+    }
+    for (final handle in _previewHitVoices) {
+      if (SoLoud.instance.getIsValidVoiceHandle(handle)) {
+        unawaited(SoLoud.instance.stop(handle));
+      }
+    }
+    _previewHitVoices.clear();
+  }
+
+  Future<void> _disposePreviewAudio() async {
+    _previewAudioPlayActive = false;
+    _previewMusicReady = false;
+    _stopPreviewHitVoices();
+    final player = _previewMusicPlayer;
+    _previewMusicPlayer = null;
+    if (player != null) {
+      try {
+        await player.dispose();
+      } catch (_) {}
+    }
+    final src = _previewHitSource;
+    _previewHitSource = null;
+    if (src != null && SoLoud.instance.isInitialized) {
+      try {
+        await SoLoud.instance.disposeSource(src);
+      } catch (_) {}
+    }
+  }
+
+  int _lowerBoundHitEvent(int targetUs) {
+    final list = _previewHitEventsUs;
+    var low = 0;
+    var high = list.length;
+    while (low < high) {
+      final mid = (low + high) >> 1;
+      if (list[mid] < targetUs) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+    return low;
+  }
+
   void _updateVisualSetting(
     void Function(SimaiPlayerController controller) update, {
     bool rebuildPreview = true,
@@ -412,6 +789,7 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     if (controller == null) return;
     update(controller);
     setState(() {});
+    _notifySettingsChanged();
     if (rebuildPreview) {
       _schedulePreviewRebuild();
     } else {
@@ -426,6 +804,27 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     if (controller == null) return;
     update(controller);
     setState(() {});
+    _notifySettingsChanged();
+    _rebuildPreviewHitEvents();
+    unawaited(_previewMusicPlayer?.setVolume(controller.musicVolume));
+    if (controller.hitSoundEnabled && _includeMusic) {
+      unawaited(_preparePreviewHitSound());
+    }
+  }
+
+  void _setIncludeMusic(bool value) {
+    if (_includeMusic == value) return;
+    setState(() => _includeMusic = value);
+    _notifySettingsChanged();
+    if (!value) {
+      unawaited(_pausePreviewAudioPlayback());
+      return;
+    }
+    if (_hasAudioSource) {
+      unawaited(_preparePreviewAudio());
+    } else {
+      unawaited(_ensureMusicResolved(notifyOnMissing: true));
+    }
   }
 
   void _setShowCornerInfo(bool value) {
@@ -433,8 +832,20 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     if (controller == null) return;
     controller.showCornerInfo = value;
     setState(() {});
+    _notifySettingsChanged();
     _previewController?.showCornerInfo = value;
     _previewRenderer?.updateShowCornerInfo(value);
+    _queuePreviewFrame();
+  }
+
+  void _setShowDetailedPerformanceInfo(bool value) {
+    final controller = _configurationController;
+    if (controller == null) return;
+    controller.showDetailedPerformanceInfo = value;
+    setState(() {});
+    _notifySettingsChanged();
+    _previewController?.showDetailedPerformanceInfo = value;
+    _previewRenderer?.updateShowDetailedPerformanceInfo(value);
     _queuePreviewFrame();
   }
 
@@ -588,10 +999,18 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
   }
 
   Future<void> _startExport() async {
-    if (_task != null || _loadingSupport || !_selectedQualitySupported) return;
+    if (_task != null ||
+        _loadingSupport ||
+        _resolvingAudio ||
+        !_selectedQualitySupported) {
+      return;
+    }
+    _notifySettingsChanged();
     _previewSettingsGeneration++;
     _previewRebuildTimer?.cancel();
     await _previewRebuildChain;
+    await _pausePreviewAudioPlayback();
+    await _disposePreviewAudio();
     await _releasePreview();
     if (!mounted) return;
     try {
@@ -613,6 +1032,7 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
         }
       }
       _startPreviewPreparation();
+      if (_includeMusic) unawaited(_preparePreviewAudio());
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -689,12 +1109,14 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     late final String label;
     ButtonStyle? style;
     if (task == null) {
-      onPressed = _loadingSupport || !_selectedQualitySupported
+      onPressed = _loadingSupport || _resolvingAudio || !_selectedQualitySupported
           ? null
           : _startExport;
       icon = const Icon(Icons.file_upload_outlined);
       label = _loadingSupport
           ? '正在检查编码器…'
+          : _resolvingAudio
+          ? '正在准备音源…'
           : _supportError != null
           ? '无法检测硬件编码器'
           : _selectedQualitySupported
@@ -955,7 +1377,10 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
               .toList(growable: false),
           onChanged: _loadingSupport
               ? null
-              : (quality) => setState(() => _quality = quality),
+              : (quality) {
+                  setState(() => _quality = quality);
+                  _notifySettingsChanged();
+                },
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(32, 10, 0, 0),
@@ -1116,15 +1541,21 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
           label: '详细性能信息',
           icon: Icons.monitor_heart_outlined,
           value: controller.showDetailedPerformanceInfo,
-          onChanged: (value) => _updateVisualSetting(
-            (controller) => controller.showDetailedPerformanceInfo = value,
-          ),
+          onChanged: _setShowDetailedPerformanceInfo,
         ),
         const Padding(
           padding: EdgeInsets.symmetric(vertical: 16),
           child: Divider(),
         ),
         _buildSectionHeader(theme, '音频设置'),
+        _buildSwitchSetting(
+          theme,
+          label: '背景音乐（音源）',
+          icon: Icons.library_music_outlined,
+          value: _includeMusic,
+          enabled: !_resolvingAudio,
+          onChanged: _setIncludeMusic,
+        ),
         _buildSwitchSetting(
           theme,
           label: '正解音播放',
@@ -1323,7 +1754,7 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
         final availableHeight = math.max(160.0, constraints.maxHeight - 104);
         final previewWidth = math.min(
           math.max(120.0, constraints.maxWidth - 32),
-          availableHeight * 9 / 16,
+          availableHeight * SimaiVideoLayout.aspectRatio,
         );
         return Column(
           children: [
@@ -1331,7 +1762,7 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
               child: Center(
                 child: Container(
                   width: previewWidth,
-                  height: previewWidth * 16 / 9,
+                  height: previewWidth / SimaiVideoLayout.aspectRatio,
                   decoration: BoxDecoration(
                     color: Colors.black,
                     border: Border.all(color: theme.colorScheme.outlineVariant),
@@ -1406,7 +1837,7 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     return RawImage(
       image: image,
       fit: BoxFit.contain,
-      filterQuality: FilterQuality.medium,
+      filterQuality: FilterQuality.high,
     );
   }
 
@@ -1455,7 +1886,7 @@ class _ExportNotice extends StatelessWidget {
         const SizedBox(width: 10),
         Expanded(
           child: Text(
-            '此页使用独立的 controller 设置副本，不会修改播放器。预览与成片读取同一份配置，固定按 1× 时间轴输出且始终隐藏 FPS。',
+            '此页使用独立的配置副本，改动会自动记住且不影响播放器。预览与成片读取同一份配置，固定按 1× 时间轴输出。',
             style: TextStyle(color: color, height: 1.4),
           ),
         ),

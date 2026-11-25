@@ -155,6 +155,9 @@ class SimaiVideoExporter with WidgetsBindingObserver {
         options.hitSoundEnabled ?? snapshotController.hitSoundEnabled;
     snapshotController.showCornerInfo =
         options.showCornerInfo ?? snapshotController.showCornerInfo;
+    snapshotController.showDetailedPerformanceInfo =
+        options.showDetailedPerformanceInfo ??
+        snapshotController.showDetailedPerformanceInfo;
     int? nativeSessionId;
     bool cancelled = false;
 

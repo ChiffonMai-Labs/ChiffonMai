@@ -615,6 +615,7 @@ class DataBackupService {
     CustomBest50Store().invalidateCache();
     ChartPackageHistoryStore().invalidateCache();
     await ChartPlaySettingsStore().reload();
+    await ChartVideoExportSettingsStore().reload();
     await CommonCacheUtil().reload();
     await ChartHistoryStore.instance.invalidateCache();
     await NavigationPreferences.instance.reload();

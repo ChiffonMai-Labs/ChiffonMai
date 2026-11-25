@@ -48,6 +48,14 @@ class SimaiVideoFrameRenderer {
   void updateShowCornerInfo(bool value) {
     if (!_prepared || _disposed) return;
     _game.showCornerInfo = value;
+    _game.refreshStatusText();
+  }
+
+  void updateShowDetailedPerformanceInfo(bool value) {
+    if (!_prepared || _disposed) return;
+    _game.showDetailedPerformanceInfo = value;
+    _game.showFps = value;
+    _game.refreshStatusText();
   }
 
   TextStyle _resolveTextStyle(TextStyle style) {
@@ -104,7 +112,7 @@ class SimaiVideoFrameRenderer {
       showAchievementRate: controller.showAchievementRate,
       centerDisplayMode: controller.centerDisplayMode,
       showCornerInfo: controller.showCornerInfo,
-      showFps: false,
+      showFps: controller.showDetailedPerformanceInfo,
       showDetailedPerformanceInfo: controller.showDetailedPerformanceInfo,
       initialChartTime: 0,
       offset: controller.effectiveMusicOffsetSeconds,
@@ -199,7 +207,7 @@ class SimaiVideoFrameRenderer {
     _paintSingleLine(
       canvas,
       metadata.title,
-      Offset(textLeft, 96 * scale),
+      Offset(textLeft, header.top + 32 * scale),
       textWidth,
       maxFontSize: 46 * scale,
       minFontSize: 30 * scale,
@@ -209,7 +217,7 @@ class SimaiVideoFrameRenderer {
     _paintSingleLine(
       canvas,
       metadata.artist,
-      Offset(textLeft, 166 * scale),
+      Offset(textLeft, header.top + 102 * scale),
       textWidth,
       maxFontSize: 30 * scale,
       minFontSize: 21 * scale,
@@ -220,7 +228,7 @@ class SimaiVideoFrameRenderer {
     _paintCenteredSingleLine(
       canvas,
       metadata.difficulty.label,
-      Rect.fromLTWH(792 * scale, 100 * scale, 208 * scale, 42 * scale),
+      Rect.fromLTWH(792 * scale, header.top + 36 * scale, 208 * scale, 42 * scale),
       maxFontSize: 31 * scale,
       minFontSize: 22 * scale,
       color: foreground,
@@ -229,7 +237,7 @@ class SimaiVideoFrameRenderer {
     _paintCenteredSingleLine(
       canvas,
       metadata.level,
-      Rect.fromLTWH(792 * scale, 145 * scale, 208 * scale, 78 * scale),
+      Rect.fromLTWH(792 * scale, header.top + 81 * scale, 208 * scale, 78 * scale),
       maxFontSize: 58 * scale,
       minFontSize: 38 * scale,
       color: foreground,
@@ -280,7 +288,10 @@ class SimaiVideoFrameRenderer {
     );
     painter.paint(
       canvas,
-      Offset(rect.left, rect.top + (rect.height - painter.height) / 2),
+      Offset(
+        rect.left + (rect.width - painter.width) / 2,
+        rect.top + (rect.height - painter.height) / 2,
+      ),
     );
     painter.dispose();
   }

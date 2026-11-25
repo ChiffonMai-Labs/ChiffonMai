@@ -229,6 +229,12 @@ class SimaiGame extends FlameGame {
     // ownership local to this game instead of using the process-wide cache.
     images = Images(prefix: 'assets/');
     noteAssets = NoteAssetManager(images: images);
+    if (headlessExport) {
+      measuredFps = 60.0;
+      frameIntervalP95Ms = 1000.0 / 60.0;
+      motionStepP95Ms = 1000.0 / 60.0;
+      frozenFrameRatio = 0.0;
+    }
     if (!isPlaying) {
       pauseEngine();
     }
@@ -269,7 +275,10 @@ class SimaiGame extends FlameGame {
 
   late final JudgeBackgroundComponent _backgroundComponent;
   late final NotesLayerComponent _notesComponent;
+  ChartStatusTextComponent? _statusTextComponent;
   bool _notesReady = false;
+
+  void refreshStatusText() => _statusTextComponent?.refreshNow();
 
   @override
   void onGameResize(Vector2 size) {
@@ -414,7 +423,8 @@ class SimaiGame extends FlameGame {
           comboAt: counterIndex.comboAt,
         )..priority = 0,
       );
-      add(ChartStatusTextComponent());
+      _statusTextComponent = ChartStatusTextComponent();
+      add(_statusTextComponent!);
       add(
         ChartCounterOverlayComponent(
           counterIndex,

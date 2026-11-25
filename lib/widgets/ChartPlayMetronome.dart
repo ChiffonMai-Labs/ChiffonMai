@@ -483,7 +483,7 @@ class _ChartPlayMetronomeState extends State<ChartPlayMetronome>
                     fit: BoxFit.scaleDown,
                     alignment: AlignmentDirectional.centerEnd,
                     child: Text(
-                      '${bpm.toStringAsFixed(bpm == bpm.roundToDouble() ? 0 : 1)} BPM',
+                      'BPM ${bpm.toStringAsFixed(bpm == bpm.roundToDouble() ? 0 : 1)}',
                       style: AppTheme.number(
                         fontSize: 13,
                         color: scheme.onSurfaceVariant,
