@@ -3995,7 +3995,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String flowTranslatedFromP0ByBaiduSLanguage(String p0) {
-    return '由百度大模型翻译自$p0';
+    return '由大模型翻译自$p0';
   }
 
   @override
@@ -7822,7 +7822,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get flowSongTitle2 => '歌曲标题';
 
   @override
-  String get flowTranslatedByBaiduSLanguageModel => '由百度大模型翻译';
+  String get flowTranslatedByBaiduSLanguageModel => '由大模型翻译';
 
   @override
   String get flowTranslating => '翻译中…';
@@ -19669,7 +19669,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String flowTranslatedFromP0ByBaiduSLanguage(String p0) {
-    return '由百度大模型翻譯自$p0';
+    return '由大模型翻譯自$p0';
   }
 
   @override
@@ -23496,7 +23496,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get flowSongTitle2 => '歌曲標題';
 
   @override
-  String get flowTranslatedByBaiduSLanguageModel => '由百度大模型翻譯';
+  String get flowTranslatedByBaiduSLanguageModel => '由大模型翻譯';
 
   @override
   String get flowTranslating => '翻譯中…';

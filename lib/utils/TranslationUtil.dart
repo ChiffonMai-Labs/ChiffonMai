@@ -4,10 +4,10 @@ import 'package:flutter/foundation.dart';
 import 'package:my_first_flutter_app/api/ApiUrls.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
 
-/// 收藏品说明翻译服务。
+/// 文本翻译服务。
 ///
-/// 腾讯云 TMT 已停止使用，现由自家服务端代理百度翻译大模型文本翻译 API。
-/// 百度凭据只保存在服务端，客户端不再携带 App ID、API Key 或 Secret Key。
+/// 现由自家服务端代理大模型翻译（ChooseC 网关首选 + 百度大模型回退）。
+/// 翻译凭据只保存在服务端，客户端不再携带任何 API Key 或 Secret Key。
 class TranslateService {
   static final Map<String, String> _memoryCache = <String, String>{};
   static final Map<String, Future<String?>> _pending =
@@ -88,12 +88,12 @@ class TranslateService {
     if (cached != null) return Future<String?>.value(cached);
     final existing = _pending[key];
     if (existing != null) return existing;
-    final future = _requestBaidu(source, from: from, to: to);
+    final future = _requestTranslation(source, from: from, to: to);
     _pending[key] = future;
     return future.whenComplete(() => _pending.remove(key));
   }
 
-  static Future<String?> _requestBaidu(String text,
+  static Future<String?> _requestTranslation(String text,
       {required String from, required String to}) async {
     try {
       final response = await ApiClient.post(
@@ -116,7 +116,7 @@ class TranslateService {
       _memoryCache['$from|$to|$text'] = result;
       return result;
     } catch (e) {
-      debugPrint('百度翻译请求失败: $e');
+      debugPrint('服务端翻译请求失败: $e');
       return null;
     }
   }

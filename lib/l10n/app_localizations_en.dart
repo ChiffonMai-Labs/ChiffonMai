@@ -4262,7 +4262,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String flowTranslatedFromP0ByBaiduSLanguage(String p0) {
-    return 'Translated from $p0 by Baidu’s language model';
+    return 'Translated from $p0 by AI language model';
   }
 
   @override
@@ -8224,7 +8224,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get flowTranslatedByBaiduSLanguageModel =>
-      'Translated by Baidu’s language model';
+      'Translated by AI language model';
 
   @override
   String get flowTranslating => 'Translating…';

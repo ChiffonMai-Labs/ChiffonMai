@@ -4063,7 +4063,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String flowTranslatedFromP0ByBaiduSLanguage(String p0) {
-    return 'Baidu の言語モデルで$p0から翻訳';
+    return 'AI言語モデルで$p0から翻訳';
   }
 
   @override
@@ -7939,7 +7939,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get flowSongTitle2 => '楽曲タイトル';
 
   @override
-  String get flowTranslatedByBaiduSLanguageModel => 'Baiduの大規模言語モデルによる翻訳';
+  String get flowTranslatedByBaiduSLanguageModel => 'AI言語モデルによる翻訳';
 
   @override
   String get flowTranslating => '翻訳中…';

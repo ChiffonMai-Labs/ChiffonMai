@@ -2331,7 +2331,7 @@
       }
     }
   },
-  "flowTranslatedFromP0ByBaiduSLanguage": "由百度大模型翻译自{p0}",
+  "flowTranslatedFromP0ByBaiduSLanguage": "由大模型翻译自{p0}",
   "@flowTranslatedFromP0ByBaiduSLanguage": {
     "placeholders": {
       "p0": {
@@ -5367,7 +5367,7 @@
   "flowKeepPlaying": "继续播放",
   "flowPauseAndRemove": "暂停并移除",
   "flowSongTitle2": "歌曲标题",
-  "flowTranslatedByBaiduSLanguageModel": "由百度大模型翻译",
+  "flowTranslatedByBaiduSLanguageModel": "由大模型翻译",
   "flowTranslating": "翻译中…",
   "flowDifficultiesToPlayMultipleSelections": "想玩的难度（可多选）",
   "flowNotesOptional": "备注（可选）",
