@@ -3,6 +3,7 @@ import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 
 import '../service/AnnouncementService.dart';
 import '../utils/AppDesignTokens.dart';
+import '../utils/AppError.dart';
 import '../widgets/AnnouncementDialog.dart';
 import '../widgets/AppUi.dart';
 import '../widgets/BackgroundPageScaffold.dart';
@@ -27,6 +28,7 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
   int? _nextOffset;
   bool _loading = false;
   bool _error = false;
+  AppError? _loadError;
 
   @override
   void initState() {
@@ -41,6 +43,7 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
     setState(() {
       _loading = true;
       _error = false;
+      _loadError = null;
     });
     try {
       final page = await _service.loadList(offset: offset);
@@ -51,8 +54,18 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
         _items.addAll(page.items.where((item) => ids.add(item.id)));
         _nextOffset = page.nextOffset;
       });
-    } catch (_) {
-      if (mounted) setState(() => _error = true);
+    } catch (e, stack) {
+      if (mounted) {
+        setState(() {
+          _error = true;
+          _loadError = AppErrorMapper.from(
+            e,
+            stack: stack,
+            stage: '加载公告列表',
+            source: 'chiffonmai',
+          );
+        });
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -82,7 +95,10 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
           ? _loading
               ? const _AnnouncementLoading()
               : _error
-                  ? _AnnouncementError(onRetry: _load)
+                  ? _AnnouncementError(
+                      error: _loadError,
+                      onRetry: _load,
+                    )
                   : EmptyState(
                       icon: Icons.campaign_outlined,
                       title: l10n.announcementEmpty,
@@ -244,13 +260,19 @@ class _AnnouncementLoading extends StatelessWidget {
 }
 
 class _AnnouncementError extends StatelessWidget {
-  const _AnnouncementError({required this.onRetry});
+  const _AnnouncementError({
+    required this.onRetry,
+    this.error,
+  });
+
+  final AppError? error;
   final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) => EmptyState(
         icon: Icons.cloud_off_outlined,
         title: context.l10n.announcementLoadFailed,
+        error: error,
         actionLabel: context.l10n.flowRetry,
         actionIcon: Icons.refresh_rounded,
         onAction: onRetry,

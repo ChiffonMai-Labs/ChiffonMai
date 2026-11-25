@@ -155,10 +155,9 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
         sourceKey: sourceKey,
       );
       if (mounted) await _load();
-    } catch (e) {
+    } catch (e, stack) {
       if (mounted) {
-        AppToast.show(context.l10n.flowCouldNotSaveHistoryP0((e).toString()),
-            tone: AppToastTone.error);
+        AppToast.showError(e, stack: stack, stage: '保存 Rating 历史');
       }
     }
   }
@@ -178,11 +177,9 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
       await ChartHistoryStore.instance
           .deleteRatingPoint(tMs: point.tMs, sourceKey: sourceKey);
       if (mounted) await _load();
-    } catch (e) {
+    } catch (e, stack) {
       if (mounted) {
-        AppToast.show(
-            context.l10n.flowCouldNotDeleteDataPointP0((e).toString()),
-            tone: AppToastTone.error);
+        AppToast.showError(e, stack: stack, stage: '删除 Rating 记录点');
       }
     }
   }
@@ -256,16 +253,24 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
               : context.l10n.flowNoNewAWMCNETPointsP0Already(
                   (result.points.length).toString()),
           tone: AppToastTone.success);
-    } on AwmcNetTrendException catch (e) {
+    } on AwmcNetTrendException catch (e, stack) {
       if (mounted) {
-        AppToast.show(context.l10n.flowSyncFailedP0((e.message).toString()),
-            tone: AppToastTone.error);
+        AppToast.showError(
+          e,
+          stack: stack,
+          stage: '同步 AWMC NET Rating 趋势',
+          source: 'awmc',
+        );
       }
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('[RatingHistory] 从 AWMC NET 同步趋势失败：$e');
       if (mounted) {
-        AppToast.show(context.l10n.flowSyncFailedP0((e).toString()),
-            tone: AppToastTone.error);
+        AppToast.showError(
+          e,
+          stack: stack,
+          stage: '同步 AWMC NET Rating 趋势',
+          source: 'awmc',
+        );
       }
     } finally {
       if (mounted) {

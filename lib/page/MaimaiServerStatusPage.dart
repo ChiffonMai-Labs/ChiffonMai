@@ -6,7 +6,9 @@ import 'package:my_first_flutter_app/service/chongxi/MaimaiServerStatusService.d
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/utils/ExternalLaunchUtil.dart';
 import '../widgets/BackgroundPageScaffold.dart';
+import '../widgets/EmptyState.dart';
 import '../utils/AppDesignTokens.dart';
+import '../utils/AppError.dart';
 
 /// 舞萌服务器状态页面。
 ///
@@ -23,6 +25,7 @@ class _MaimaiServerStatusPageState extends State<MaimaiServerStatusPage> {
   MaimaiServerStatusEntity? _serverStatus;
   bool _isLoading = true;
   String _errorMessage = '';
+  AppError? _loadError;
 
   @override
   void initState() {
@@ -35,6 +38,7 @@ class _MaimaiServerStatusPageState extends State<MaimaiServerStatusPage> {
       setState(() {
         _isLoading = true;
         _errorMessage = '';
+        _loadError = null;
       });
     }
 
@@ -42,9 +46,16 @@ class _MaimaiServerStatusPageState extends State<MaimaiServerStatusPage> {
       final status = await MaimaiServerStatusService.getServerStatus();
       if (!mounted) return;
       if (status == null) {
+        final err = AppError(
+          code: 'SRV-STATUS-UNAVAILABLE',
+          userMessage: appL10n.flowServerStatusIsTemporarilyUnavailable,
+          stage: '获取服务器状态',
+          source: 'chongxi',
+        );
         setState(() {
           _isLoading = false;
-          _errorMessage = appL10n.flowServerStatusIsTemporarilyUnavailable;
+          _loadError = err;
+          _errorMessage = err.userMessage;
         });
         return;
       }
@@ -52,11 +63,18 @@ class _MaimaiServerStatusPageState extends State<MaimaiServerStatusPage> {
         _serverStatus = status;
         _isLoading = false;
       });
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('[MaimaiServerStatusPage] 加载失败: $e');
       if (!mounted) return;
+      final err = AppErrorMapper.from(
+        e,
+        stack: stack,
+        stage: '获取服务器状态',
+        source: 'chongxi',
+      );
       setState(() {
         _isLoading = false;
+        _loadError = err;
         _errorMessage = appL10n.flowCouldNotLoadServerStatus;
       });
     }
@@ -91,24 +109,19 @@ class _MaimaiServerStatusPageState extends State<MaimaiServerStatusPage> {
   }
 
   Widget _buildErrorState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.cloud_off_outlined,
-            size: 48,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
+    return EmptyState(
+      icon: Icons.cloud_off_outlined,
+      title: context.l10n.featureServerStatus,
+      message: _errorMessage,
+      error: _loadError ??
+          AppErrorMapper.fromMessage(
+            _errorMessage,
+            stage: '获取服务器状态',
+            source: 'chongxi',
           ),
-          const SizedBox(height: 12),
-          Text(_errorMessage),
-          const SizedBox(height: 12),
-          FilledButton.tonal(
-            onPressed: _loadServerStatus,
-            child:  Text(context.l10n.flowRetry),
-          ),
-        ],
-      ),
+      actionLabel: context.l10n.flowRetry,
+      actionIcon: Icons.refresh_rounded,
+      onAction: _loadServerStatus,
     );
   }
 

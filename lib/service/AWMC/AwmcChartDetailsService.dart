@@ -53,7 +53,12 @@ class AwmcChartDetailsService {
       return null;
     }
     if (response.statusCode != 200 || !body.containsKey('data')) {
-      throw StateError('AWMC HTTP ${response.statusCode}');
+      throw ApiClient.parseError(
+        response,
+        stage: '读取 AWMC 谱面详情',
+        source: 'awmc',
+        fallbackCode: 'SRV-AWMC-CHART',
+      );
     }
     return body['data'] as Map<String, dynamic>?;
   }
@@ -62,7 +67,12 @@ class AwmcChartDetailsService {
     final response = await ApiClient.get(url, timeout: _requestTimeout);
     if (response.statusCode == 404) return null;
     if (response.statusCode != 200) {
-      throw StateError('AWMC HTTP ${response.statusCode}');
+      throw ApiClient.parseError(
+        response,
+        stage: '读取 AWMC 社区统计',
+        source: 'awmc',
+        fallbackCode: 'SRV-AWMC-CHART',
+      );
     }
     return jsonDecode(utf8.decode(response.bodyBytes));
   }

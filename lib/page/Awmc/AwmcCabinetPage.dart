@@ -4,6 +4,7 @@ import '../../l10n/LocalizationsExtension.dart';
 import '../../service/AWMC/AwmcApiService.dart';
 import '../../service/AWMC/AwmcCabinetData.dart';
 import '../../utils/AppDesignTokens.dart';
+import '../../utils/AppError.dart';
 import '../../utils/AppTheme.dart';
 import '../../widgets/AnimatedChoiceBar.dart';
 import '../../widgets/AppDialogs.dart';
@@ -124,7 +125,15 @@ class _AwmcCabinetPageState extends State<AwmcCabinetPage> {
       final info = await AwmcCabinetData.item(slug);
       if (!mounted) return;
       if (info == null) {
-        AppToast.show(l10n.awmcChartUnavailable, tone: AppToastTone.error);
+        AppToast.showError(
+          AppError(
+            code: 'DATA-AWMC-ITEM-EMPTY',
+            userMessage: l10n.awmcChartUnavailable,
+            stage: '读取 AWMC 道具详情',
+            source: 'awmc',
+          ),
+          stage: '读取 AWMC 道具详情',
+        );
         return;
       }
       await showDialog<void>(
@@ -147,9 +156,15 @@ class _AwmcCabinetPageState extends State<AwmcCabinetPage> {
           ],
         ),
       );
-    } on Exception {
+    } on Exception catch (e, stack) {
       if (mounted) {
-        AppToast.show(l10n.awmcChartUnavailable, tone: AppToastTone.error);
+        AppToast.showError(
+          e,
+          stack: stack,
+          title: l10n.awmcChartUnavailable,
+          stage: '读取 AWMC 道具详情',
+          source: 'awmc',
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);

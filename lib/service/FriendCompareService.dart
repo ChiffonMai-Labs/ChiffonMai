@@ -9,6 +9,7 @@ import '../manager/DivingFish/MaimaiMusicDataManager.dart';
 import '../manager/DivingFish/UserPlayDataManager.dart';
 import '../manager/LuoXue/LuoXueUserPlayDataManager.dart';
 import '../utils/ApiClient.dart';
+import '../utils/AppError.dart';
 import '../utils/ChartDifficulty.dart';
 import '../utils/CurrentDataSourceNotifier.dart';
 import '../utils/LuoXueToDivingFishUtil.dart';
@@ -152,15 +153,35 @@ class FriendCompareService {
     return metas[source.key]?.id ?? '';
   }
 
-  Map<String, dynamic> _requireRecords(Map<String, dynamic>? data, String error) {
-    if (data == null || data['records'] is! List) throw Exception(error);
+  Map<String, dynamic> _requireRecords(
+      Map<String, dynamic>? data, String error,
+      {required String source}) {
+    if (data == null || data['records'] is! List) {
+      throw AppError(
+        code: 'DATA-COMPARE-LOAD',
+        userMessage: error,
+        stage: '读取成绩数据',
+        source: source,
+      );
+    }
     return data;
   }
 
   Future<Map<String, dynamic>> _fetchShuiyuMine(String myQQ) async {
-    if (myQQ.isEmpty) throw Exception(appL10n.svcSignInAndLinkYourDivingFish);
-    return _requireRecords(await UserPlayDataManager().fetchUserPlayData(myQQ),
-        appL10n.svcTheCurrentDivingFishUserHasNo);
+    if (myQQ.isEmpty) {
+      throw AppError(
+        code: 'AUTH-COMPARE-NOT-READY',
+        userMessage: appL10n.svcSignInAndLinkYourDivingFish,
+        stage: '校验本人账号',
+        source: 'shuiyu',
+        retryable: false,
+      );
+    }
+    return _requireRecords(
+      await UserPlayDataManager().fetchUserPlayData(myQQ),
+      appL10n.svcTheCurrentDivingFishUserHasNo,
+      source: 'shuiyu',
+    );
   }
 
   Future<Map<String, dynamic>> _fetchShuiyuFriend(String friendQQ) async {
@@ -175,11 +196,23 @@ class FriendCompareService {
       }
       rethrow;
     }
-    return _requireRecords(data, appL10n.svcNoPlayDataWasFoundForThis);
+    return _requireRecords(
+      data,
+      appL10n.svcNoPlayDataWasFoundForThis,
+      source: 'shuiyu',
+    );
   }
 
   Future<Map<String, dynamic>> _fetchAwmcMine(String myQQ) async {
-    if (myQQ.isEmpty) throw Exception(appL10n.svcAddYourAWMCNETQQNumberIn);
+    if (myQQ.isEmpty) {
+      throw AppError(
+        code: 'AUTH-COMPARE-NOT-READY',
+        userMessage: appL10n.svcAddYourAWMCNETQQNumberIn,
+        stage: '校验本人账号',
+        source: 'awmc',
+        retryable: false,
+      );
+    }
     return AwmcNetUserPlayDataManager().fetchUserPlayData(myQQ);
   }
 
@@ -205,15 +238,33 @@ class FriendCompareService {
   Future<Map<String, dynamic>> _fetchLuoXueMine() async {
     final manager = LuoXueUserPlayDataManager();
     if (!await manager.isLoggedIn()) {
-      throw Exception(appL10n.svcSignInToYourLXNSAccountFirst);
+      throw AppError(
+        code: 'AUTH-COMPARE-NOT-READY',
+        userMessage: appL10n.svcSignInToYourLXNSAccountFirst,
+        stage: '校验本人账号',
+        source: 'luoxue',
+        retryable: false,
+      );
     }
     final player = await manager.getPlayerInfo();
     final scores = await manager.getPlayerRecords();
     if (player == null || scores == null) {
-      throw Exception(appL10n.svcCouldNotReadYourLXNSScoresTry);
+      throw AppError(
+        code: 'DATA-COMPARE-LOCAL-EMPTY',
+        userMessage: appL10n.svcCouldNotReadYourLXNSScoresTry,
+        stage: '读取本人成绩',
+        source: 'luoxue',
+      );
     }
     final songs = await _songsByTitleAndType();
-    if (songs.isEmpty) throw Exception(appL10n.svcTheSongLibraryHasNotLoadedYet);
+    if (songs.isEmpty) {
+      throw AppError(
+        code: 'DATA-COMPARE-LOCAL-EMPTY',
+        userMessage: appL10n.svcTheSongLibraryHasNotLoadedYet,
+        stage: '读取本地曲库',
+        source: 'local',
+      );
+    }
     return {
       'rating': player.rating,
       'records': [
@@ -230,13 +281,29 @@ class FriendCompareService {
   /// 这份数据来自好友同步到 ChiffonMai 的成绩，上面的曲目 ID 已经是曲库 ID。
   Future<Map<String, dynamic>> _fetchLuoXueFriend(String friendCode) async {
     if (!RegExp(r'^\d+$').hasMatch(friendCode)) {
-      throw Exception(appL10n.svcTheFriendCodeMustContainOnlyDigits);
+      throw AppError(
+        code: 'DATA-COMPARE-INVALID-CODE',
+        userMessage: appL10n.svcTheFriendCodeMustContainOnlyDigits,
+        stage: '校验好友码',
+        source: 'luoxue',
+        retryable: false,
+      );
     }
     final playerId = 'luoxue:$friendCode';
     final response = await ApiClient.get(
         Uri.parse('${ApiUrls.SongRankingsPlayerUrl}/$playerId'));
     if (response.statusCode != 200) {
-      throw Exception(appL10n.svcCouldNotLookUpTheFriendS(response.statusCode.toString()));
+      final parsed = ApiClient.parseError(
+        response,
+        stage: '查询落雪好友',
+        source: 'luoxue',
+        fallbackCode: 'SRV-COMPARE-LXNS',
+      );
+      throw parsed.copyWith(
+        userMessage: parsed.userMessage == 'HTTP ${response.statusCode}'
+            ? appL10n.svcCouldNotLookUpTheFriendS(response.statusCode.toString())
+            : parsed.userMessage,
+      );
     }
     final body = json.decode(utf8.decode(response.bodyBytes));
     final rows = body is Map ? body['data'] : null;
@@ -255,7 +322,12 @@ class FriendCompareService {
           },
     ];
     if (records.isEmpty) {
-      throw Exception(appL10n.svcNoLXNSScoresForThisFriendThey);
+      throw AppError(
+        code: 'DATA-COMPARE-EMPTY',
+        userMessage: appL10n.svcNoLXNSScoresForThisFriendThey,
+        stage: '读取好友成绩',
+        source: 'luoxue',
+      );
     }
 
     // 接口按玩家的公开设置返回；旧版后端没有这个字段时显示好友码

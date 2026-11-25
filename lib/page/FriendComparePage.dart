@@ -20,8 +20,10 @@ import '../utils/CurrentDataSourceNotifier.dart';
 import '../widgets/AppUi.dart';
 import '../widgets/MarqueeText.dart';
 import '../utils/AppDesignTokens.dart';
+import '../utils/AppError.dart';
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
+import '../widgets/ErrorMessageDialog.dart';
 
 class FriendComparePage extends StatefulWidget {
   const FriendComparePage({super.key});
@@ -43,6 +45,7 @@ class _FriendComparePageState extends State<FriendComparePage> {
   bool _isLoading = false;
   ComparisonResult? _result;
   String? _errorMessage;
+  AppError? _error;
   // ignore: unused_field
   String? _currentFriendQQ;
 
@@ -81,6 +84,7 @@ class _FriendComparePageState extends State<FriendComparePage> {
       _friendSource = source;
       _result = null;
       _errorMessage = null;
+      _error = null;
       _qqController.clear();
     });
     _loadCachedQQ();
@@ -107,14 +111,23 @@ class _FriendComparePageState extends State<FriendComparePage> {
   Future<void> _startCompare() async {
     final friendQQ = _qqController.text.trim();
     if (friendQQ.isEmpty) {
-      setState(() => _errorMessage =
-          context.l10n.flowEnterYourFriendSP02((_idLabel).toString()));
+      final msg = context.l10n.flowEnterYourFriendSP02((_idLabel).toString());
+      setState(() {
+        _errorMessage = msg;
+        _error = AppError(
+          code: 'DATA-COMPARE-EMPTY-ID',
+          userMessage: msg,
+          stage: '校验好友标识',
+          retryable: false,
+        );
+      });
       return;
     }
 
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _error = null;
       _result = null;
     });
 
@@ -139,10 +152,17 @@ class _FriendComparePageState extends State<FriendComparePage> {
             source: _mySource, friendSource: friendSource);
         _loadHistory();
       }
-    } on ProberException catch (e) {
+    } on ProberException catch (e, stack) {
+      final mapped = AppErrorMapper.from(
+        e,
+        stack: stack,
+        stage: '好友成绩对比',
+        source: _friendSource.key,
+      );
       if (mounted) {
         setState(() {
-          _errorMessage = e.message;
+          _error = mapped;
+          _errorMessage = mapped.userMessage;
           _isLoading = false;
         });
       }
@@ -155,15 +175,30 @@ class _FriendComparePageState extends State<FriendComparePage> {
           final opened = await ExternalLaunchUtil.open(uri);
           if (!opened && mounted) {
             await Clipboard.setData(ClipboardData(text: uri.toString()));
-            AppToast.show(context.l10n.flowCouldNotOpenTheAuthorizationPageLink,
-                tone: AppToastTone.error);
+            if (!mounted) return;
+            AppToast.showError(
+              AppError(
+                code: 'SYS-LAUNCH-AUTH',
+                userMessage:
+                    context.l10n.flowCouldNotOpenTheAuthorizationPageLink,
+                stage: '打开水鱼授权页',
+              ),
+              stage: '打开水鱼授权页',
+            );
           }
         }
       }
-    } catch (e) {
+    } catch (e, stack) {
+      final mapped = AppErrorMapper.from(
+        e,
+        stack: stack,
+        stage: '好友成绩对比',
+        source: _friendSource.key,
+      );
       if (mounted) {
         setState(() {
-          _errorMessage = e.toString().replaceFirst('Exception: ', '');
+          _error = mapped;
+          _errorMessage = mapped.userMessage;
           _isLoading = false;
         });
       }
@@ -306,6 +341,7 @@ class _FriendComparePageState extends State<FriendComparePage> {
 
   Widget _buildErrorCard() {
     final scheme = Theme.of(context).colorScheme;
+    final err = _error;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -319,10 +355,51 @@ class _FriendComparePageState extends State<FriendComparePage> {
               size: 20, color: scheme.onErrorContainer),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              _errorMessage!,
-              style: TextStyle(
-                  fontSize: 13.5, height: 1.4, color: scheme.onErrorContainer),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _errorMessage!,
+                  style: TextStyle(
+                      fontSize: 13.5,
+                      height: 1.4,
+                      color: scheme.onErrorContainer),
+                ),
+                if (err != null) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          err.compactBadge(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            color: scheme.onErrorContainer
+                                .withValues(alpha: 0.78),
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => showErrorMessageDialog(
+                          context,
+                          appError: err,
+                          onRetry: _startCompare,
+                        ),
+                        style: TextButton.styleFrom(
+                          foregroundColor: scheme.onErrorContainer,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: Text(context.l10n.errDetails),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
             ),
           ),
         ],

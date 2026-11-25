@@ -2,6 +2,7 @@ import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import '../service/LoadingTipsStore.dart';
 import '../utils/AppDesignTokens.dart';
+import '../utils/AppError.dart';
 import '../utils/AppTheme.dart';
 import '../widgets/AppSwitch.dart';
 import '../widgets/AppUi.dart';
@@ -25,6 +26,7 @@ class _LoadingTipsPageState extends State<LoadingTipsPage> {
   bool _busy = true;
   int _tab = 0;
   String _query = '';
+  AppError? _loadError;
 
   @override
   void initState() {
@@ -35,7 +37,12 @@ class _LoadingTipsPageState extends State<LoadingTipsPage> {
 
   Future<void> _load() async {
     await _store.ensureLoaded();
-    if (mounted) setState(() => _busy = false);
+    if (mounted) {
+      setState(() {
+        _loadError = _store.lastError;
+        _busy = false;
+      });
+    }
   }
 
   @override
@@ -58,8 +65,24 @@ class _LoadingTipsPageState extends State<LoadingTipsPage> {
     if (value.isEmpty || !mounted) return;
     if (cloud) {
       final id = await _store.submitCloudTip(value);
-      if (mounted)
-        AppToast.show(id == null ? context.l10n.flowUploadFailedTryAgainLater : context.l10n.flowSubmittedForReviewP0ShownOnlyAfter((id).toString()), tone: AppToastTone.error);
+      if (!mounted) return;
+      if (id == null) {
+        AppToast.showError(
+          _store.lastError ??
+              AppError(
+                code: 'SRV-LOADING-TIPS-SUBMIT',
+                userMessage: context.l10n.flowUploadFailedTryAgainLater,
+                stage: '提交云端语录',
+                source: 'chiffonmai',
+              ),
+          stage: '提交云端语录',
+        );
+      } else {
+        AppToast.show(
+          context.l10n.flowSubmittedForReviewP0ShownOnlyAfter((id).toString()),
+          tone: AppToastTone.success,
+        );
+      }
     } else {
       await _store.addLocalTip(value);
       if (mounted) {
@@ -69,12 +92,27 @@ class _LoadingTipsPageState extends State<LoadingTipsPage> {
   }
 
   Future<void> _refresh() async {
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _loadError = null;
+    });
     final ok = await _store.refresh();
     if (mounted) {
-      setState(() => _busy = false);
+      setState(() {
+        _busy = false;
+        _loadError = ok ? null : _store.lastError;
+      });
       if (!ok) {
-        AppToast.show(context.l10n.flowCouldNotFetchLoadingQuotesKeptThe, tone: AppToastTone.error);
+        AppToast.showError(
+          _store.lastError ??
+              AppError(
+                code: 'NET-LOADING-TIPS',
+                userMessage: context.l10n.flowCouldNotFetchLoadingQuotesKeptThe,
+                stage: '拉取加载语录',
+                source: 'chiffonmai',
+              ),
+          stage: '拉取加载语录',
+        );
       }
     }
   }
@@ -194,7 +232,16 @@ class _LoadingTipsPageState extends State<LoadingTipsPage> {
                                 message:
                                     context.l10n.flowNoMatchingLoadingQuotes,
                               )
-                            : EmptyState(key: ValueKey('empty-$_tab')))
+                            : EmptyState(
+                                key: ValueKey('empty-$_tab'),
+                                error: _tab == 1 ? _loadError : null,
+                                onAction: _tab == 1 && _loadError != null
+                                    ? _refresh
+                                    : null,
+                                actionLabel: _tab == 1 && _loadError != null
+                                    ? context.l10n.flowRetry
+                                    : null,
+                              ))
                         : ListView.builder(
                             key: ValueKey(_tab),
                             keyboardDismissBehavior:
@@ -253,7 +300,7 @@ class _LoadingTipsPageState extends State<LoadingTipsPage> {
               child: AnimatedDefaultTextStyle(
                 duration: AppDesignTokens.motion(
                     context, const Duration(milliseconds: 180)),
-                style: TextStyle(
+                style: AppTheme.font(
                   fontSize: 14,
                   height: 1.45,
                   color: enabled ? scheme.onSurface : scheme.onSurfaceVariant,

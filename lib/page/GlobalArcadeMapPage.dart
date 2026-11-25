@@ -12,6 +12,7 @@ import 'package:my_first_flutter_app/service/NearCadeService.dart';
 
 import '../service/ArcadeMapStore.dart';
 import '../utils/AppDesignTokens.dart';
+import '../utils/AppError.dart';
 import '../utils/AppTaskActivity.dart';
 import '../utils/AppTheme.dart';
 import '../utils/ArcadeMarkerCluster.dart';
@@ -65,6 +66,7 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage>
   bool _requestedPreciseLocation = false;
   bool _mapReady = false;
   String? _error;
+  AppError? _loadError;
   DateTime? _lastFetchTime;
   (int, int)? _progress;
 
@@ -217,6 +219,7 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage>
     setState(() {
       _isRefreshing = true;
       _error = null;
+      _loadError = null;
       _progress = null;
     });
     try {
@@ -229,21 +232,40 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage>
       );
       if (!mounted) return;
       final shops = snapshot.shops;
-      if (shops.isEmpty) throw StateError('NearCade 返回了空列表');
+      if (shops.isEmpty) {
+        throw AppError(
+          code: 'DATA-ARCADE-EMPTY',
+          userMessage: 'NearCade 未返回机厅数据，请稍后重试',
+          stage: '加载全球机厅地图',
+          source: 'nearcade',
+        );
+      }
       setState(() {
         _applyShops(shops);
         _lastFetchTime = snapshot.fetchedAt;
         _isLegacyData = false;
       });
       await ArcadeMapStore.save(shops, snapshot.fetchedAt);
-    } catch (error) {
+    } catch (error, stack) {
       debugPrint('[ArcadeMap] 更新机厅数据失败: $error');
       if (!mounted) return;
+      final mapped = AppErrorMapper.from(
+        error,
+        stack: stack,
+        stage: '加载全球机厅地图',
+        source: 'nearcade',
+      );
       if (_shops.isEmpty) {
-        setState(() => _error = error.toString());
+        setState(() {
+          _loadError = mapped;
+          _error = mapped.userMessage;
+        });
       } else {
-        AppToast.show(context.l10n.arcadeUpdateFailed,
-            tone: AppToastTone.error);
+        AppToast.showError(
+          mapped.copyWith(title: context.l10n.arcadeUpdateFailed),
+          stage: '更新机厅数据',
+          source: 'nearcade',
+        );
       }
     } finally {
       if (mounted) setState(() => _isRefreshing = false);
@@ -510,8 +532,14 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage>
       final position = await _resolveUserPosition();
       if (!mounted) return;
       if (position == null) {
-        AppToast.show(context.l10n.flowCouldNotGetYourLocationCheckThat,
-            tone: AppToastTone.error);
+        AppToast.showError(
+          AppError(
+            code: 'SYS-LOCATION-UNAVAILABLE',
+            userMessage: context.l10n.flowCouldNotGetYourLocationCheckThat,
+            stage: '获取当前位置',
+          ),
+          stage: '获取当前位置',
+        );
         return;
       }
 
@@ -531,11 +559,10 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage>
         AppToast.show(context.l10n.arcadeLocationPermissionUnavailable,
             tone: AppToastTone.warning);
       }
-    } catch (error) {
+    } catch (error, stack) {
       debugPrint('[ArcadeMap] 定位失败: $error');
       if (mounted) {
-        AppToast.show(context.l10n.flowLocationFailedP0(error.toString()),
-            tone: AppToastTone.error);
+        AppToast.showError(error, stack: stack, stage: '获取当前位置');
       }
     } finally {
       if (mounted) setState(() => _isLocating = false);
@@ -1281,6 +1308,7 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage>
           icon: Icons.cloud_off_rounded,
           title: l10n.flowCouldNotLoad,
           message: _error,
+          error: _loadError,
           actionLabel: l10n.flowRetry,
           actionIcon: Icons.refresh_rounded,
           onAction: _refresh,

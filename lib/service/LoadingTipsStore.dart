@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/ApiUrls.dart';
 import '../utils/ApiClient.dart';
+import '../utils/AppError.dart';
 
 /// 服务端加载语录目录与本地显示偏好的唯一入口。
 class LoadingTipsStore extends ChangeNotifier {
@@ -23,6 +24,7 @@ class LoadingTipsStore extends ChangeNotifier {
   Set<String> _disabled = <String>{};
   List<LoadingTip> _localTips = const [];
   Future<void>? _loading;
+  AppError? lastError;
 
   List<LoadingTip> get catalogue => List.unmodifiable(_catalogue);
 
@@ -80,11 +82,28 @@ class LoadingTipsStore extends ChangeNotifier {
 
   Future<bool> refresh() async {
     try {
+      lastError = null;
       final response = await ApiClient.get(Uri.parse(ApiUrls.LoadingTipsUrl));
-      if (response.statusCode < 200 || response.statusCode >= 300) return false;
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        lastError = ApiClient.parseError(
+          response,
+          stage: '拉取加载语录',
+          source: 'chiffonmai',
+          fallbackCode: 'SRV-LOADING-TIPS-UNAVAILABLE',
+        );
+        return false;
+      }
       final decoded = jsonDecode(utf8.decode(response.bodyBytes));
       final raw = decoded is Map<String, dynamic> ? decoded['tips'] : decoded;
-      if (raw is! List) return false;
+      if (raw is! List) {
+        lastError = AppError(
+          code: 'DATA-LOADING-TIPS-FORMAT',
+          userMessage: '加载语录返回格式异常',
+          stage: '拉取加载语录',
+          source: 'chiffonmai',
+        );
+        return false;
+      }
       final next = <LoadingTip>[];
       for (final item in raw) {
         if (item is Map && item['id'] is String && item['text'] is String) {
@@ -111,8 +130,14 @@ class LoadingTipsStore extends ChangeNotifier {
       await prefs.setStringList(_disabledKey, _disabled.toList());
       notifyListeners();
       return true;
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('获取加载语录失败: $e');
+      lastError = AppErrorMapper.from(
+        e,
+        stack: stack,
+        stage: '拉取加载语录',
+        source: 'chiffonmai',
+      );
       return false;
     }
   }
@@ -164,18 +189,33 @@ class LoadingTipsStore extends ChangeNotifier {
     final value = text.trim();
     if (value.isEmpty) return null;
     try {
+      lastError = null;
       final response = await ApiClient.post(
         Uri.parse(ApiUrls.LoadingTipsUrl),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'text': value}),
       );
-      if (response.statusCode < 200 || response.statusCode >= 300) return null;
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        lastError = ApiClient.parseError(
+          response,
+          stage: '提交云端语录',
+          source: 'chiffonmai',
+          fallbackCode: 'SRV-LOADING-TIPS-SUBMIT',
+        );
+        return null;
+      }
       final json = jsonDecode(utf8.decode(response.bodyBytes));
       return json is Map && json['tip_id'] is String
           ? json['tip_id'] as String
           : null;
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('上传加载语录失败: $e');
+      lastError = AppErrorMapper.from(
+        e,
+        stack: stack,
+        stage: '提交云端语录',
+        source: 'chiffonmai',
+      );
       return null;
     }
   }

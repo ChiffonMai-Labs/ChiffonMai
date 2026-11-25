@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../api/ApiUrls.dart';
 import '../../utils/ApiClient.dart';
+import '../../utils/AppError.dart';
 
 enum SpecialRankingType {
   breakCount, // 绝赞总数排行榜（谱面）
@@ -101,13 +102,22 @@ class SpecialRankingListService {
       final response =
           await ApiClient.get(uri, timeout: const Duration(seconds: 45));
       if (response.statusCode != 200) {
-        throw Exception(
-            appL10n.rankingServiceUnavailable(response.statusCode.toString()));
+        throw ApiClient.parseError(
+          response,
+          stage: '读取特殊排行榜',
+          source: 'chiffonmai',
+          fallbackCode: 'SRV-SPECIAL-RANKING',
+        );
       }
       payload =
           jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
       if (payload['success'] != true || payload['data'] is! List) {
-        throw FormatException(appL10n.rankingInvalidResponse);
+        throw AppError(
+          code: 'DATA-SPECIAL-RANKING',
+          userMessage: appL10n.rankingInvalidResponse,
+          stage: '读取特殊排行榜',
+          source: 'chiffonmai',
+        );
       }
       lastReadWasCached = payload['stale'] == true;
       await prefs.setString(cacheKey, jsonEncode(payload));
