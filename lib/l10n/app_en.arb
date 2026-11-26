@@ -4578,5 +4578,9 @@
         "type": "String"
       }
     }
-  }
+  },
+  "chartPlayLoadPv": "Load PV background",
+  "chartPlayLoadPvSubtitle": "Crop PV into circular arcade background when available",
+  "chartPlayDifficultySection": "Select chart difficulty",
+  "chartPlayOptionsSection": "Playback resources"
 }

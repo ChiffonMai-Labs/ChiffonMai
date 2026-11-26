@@ -30,6 +30,29 @@ class ChartPlayAudioPreference {
   }
 }
 
+/// 播放前“加载 PV 背景”选项的记忆化。
+class ChartPlayPvPreference {
+  static const String _key = 'chart_play_load_pv';
+
+  static Future<bool> load() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(_key) ?? true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  static Future<void> save(bool value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_key, value);
+    } catch (e) {
+      debugPrint('[ChartPlayPvPreference] 保存失败: $e');
+    }
+  }
+}
+
 /// 谱面播放页侧边栏设置的一份快照。
 ///
 /// 字段与 `SimaiPlayerController` 暴露的 setter 一一对应；
@@ -60,6 +83,7 @@ class ChartPlaySettings {
   final double hitSoundVolume;
   final int musicOffsetMs;
   final int hitSoundOffsetMs;
+  final int pvOffsetMs;
 
   /// 首次进入谱面播放页时应用的默认设置。
   const ChartPlaySettings({
@@ -84,6 +108,7 @@ class ChartPlaySettings {
     this.hitSoundVolume = 0.72,
     this.musicOffsetMs = 0,
     this.hitSoundOffsetMs = 0,
+    this.pvOffsetMs = 0,
   });
 
   /// 读取控制器当前的全部设置。
@@ -114,6 +139,7 @@ class ChartPlaySettings {
       hitSoundVolume: c.hitSoundVolume,
       musicOffsetMs: c.musicOffsetMs,
       hitSoundOffsetMs: c.hitSoundOffsetMs,
+      pvOffsetMs: c.pvOffsetMs,
     );
   }
 
@@ -140,6 +166,7 @@ class ChartPlaySettings {
     c.hitSoundVolume = hitSoundVolume;
     c.musicOffsetMs = musicOffsetMs;
     c.hitSoundOffsetMs = hitSoundOffsetMs;
+    c.pvOffsetMs = pvOffsetMs;
   }
 
   Map<String, dynamic> toJson() => {
@@ -164,6 +191,7 @@ class ChartPlaySettings {
         'hitSoundVolume': hitSoundVolume,
         'musicOffsetMs': musicOffsetMs,
         'hitSoundOffsetMs': hitSoundOffsetMs,
+        'pvOffsetMs': pvOffsetMs,
       };
 
   /// 从 JSON 还原。
@@ -209,6 +237,8 @@ class ChartPlaySettings {
           _clampInt(json['musicOffsetMs'], -2000, 2000, fallback.musicOffsetMs),
       hitSoundOffsetMs: _clampInt(
           json['hitSoundOffsetMs'], -200, 200, fallback.hitSoundOffsetMs),
+      pvOffsetMs:
+          _clampInt(json['pvOffsetMs'], -2000, 2000, fallback.pvOffsetMs),
     );
   }
 

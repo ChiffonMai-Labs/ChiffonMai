@@ -15676,6 +15676,18 @@ class AppLocalizationsZh extends AppLocalizations {
       String notes, String duration, String density) {
     return '总物量 $notes ÷ 参考时长 $duration = $density 个/秒\n按当前难度全部音符数与参考时长估算，仅供参考。';
   }
+
+  @override
+  String get chartPlayLoadPv => '加载 PV 背景';
+
+  @override
+  String get chartPlayLoadPvSubtitle => '有 PV 时裁剪为机台圆形背景播放';
+
+  @override
+  String get chartPlayDifficultySection => '选择谱面难度';
+
+  @override
+  String get chartPlayOptionsSection => '播放资源';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -31352,4 +31364,16 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
       String notes, String duration, String density) {
     return '總物量 $notes ÷ 參考時長 $duration = $density 個/秒\n依目前難度全部音符數與參考時長估算，僅供參考。';
   }
+
+  @override
+  String get chartPlayLoadPv => '載入 PV 背景';
+
+  @override
+  String get chartPlayLoadPvSubtitle => '有 PV 時裁切為機台圓形背景播放';
+
+  @override
+  String get chartPlayDifficultySection => '選擇譜面難度';
+
+  @override
+  String get chartPlayOptionsSection => '播放資源';
 }

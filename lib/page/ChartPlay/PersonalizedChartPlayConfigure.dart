@@ -13,6 +13,7 @@ import 'package:my_first_flutter_app/utils/MaidataDecodeUtil.dart';
 import 'package:my_first_flutter_app/service/ChartPlay/ChartPackageHistoryStore.dart';
 import 'package:path_provider/path_provider.dart';
 import 'ChartPlayPage.dart';
+import 'ChartPlaybackPicker.dart';
 import '../../service/ChartPlay/ChartPlaySettingsStore.dart';
 import '../../widgets/AppHeader.dart';
 import '../../utils/AppDesignTokens.dart';
@@ -694,7 +695,7 @@ class _PersonalizedChartPlayConfigureState
     return '${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')}';
   }
 
-  void _startPlayback() {
+  Future<void> _startPlayback() async {
     if (_maidataContent == null || _maidataContent!.isEmpty) {
       AppToast.show(context.l10n.flowSelectAMaidataFileFirst,
           tone: AppToastTone.warning);
@@ -711,97 +712,36 @@ class _PersonalizedChartPlayConfigureState
     final songTitle = MaidataDecodeUtil.quickExtractTitle(_maidataContent!) ??
         context.l10n.flowCustomChart2;
 
-    var loadAudio = _loadAudio;
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AppAlertDialog(
-          title: Text(context.l10n.flowSelectDifficulty),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Text(
-                    songTitle,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Text(
-                    context.l10n.flowRenderedChartsAreForReferenceAndMay,
-                    style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                StatefulBuilder(
-                  builder: (context, setDialogState) => CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    value: loadAudio,
-                    title: Text(context.l10n.flowLoadAudio),
-                    subtitle:
-                        Text(context.l10n.flowTurnOffToLoadTheChartWithout2),
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setDialogState(() => loadAudio = value);
-                      _loadAudio = value;
-                      ChartPlayAudioPreference.save(value);
-                    },
-                  ),
-                ),
-                ..._inoteList.map((inote) {
-                  String difficultyName = inoteDifficultyMap[inote] ?? inote;
-                  Color inoteColor = Color(inoteColorMap[inote] ?? 0xFF9E9E9E);
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ChartPlayPage(
-                              maidataContent: _maidataContent!,
-                              songTitle: songTitle,
-                              songId: 'custom',
-                              songType: 'custom',
-                              selectedInote: inote,
-                              bgImagePath: _bgImagePath,
-                              audioFilePath: loadAudio ? _audioFilePath : null,
-                              loadAudio: loadAudio,
-                            ),
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: inoteColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 24, vertical: 12),
-                        textStyle: AppTheme.font(fontSize: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(
-                              AppDesignTokens.radiusSmall),
-                        ),
-                      ),
-                      child: Text(difficultyName),
-                    ),
-                  );
-                }),
-              ],
-            ),
-          ),
-        );
+    final choice = await showChartDifficultyDialog(
+      context,
+      songTitle: songTitle,
+      maidataContent: _maidataContent!,
+      inotes: _inoteList,
+      labelBuilder: (inote) => inoteDifficultyMap[inote] ?? inote,
+      colorBuilder: (_, inote) => Color(inoteColorMap[inote] ?? 0xFF9E9E9E),
+      initialLoadAudio: _loadAudio,
+      onLoadAudioChanged: (value) {
+        _loadAudio = value;
+        ChartPlayAudioPreference.save(value);
       },
+      showPvOption: false,
+      showCredit: false,
+    );
+    if (choice == null || !mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ChartPlayPage(
+          maidataContent: _maidataContent!,
+          songTitle: songTitle,
+          songId: 'custom',
+          songType: 'custom',
+          selectedInote: choice.inote,
+          bgImagePath: _bgImagePath,
+          audioFilePath: choice.loadAudio ? _audioFilePath : null,
+          loadAudio: choice.loadAudio,
+        ),
+      ),
     );
   }
 

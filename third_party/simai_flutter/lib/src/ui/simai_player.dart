@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flame/game.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -61,6 +62,7 @@ class SimaiPlayerController extends ChangeNotifier {
   double _hitSoundVolume = 0.72;
   int _musicOffsetMs = 0;
   int _hitSoundOffsetMs = 0;
+  int _pvOffsetMs = 0;
   bool _hitSoundEnabled = false;
   bool _isFullScreen = false;
   SimaiBackgroundMode _backgroundMode = SimaiBackgroundMode.judgeLine;
@@ -111,6 +113,7 @@ class SimaiPlayerController extends ChangeNotifier {
   double get hitSoundVolume => _hitSoundVolume;
   int get musicOffsetMs => _musicOffsetMs;
   int get hitSoundOffsetMs => _hitSoundOffsetMs;
+  int get pvOffsetMs => _pvOffsetMs;
   bool get hitSoundEnabled => _hitSoundEnabled;
   bool get isFullScreen => _isFullScreen;
   SimaiBackgroundMode get backgroundMode => _backgroundMode;
@@ -206,6 +209,13 @@ class SimaiPlayerController extends ChangeNotifier {
     if (_hitSoundOffsetMs == clamped) return;
     _hitSoundOffsetMs = clamped;
     _applyToGame();
+    notifyListeners();
+  }
+
+  set pvOffsetMs(int value) {
+    final clamped = value.clamp(-2000, 2000);
+    if (_pvOffsetMs == clamped) return;
+    _pvOffsetMs = clamped;
     notifyListeners();
   }
 
@@ -577,6 +587,7 @@ class SimaiPlayer extends StatefulWidget {
   final ValueChanged<Object>? onError;
   final TextStyle? displayFont;
   final SimaiTextStyleResolver? textStyleResolver;
+  final Widget? backgroundVideo;
 
   const SimaiPlayer({
     super.key,
@@ -585,6 +596,7 @@ class SimaiPlayer extends StatefulWidget {
     this.onError,
     this.displayFont,
     this.textStyleResolver,
+    this.backgroundVideo,
   });
 
   @override
@@ -633,6 +645,7 @@ class _SimaiPlayerState extends State<SimaiPlayer> {
       centerDisplayMode: controller.centerDisplayMode,
       showCornerInfo: controller.showCornerInfo,
       showDetailedPerformanceInfo: controller.showDetailedPerformanceInfo,
+      hasVideoBackground: widget.backgroundVideo != null,
       initialChartTime: controller.initialChartTime,
       offset: controller.effectiveMusicOffsetSeconds,
       audioAsset: controller.audioAsset,
@@ -665,6 +678,9 @@ class _SimaiPlayerState extends State<SimaiPlayer> {
     if (!identical(widget.controller, oldWidget.controller)) {
       oldWidget.controller._detachGame(_game);
       _initializeGame();
+    } else if ((widget.backgroundVideo != null) !=
+        (oldWidget.backgroundVideo != null)) {
+      _game.setHasVideoBackground(widget.backgroundVideo != null);
     }
   }
 
@@ -679,6 +695,22 @@ class _SimaiPlayerState extends State<SimaiPlayer> {
     return Stack(
       fit: StackFit.expand,
       children: [
+        const ColoredBox(color: Colors.black),
+        if (widget.backgroundVideo != null)
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final diameter =
+                  math.min(constraints.maxWidth, constraints.maxHeight) *
+                  _game.chartRadiusRatio *
+                  1.05;
+              return Center(
+                child: SizedBox.square(
+                  dimension: diameter,
+                  child: ClipOval(child: widget.backgroundVideo!),
+                ),
+              );
+            },
+          ),
         GameWidget(
           game: _game,
           errorBuilder: (context, error) {
@@ -1050,6 +1082,8 @@ class SimaiPlayerPage extends StatefulWidget {
   final SimaiTextStyleResolver? textStyleResolver;
   final Future<void> Function()? prepareFonts;
   final SimaiSwitchBuilder? switchBuilder;
+  final Widget? backgroundVideo;
+  final bool hasPvBackground;
 
   const SimaiPlayerPage({
     super.key,
@@ -1069,6 +1103,8 @@ class SimaiPlayerPage extends StatefulWidget {
     this.textStyleResolver,
     this.prepareFonts,
     this.switchBuilder,
+    this.backgroundVideo,
+    this.hasPvBackground = false,
   });
 
   @override
@@ -1674,6 +1710,44 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
                               controller.hitSoundOffsetMs = v.toInt(),
                           valueSuffix: '${controller.hitSoundOffsetMs}ms',
                         ),
+                        if (widget.hasPvBackground) ...[
+                          _buildSliderSetting(
+                            context,
+                            label: 'PV 延迟',
+                            icon: Icons.ondemand_video_outlined,
+                            value: controller.pvOffsetMs.toDouble(),
+                            min: -2000,
+                            max: 2000,
+                            divisions: 400,
+                            onChanged: (v) =>
+                                controller.pvOffsetMs = v.round(),
+                            valueSuffix:
+                                '${controller.pvOffsetMs > 0 ? '+' : ''}${controller.pvOffsetMs}ms',
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                            child: Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: [
+                                for (final delta in const [-50, -10, 0, 10, 50])
+                                  _buildOffsetQuickChip(
+                                    context,
+                                    label: delta == 0
+                                        ? '0ms'
+                                        : '${delta > 0 ? '+' : ''}${delta}ms',
+                                    selected:
+                                        delta == 0 && controller.pvOffsetMs == 0,
+                                    onTap: () => controller.pvOffsetMs =
+                                        delta == 0
+                                        ? 0
+                                        : (controller.pvOffsetMs + delta)
+                                              .clamp(-2000, 2000),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -1811,6 +1885,45 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
     );
   }
 
+  Widget _buildOffsetQuickChip(
+    BuildContext context, {
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return Material(
+      color: selected
+          ? colorScheme.primaryContainer
+          : colorScheme.onSurface.withValues(alpha: 0.08),
+      shape: StadiumBorder(
+        side: BorderSide(
+          color: selected ? colorScheme.primary : colorScheme.outlineVariant,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        splashFactory: NoSplash.splashFactory,
+        highlightColor: Colors.transparent,
+        hoverColor: Colors.transparent,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Text(
+            label,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: selected
+                  ? colorScheme.onPrimaryContainer
+                  : colorScheme.onSurfaceVariant,
+              fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildPlaybackRateChip(
     BuildContext context, {
     required double rate,
@@ -1887,6 +2000,7 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
       controller: widget.controller,
       displayFont: widget.displayFont,
       textStyleResolver: widget.textStyleResolver,
+      backgroundVideo: widget.backgroundVideo,
       onReady: _onPlayerReady,
       onError: (error) {
         if (!mounted) return;

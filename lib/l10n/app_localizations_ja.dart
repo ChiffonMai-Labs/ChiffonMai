@@ -16000,4 +16000,16 @@ class AppLocalizationsJa extends AppLocalizations {
       String notes, String duration, String density) {
     return '総ノーツ数 $notes ÷ 参考時間 $duration = $density ノーツ/秒\n現在の難易度の全ノーツ数と参考時間から算出した目安です。';
   }
+
+  @override
+  String get chartPlayLoadPv => 'PV背景を読み込む';
+
+  @override
+  String get chartPlayLoadPvSubtitle => 'PVがある場合は筐体風の円形背景としてトリミング再生します';
+
+  @override
+  String get chartPlayDifficultySection => '譜面難易度を選択';
+
+  @override
+  String get chartPlayOptionsSection => '再生リソース';
 }

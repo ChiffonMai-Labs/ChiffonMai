@@ -10801,5 +10801,9 @@
         "type": "String"
       }
     }
-  }
+  },
+  "chartPlayLoadPv": "加载 PV 背景",
+  "chartPlayLoadPvSubtitle": "有 PV 时裁剪为机台圆形背景播放",
+  "chartPlayDifficultySection": "选择谱面难度",
+  "chartPlayOptionsSection": "播放资源"
 }

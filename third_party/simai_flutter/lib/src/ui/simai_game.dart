@@ -65,6 +65,7 @@ class SimaiGame extends FlameGame {
   bool showCornerInfo;
   bool showFps;
   bool showDetailedPerformanceInfo;
+  bool hasVideoBackground;
   final double chartRadiusRatio;
   final double gameplayContactRadiusRatio;
   VoidCallback? onPlaybackCompleted;
@@ -196,6 +197,7 @@ class SimaiGame extends FlameGame {
     this.showCornerInfo = true,
     this.showFps = true,
     this.showDetailedPerformanceInfo = false,
+    this.hasVideoBackground = false,
     this.chartRadiusRatio = 0.85,
     this.gameplayContactRadiusRatio =
         SimaiGameplayInputMapper.defaultContactRadiusRatio,
@@ -831,6 +833,16 @@ class SimaiGame extends FlameGame {
       }
     }
     return maxTime;
+  }
+
+  @override
+  Color backgroundColor() =>
+      hasVideoBackground ? Colors.transparent : const Color(0xFF000000);
+
+  void setHasVideoBackground(bool value) {
+    if (hasVideoBackground == value) return;
+    hasVideoBackground = value;
+    _requestPausedFrame();
   }
 
   void setBackgroundImageProvider(ImageProvider? provider) {
@@ -1669,7 +1681,7 @@ class JudgeBackgroundComponent extends PositionComponent {
 
   @override
   void render(Canvas canvas) {
-    final bgImage = _backgroundImage;
+    final bgImage = game.hasVideoBackground ? null : _backgroundImage;
     final sensorImage = _sensorImage;
 
     if (bgImage != null || sensorImage != null) {

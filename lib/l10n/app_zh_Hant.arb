@@ -4578,5 +4578,9 @@
         "type": "String"
       }
     }
-  }
+  },
+  "chartPlayLoadPv": "載入 PV 背景",
+  "chartPlayLoadPvSubtitle": "有 PV 時裁切為機台圓形背景播放",
+  "chartPlayDifficultySection": "選擇譜面難度",
+  "chartPlayOptionsSection": "播放資源"
 }

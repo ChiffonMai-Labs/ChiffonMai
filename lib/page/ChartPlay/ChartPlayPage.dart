@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:simai_flutter/simai_flutter.dart';
+import 'package:video_player/video_player.dart';
 import 'package:my_first_flutter_app/service/System/AppFontService.dart';
 import 'package:my_first_flutter_app/service/ChartPlay/ChartPlaySettingsStore.dart';
 import 'package:my_first_flutter_app/service/System/LoadingTipsStore.dart';
@@ -34,6 +35,9 @@ class ChartPlayPage extends StatefulWidget {
   /// 是否在创建播放器时查找并加载音频。默认保持原有行为。
   final bool loadAudio;
 
+  /// 是否在创建播放器时尝试加载 PV 作为机台圆形背景。
+  final bool loadPv;
+
   const ChartPlayPage({
     super.key,
     required this.maidataContent,
@@ -44,6 +48,7 @@ class ChartPlayPage extends StatefulWidget {
     this.bgImagePath,
     this.audioFilePath,
     this.loadAudio = true,
+    this.loadPv = false,
   });
 
   @override
@@ -78,6 +83,26 @@ class _ChartPlayPageState extends State<ChartPlayPage>
   /// 不防抖会写爆 SharedPreferences。
   Timer? _settingsSaveDebounce;
   Timer? _videoExportSettingsSaveDebounce;
+
+  static const _pvHeaders = <String, String>{
+    'User-Agent': 'Mozilla/5.0 (Android) AppleWebKit/537.36',
+    'Referer': 'https://download.wmc.pub/',
+  };
+  VideoPlayerController? _pvController;
+  bool _pvReady = false;
+  int _pvLoadGen = 0;
+  bool _pvSyncing = false;
+  bool _pvSyncPending = false;
+  bool _pvForceSeek = false;
+  double _lastPvObservedTime = double.nan;
+  int _lastPvObservedOffsetMs = 0;
+  int _lastPvObservedMusicOffsetMs = 0;
+  double _lastAppliedPvSpeed = 1.0;
+  Timer? _pvPeriodicSyncTimer;
+  Timer? _pvPausedSeekThrottle;
+
+  bool get _canLoadRemotePv =>
+      widget.loadPv && RegExp(r'^\d+$').hasMatch(widget.songId.trim());
 
   @override
   void initState() {
@@ -137,8 +162,14 @@ class _ChartPlayPageState extends State<ChartPlayPage>
     if (state == AppLifecycleState.resumed) {
       // 从后台回来时渲染 Surface 可能已经重建，补投票一次
       RefreshRateUtil.requestMax();
+      _pvForceSeek = true;
+      unawaited(_syncPv());
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
+      final pv = _pvController;
+      if (_pvReady && pv != null && pv.value.isPlaying) {
+        unawaited(pv.pause());
+      }
       // 切后台/被划掉前立刻把设置写下去，别等 dispose
       _flushSettingsNow();
     }
@@ -160,9 +191,211 @@ class _ChartPlayPageState extends State<ChartPlayPage>
     // 沿用上次的设置（控制器 setter 自带「值没变就 return」，不会有多余重建）
     ChartPlaySettingsStore().applyTo(controller);
 
+    _lastPvObservedOffsetMs = controller.pvOffsetMs;
+    _lastPvObservedMusicOffsetMs = controller.musicOffsetMs;
+    _lastPvObservedTime = controller.chartTime;
+
     // 用户改设置 → 控制器的 setter 会 notifyListeners → 防抖落盘
     controller.addListener(_scheduleSettingsSave);
+    controller.addListener(_onControllerChangedForPv);
+    controller.timeNotifier.addListener(_onChartTimeChangedForPv);
     return controller;
+  }
+
+  Future<void> _loadPvBackground() async {
+    if (!_canLoadRemotePv || _isLeaving) return;
+    final gen = ++_pvLoadGen;
+    VideoPlayerController? pv;
+    try {
+      final cachedFile = await SongMediaCache.instance.existingPv(widget.songId);
+      if (!mounted || _isLeaving || gen != _pvLoadGen) return;
+      final options = VideoPlayerOptions(mixWithOthers: true);
+      pv = cachedFile != null
+          ? VideoPlayerController.file(
+              cachedFile,
+              videoPlayerOptions: options,
+              viewType: VideoViewType.textureView,
+            )
+          : VideoPlayerController.networkUrl(
+              Uri.parse(ApiUrls.wmcPvUrl(widget.songId)),
+              httpHeaders: _pvHeaders,
+              videoPlayerOptions: options,
+              viewType: VideoViewType.textureView,
+            );
+      await pv.initialize();
+      await pv.setVolume(0.0);
+      await pv.setLooping(false);
+      if (!mounted || _isLeaving || gen != _pvLoadGen) {
+        unawaited(pv.dispose());
+        return;
+      }
+      final previous = _pvController;
+      _pvController = pv;
+      _pvReady = true;
+      _pvForceSeek = true;
+      _lastAppliedPvSpeed = 1.0;
+      _pvPeriodicSyncTimer?.cancel();
+      _pvPeriodicSyncTimer =
+          Timer.periodic(const Duration(milliseconds: 400), (_) {
+        if (!mounted || _isLeaving || !_pvReady) return;
+        if (_controller?.isPlaying == true) {
+          unawaited(_syncPv());
+        }
+      });
+      if (previous != null && !identical(previous, pv)) {
+        unawaited(previous.dispose());
+      }
+      setState(() {});
+      unawaited(_syncPv());
+    } catch (e) {
+      debugPrint('[ChartPlay] PV 不可用或加载失败，保持曲绘背景: $e');
+      if (pv != null) {
+        unawaited(pv.dispose());
+      }
+    }
+  }
+
+  void _onControllerChangedForPv() {
+    final ctrl = _controller;
+    if (ctrl == null || !_pvReady) return;
+    if (ctrl.pvOffsetMs != _lastPvObservedOffsetMs ||
+        ctrl.musicOffsetMs != _lastPvObservedMusicOffsetMs) {
+      _lastPvObservedOffsetMs = ctrl.pvOffsetMs;
+      _lastPvObservedMusicOffsetMs = ctrl.musicOffsetMs;
+      _pvForceSeek = true;
+    }
+    unawaited(_syncPv());
+  }
+
+  void _onChartTimeChangedForPv() {
+    final ctrl = _controller;
+    final pv = _pvController;
+    if (!_pvReady || ctrl == null || pv == null) return;
+    final nowTime = ctrl.chartTime;
+    if (ctrl.isPlaying) {
+      if (_lastPvObservedTime.isFinite &&
+          (nowTime - _lastPvObservedTime).abs() > 0.35) {
+        _pvForceSeek = true;
+        unawaited(_syncPv());
+      } else if (!pv.value.isPlaying) {
+        final durationSec = pv.value.duration.inMilliseconds / 1000.0;
+        final targetSec =
+            (nowTime - ctrl.effectiveMusicOffsetSeconds) -
+            (ctrl.pvOffsetMs / 1000.0);
+        if (durationSec > 0 && targetSec >= 0 && targetSec < durationSec) {
+          unawaited(_syncPv());
+        }
+      }
+      _lastPvObservedTime = nowTime;
+      return;
+    }
+    _lastPvObservedTime = nowTime;
+    _pvPausedSeekThrottle?.cancel();
+    _pvPausedSeekThrottle = Timer(const Duration(milliseconds: 80), () {
+      if (!mounted || _isLeaving || !_pvReady) return;
+      if (_controller?.isPlaying == false) {
+        _pvForceSeek = true;
+        unawaited(_syncPv());
+      }
+    });
+  }
+
+  Future<void> _syncPv() async {
+    final pv = _pvController;
+    if (!_pvReady || pv == null || !pv.value.isInitialized) return;
+    _pvSyncPending = true;
+    if (_pvSyncing) return;
+    _pvSyncing = true;
+    try {
+      while (_pvSyncPending &&
+          mounted &&
+          !_isLeaving &&
+          identical(_pvController, pv)) {
+        _pvSyncPending = false;
+        final ctrl = _controller;
+        if (ctrl == null || !_pvReady || !pv.value.isInitialized) break;
+
+        final durationMs = pv.value.duration.inMilliseconds;
+        if (durationMs <= 0) continue;
+
+        final targetSec =
+            (ctrl.chartTime - ctrl.effectiveMusicOffsetSeconds) -
+            (ctrl.pvOffsetMs / 1000.0);
+        final durationSec = durationMs / 1000.0;
+        final clampedSec = targetSec.clamp(0.0, durationSec).toDouble();
+        final targetDur = Duration(milliseconds: (clampedSec * 1000).round());
+        final forceSeek = _pvForceSeek;
+        _pvForceSeek = false;
+        final currentPos = pv.value.position;
+
+        if (!ctrl.isPlaying) {
+          if (pv.value.isPlaying) {
+            await pv.pause();
+          }
+          if (!mounted || _isLeaving || !identical(_pvController, pv)) break;
+          if (forceSeek || (currentPos - targetDur).abs().inMilliseconds > 80) {
+            await pv.seekTo(targetDur);
+          }
+          continue;
+        }
+
+        if (targetSec < 0 || targetSec >= durationSec) {
+          if (pv.value.isPlaying) {
+            await pv.pause();
+          }
+          if (!mounted || _isLeaving || !identical(_pvController, pv)) break;
+          if (targetSec < 0 && currentPos.inMilliseconds > 80) {
+            await pv.seekTo(Duration.zero);
+          }
+          continue;
+        }
+
+        final desiredSpeed = ctrl.playbackRate.clamp(0.25, 3.0).toDouble();
+        final driftLimitMs = (220 * desiredSpeed).round().clamp(180, 450);
+        final driftMs = (currentPos - targetDur).abs().inMilliseconds;
+        if (forceSeek || !pv.value.isPlaying || driftMs > driftLimitMs) {
+          await pv.seekTo(targetDur);
+          if (!mounted || _isLeaving || !identical(_pvController, pv)) break;
+        }
+        if (!pv.value.isPlaying) {
+          await pv.play();
+          if (!mounted || _isLeaving || !identical(_pvController, pv)) break;
+        }
+        if ((_lastAppliedPvSpeed - desiredSpeed).abs() > 0.001) {
+          try {
+            await pv.setPlaybackSpeed(desiredSpeed);
+            _lastAppliedPvSpeed = desiredSpeed;
+          } catch (_) {}
+        }
+      }
+    } catch (e) {
+      debugPrint('[ChartPlay] PV 同步异常: $e');
+    } finally {
+      _pvSyncing = false;
+    }
+  }
+
+  Widget? _buildPvBackground() {
+    final pv = _pvController;
+    if (!_pvReady || pv == null || !pv.value.isInitialized) return null;
+    final videoSize = pv.value.size;
+    final width = videoSize.width > 0 ? videoSize.width : 16.0;
+    final height = videoSize.height > 0 ? videoSize.height : 9.0;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        FittedBox(
+          fit: BoxFit.cover,
+          clipBehavior: Clip.hardEdge,
+          child: SizedBox(
+            width: width,
+            height: height,
+            child: VideoPlayer(pv),
+          ),
+        ),
+        ColoredBox(color: Colors.black.withValues(alpha: 0.55)),
+      ],
+    );
   }
 
   void _scheduleSettingsSave() {
@@ -274,6 +507,9 @@ class _ChartPlayPageState extends State<ChartPlayPage>
     _metronomeEnabled = settings.metronomeEnabled;
     _metronomeSoundEnabled = settings.metronomeSoundEnabled;
     debugPrint('[ChartPlay] settings-ready');
+    if (_canLoadRemotePv) {
+      unawaited(_loadPvBackground());
+    }
 
     if (widget.loadAudio) {
       // 音源是可选资源，不能让曲库接口或音源服务阻塞谱面播放器的创建。
@@ -380,6 +616,8 @@ class _ChartPlayPageState extends State<ChartPlayPage>
       setState(() {
         _chartOffset = offset;
         _controller?.removeListener(_scheduleSettingsSave);
+        _controller?.removeListener(_onControllerChangedForPv);
+        _controller?.timeNotifier.removeListener(_onChartTimeChangedForPv);
         _controller?.dispose();
         _gameplayController?.dispose();
         controller = _createController(chart, audioPath);
@@ -668,6 +906,8 @@ E
       setState(() {
         _chartOffset = 0.0;
         _controller?.removeListener(_scheduleSettingsSave);
+        _controller?.removeListener(_onControllerChangedForPv);
+        _controller?.timeNotifier.removeListener(_onChartTimeChangedForPv);
         _controller?.dispose();
         _gameplayController?.dispose();
         controller = _createController(chart, audioPath);
@@ -689,6 +929,11 @@ E
   @override
   void dispose() {
     _isLeaving = true;
+    _pvLoadGen++;
+    _pvPeriodicSyncTimer?.cancel();
+    _pvPeriodicSyncTimer = null;
+    _pvPausedSeekThrottle?.cancel();
+    _pvPausedSeekThrottle = null;
     _loadingDiagnosticTimer?.cancel();
     _loadingTipTimer?.cancel();
     debugPrint('[ChartPlay] dispose');
@@ -714,6 +959,14 @@ E
     ChartPlaySettingsStore().saveFrom(_controller);
     unawaited(ChartVideoExportSettingsStore().saveNow());
     _controller?.removeListener(_scheduleSettingsSave);
+    _controller?.removeListener(_onControllerChangedForPv);
+    _controller?.timeNotifier.removeListener(_onChartTimeChangedForPv);
+    final pv = _pvController;
+    _pvController = null;
+    _pvReady = false;
+    if (pv != null) {
+      unawaited(pv.dispose());
+    }
     _gameplayController?.dispose();
     _controller?.dispose();
     super.dispose();
@@ -751,6 +1004,8 @@ E
                 key: _playerKey,
                 controller: _controller!,
                 gameplayController: _gameplayController,
+                backgroundVideo: _buildPvBackground(),
+                hasPvBackground: _pvReady,
                 videoExportMetadata: _videoMetadata,
                 videoExportOptions: _videoExportOptions,
                 videoExportSettings:

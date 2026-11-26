@@ -16625,4 +16625,17 @@ class AppLocalizationsEn extends AppLocalizations {
       String notes, String duration, String density) {
     return 'Total notes $notes ÷ Duration $duration = $density notes/s\nEstimated from all notes in this chart and reference duration.';
   }
+
+  @override
+  String get chartPlayLoadPv => 'Load PV background';
+
+  @override
+  String get chartPlayLoadPvSubtitle =>
+      'Crop PV into circular arcade background when available';
+
+  @override
+  String get chartPlayDifficultySection => 'Select chart difficulty';
+
+  @override
+  String get chartPlayOptionsSection => 'Playback resources';
 }

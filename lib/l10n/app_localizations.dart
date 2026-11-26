@@ -7221,7 +7221,7 @@ abstract class AppLocalizations {
   /// No description provided for @flowTranslatedFromP0ByBaiduSLanguage.
   ///
   /// In zh, this message translates to:
-  /// **'由百度大模型翻译自{p0}'**
+  /// **'由大模型翻译自{p0}'**
   String flowTranslatedFromP0ByBaiduSLanguage(String p0);
 
   /// No description provided for @flowTranslateToChinese.
@@ -13750,7 +13750,7 @@ abstract class AppLocalizations {
   /// No description provided for @flowTranslatedByBaiduSLanguageModel.
   ///
   /// In zh, this message translates to:
-  /// **'由百度大模型翻译'**
+  /// **'由大模型翻译'**
   String get flowTranslatedByBaiduSLanguageModel;
 
   /// No description provided for @flowTranslating.
@@ -27447,6 +27447,30 @@ abstract class AppLocalizations {
   /// **'总物量 {notes} ÷ 参考时长 {duration} = {density} 个/秒\n按当前难度全部音符数与参考时长估算，仅供参考。'**
   String songAvgNoteDensityDetail(
       String notes, String duration, String density);
+
+  /// No description provided for @chartPlayLoadPv.
+  ///
+  /// In zh, this message translates to:
+  /// **'加载 PV 背景'**
+  String get chartPlayLoadPv;
+
+  /// No description provided for @chartPlayLoadPvSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'有 PV 时裁剪为机台圆形背景播放'**
+  String get chartPlayLoadPvSubtitle;
+
+  /// No description provided for @chartPlayDifficultySection.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择谱面难度'**
+  String get chartPlayDifficultySection;
+
+  /// No description provided for @chartPlayOptionsSection.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放资源'**
+  String get chartPlayOptionsSection;
 }
 
 class _AppLocalizationsDelegate

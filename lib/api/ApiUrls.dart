@@ -230,6 +230,10 @@ class ApiUrls {
   static String wmcAudioUrl(String songId) =>
       '$WmcMaidataFallbackBaseUrl/s/$songId/track.mp3';
 
+  /// 单曲 PV 地址（wmc.pub）
+  static String wmcPvUrl(String songId) =>
+      '$WmcMaidataFallbackBaseUrl/s/$songId/pv.mp4';
+
   // 落雪 OAuth 相关地址（落雪自有 OAuth，经网关前先保持直连）
   static const String LuoXueBaseUrl = 'https://maimai.lxns.net';
   static const String LuoXueApiBaseUrl = 'https://maimai.lxns.net/api/v0';

@@ -4578,5 +4578,9 @@
         "type": "String"
       }
     }
-  }
+  },
+  "chartPlayLoadPv": "PV背景を読み込む",
+  "chartPlayLoadPvSubtitle": "PVがある場合は筐体風の円形背景としてトリミング再生します",
+  "chartPlayDifficultySection": "譜面難易度を選択",
+  "chartPlayOptionsSection": "再生リソース"
 }
