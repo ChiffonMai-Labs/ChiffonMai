@@ -6,7 +6,7 @@
   <a href="https://apps.apple.com/cn/app/chiffonmai/id6832199686"><img src="https://img.shields.io/badge/App%20Store-下载-0D96F6.svg?logo=appstore&logoColor=white" alt="App Store"></a>
   <img src="https://img.shields.io/badge/Platform-Android%20%7C%20iOS-blue.svg" alt="Platform">
   <img src="https://img.shields.io/badge/Flutter-3.47%2B-02569B.svg?logo=flutter&logoColor=white" alt="Flutter">
-  <img src="https://img.shields.io/badge/Version-3.0.3%2B60-6C63FF.svg" alt="Version">
+  <img src="https://img.shields.io/badge/Version-3.1.0%2B61-6C63FF.svg" alt="Version">
   <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License">
   <a href="https://github.com/ChiffonMai-Labs/ChiffonMai/actions/workflows/build_ios.yml"><img src="https://github.com/ChiffonMai-Labs/ChiffonMai/actions/workflows/build_ios.yml/badge.svg" alt="Build iOS"></a>
 </div>
@@ -59,7 +59,7 @@ ChiffonMai 是面向街机音游《舞萌 DX》玩家的**第三方非官方**�
 
 ## 当前版本与导航
 
-当前源码版本为 **3.0.3+60**（构建号 60 用于避开已用过的 59，更新说明见 [v3.0.3](docs/release-notes-3.0.3.md)）。3.0.0 完成了全 App 的界面重做，底部导航为 **首页、曲库、成绩、游玩、我的** 五个标签；「游玩」内分为出勤和休闲。首页「常用」即收藏列表，可拖动排序，并带自动同步和服务器状态小组件。
+当前源码版本为 **3.1.0+61**（上一正式版更新说明见 [v3.0.3](docs/release-notes-3.0.3.md)）。3.0.0 完成了全 App 的界面重做，底部导航为 **首页、曲库、成绩、游玩、我的** 五个标签；「游玩」内分为出勤和休闲。首页「常用」即收藏列表，可拖动排序，并带自动同步和服务器状态小组件。
 
 - **多语言**：界面、服务提示和系统通知支持简体中文、繁体中文、英语、日语，默认跟随系统；歌曲资料、服务端原文和用户内容保持原文。用户协议和隐私政策另有四语版本，随安装包离线可读。
 - **绑定与授权管理**：maimai Score Hub、水鱼登录与授权、落雪授权、AWMC NET 账号和机台身份集中在一个入口，按钮下方的状态标签即时更新。
@@ -196,7 +196,7 @@ ChiffonMai 是面向街机音游《舞萌 DX》玩家的**第三方非官方**�
 
 ## 下载和安装
 
-当前版本 **3.0.3+60**，更新内容见 [v3.0.3 更新说明](docs/release-notes-3.0.3.md)。
+当前版本 **3.1.0+61**，上一正式版更新内容见 [v3.0.3 更新说明](docs/release-notes-3.0.3.md)。
 
 ### iOS
 
@@ -345,9 +345,9 @@ ChiffonMai 免费、无广告、不接入统计 SDK。赞助用于服务器开�
 ### 数据与服务
 
 - **水鱼查分器**：提供曲目数据库和玩家游玩记录数据库。[官网](https://www.diving-fish.com/maimaidx/prober/)
-- **DXRating.net** 提供定数历史、全局标签和备用曲绘。[官网](https://dxrating.net)
-- **AWMC** 提供社区歌曲别名、歌曲详情的谱面标签和曲绘。[谱面预览](https://v.wmc.pub/) · [曲绘与谱面目录](https://download.wmc.pub/)
-- **Yuri-YuzuChaN** 提供备用别名数据库。[项目地址](https://github.com/Yuri-YuzuChaN/maimaiDX)
+- **DXRating.net**：提供定数历史、全局标签和备用曲绘。[官网](https://dxrating.net)
+- **AWMC**：提供社区歌曲别名、歌曲详情的谱面标签和曲绘。[谱面预览](https://v.wmc.pub/) · [曲绘与谱面目录](https://download.wmc.pub/)
+- **Yuri-YuzuChaN**：提供备用别名数据库。[项目地址](https://github.com/Yuri-YuzuChaN/maimaiDX)
 - **落雪咖啡屋**：提供收藏品数据库、歌曲音源支持、曲目数据库和玩家游玩记录数据库。[官网](https://maimai.lxns.net)
 - **Neskol**：提供谱面转换支持。[项目地址](https://github.com/Neskol/Maichart-Converts/tree/master)
 - **AWMC NET**：提供水鱼查分器同步支持、落雪查分器同步支持和对本项目开发的经济支持。[官网](https://net.wmc.pub/)
@@ -368,6 +368,7 @@ ChiffonMai 免费、无广告、不接入统计 SDK。赞助用于服务器开�
 - [**MaiScan Rev**](https://github.com/PojavAnge/MaiScan-Rev)：设计思路借鉴。
 - [**中二查歌**](https://github.com/k4641321/chusearchsong_flutter)：设计思路借鉴。
 - [**bakapiano/maimai-score-hub**](https://github.com/bakapiano/maimai-score-hub)：设计思路借鉴。
+- [**落雪咖啡屋 (@lxns-network/maimai-chart-engine)**](https://github.com/Lxns-Network/maimai-prober-frontend)：街机还原 NOTE 样式与绘制比例参考（MIT）。[第三方声明](assets/legal/simai_flutter_THIRD_PARTY_NOTICES.md)
 
 ### 开源组件
 
