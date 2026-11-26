@@ -16222,7 +16222,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get displayModeSimpleHint =>
-      'Streamlines to 3 core tabs, hides backgrounds, animations, and extra descriptions while keeping the same clean layout';
+      'Hides background artwork, animations, and extra descriptions, merges Play sections, and keeps a compact layout';
 
   @override
   String get simpleModeActiveHint => 'Simple mode active';
@@ -16720,4 +16720,166 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get firstBindSkipForNow => 'Skip for now';
+
+  @override
+  String get chartPlayPreparingPv => 'Preparing PV...';
+
+  @override
+  String get chartPlayInitializingPv => 'Initializing PV video...';
+
+  @override
+  String get chartPlayPvReady => 'PV ready';
+
+  @override
+  String get chartPlayPvUnavailable => 'PV unavailable, using cover background';
+
+  @override
+  String get chartPlayWaitingForPv => 'Chart ready, waiting for PV...';
+
+  @override
+  String get chartPlayAudioLoadFailedHint =>
+      'Failed to load audio; playing answer SFX only';
+
+  @override
+  String get chartPlayPvLoadFailedHint =>
+      'Failed to load PV; switched to cover background';
+
+  @override
+  String get chartPlayPvStreamingFallback => 'Switching to streaming PV...';
+
+  @override
+  String get chartMetronomeSpeed => 'Metronome speed';
+
+  @override
+  String awmcLastFetchedTime(String time) {
+    return 'Last fetched: $time';
+  }
+
+  @override
+  String get lxnsNoteStyleCreditDetails =>
+      'Arcade note style & geometry reference (MIT)';
+
+  @override
+  String get chartPlayLxnsNoteStyleCreditPill => 'Note style ref: LXNS · MIT';
+
+  @override
+  String get chartPlayCellularPvBanner =>
+      'Using mobile data: downloading PV video consumes significant data';
+
+  @override
+  String get chartPlayCellularPvDialogTitle => 'Mobile Data Warning';
+
+  @override
+  String get chartPlayCellularPvDialogBody =>
+      'You are on mobile data and this song\'s PV is not cached yet. Downloading the PV may use significant cellular data. Continue?';
+
+  @override
+  String get chartPlayCellularContinueDownload => 'Continue download';
+
+  @override
+  String get chartPlayCellularEnterWithoutPv => 'Enter without PV';
+
+  @override
+  String get videoExportPvNeedDownloadTitle => 'PV Download Required';
+
+  @override
+  String get videoExportPvNeedDownloadBody =>
+      'This song\'s PV is not cached locally yet. Download it before using it as the video export background.';
+
+  @override
+  String get videoExportPvCellularWarning =>
+      'Mobile data detected: downloading the PV will consume significant data.';
+
+  @override
+  String get videoExportPvDownloadAction => 'Download PV';
+
+  @override
+  String get videoExportPvDownloading => 'Downloading PV...';
+
+  @override
+  String get videoExportPvDownloadFailed =>
+      'PV download failed, please try again later';
+
+  @override
+  String get videoExportPvNotAvailable => 'No PV available for this song';
+
+  @override
+  String get songSearchScope => 'Search scope';
+
+  @override
+  String get songSearchScopeAll => 'All';
+
+  @override
+  String get songSearchScopeTitleAndAlias => 'Title & Alias';
+
+  @override
+  String get songSearchScopeTitleOnly => 'Title only';
+
+  @override
+  String get songSearchScopeAliasOnly => 'Alias only';
+
+  @override
+  String get songSearchHintTitleAndAlias => 'Search by title or alias';
+
+  @override
+  String get songSearchHintAliasOnly => 'Search by alias only';
+
+  @override
+  String get favoriteSortCustom => 'Custom order';
+
+  @override
+  String get favoriteReorderMode => 'Reorder';
+
+  @override
+  String get favoriteReorderDone => 'Done';
+
+  @override
+  String get favoriteReorderHint =>
+      'Drag handle, tap index, or use action buttons to reorder';
+
+  @override
+  String get favoriteMoveUp => 'Move up';
+
+  @override
+  String get favoriteMoveDown => 'Move down';
+
+  @override
+  String get favoriteMoveToTop => 'Move to top';
+
+  @override
+  String get favoriteMoveToBottom => 'Move to bottom';
+
+  @override
+  String get favoriteMoveToIndex => 'Jump to index';
+
+  @override
+  String get favoriteSwapMode => 'Tap to swap';
+
+  @override
+  String get favoriteSwapHintIdle => 'Tap the first item to start swapping';
+
+  @override
+  String favoriteSwapHintSelected(String position) {
+    return 'Selected #$position, tap another item to swap';
+  }
+
+  @override
+  String get favoriteSwapCompleted => 'Positions swapped';
+
+  @override
+  String get favoriteMoveIndexDialogTitle => 'Move to position';
+
+  @override
+  String favoriteMoveIndexDialogHint(String max) {
+    return 'Enter a position between 1 and $max';
+  }
+
+  @override
+  String favoriteMoveIndexInvalid(String max) {
+    return 'Enter a valid integer between 1 and $max';
+  }
+
+  @override
+  String get favoriteReorderUnavailableEmpty =>
+      'At least 2 items are required to reorder';
 }

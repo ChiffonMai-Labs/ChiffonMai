@@ -15322,7 +15322,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get displayModeStandardHint => '显示全部 5 个标签页、背景装饰、完整说明与动效';
 
   @override
-  String get displayModeSimpleHint => '精简为 3 个核心标签页，隐藏背景装饰、动效与冗余说明，保留紧凑一致的功能布局';
+  String get displayModeSimpleHint => '隐藏背景装饰、动效与冗余说明，合并游玩页分区并保持紧凑布局';
 
   @override
   String get simpleModeActiveHint => '当前为简洁模式';
@@ -15762,6 +15762,161 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get firstBindSkipForNow => '暂不绑定，先逛逛';
+
+  @override
+  String get chartPlayPreparingPv => '正在准备 PV…';
+
+  @override
+  String get chartPlayInitializingPv => '正在初始化 PV 画面…';
+
+  @override
+  String get chartPlayPvReady => 'PV 已就绪';
+
+  @override
+  String get chartPlayPvUnavailable => '暂无可用 PV，将使用曲绘背景';
+
+  @override
+  String get chartPlayWaitingForPv => '谱面与音源已就绪，正在等待 PV 加载…';
+
+  @override
+  String get chartPlayAudioLoadFailedHint => '音源加载失败，当前仅播放正解音';
+
+  @override
+  String get chartPlayPvLoadFailedHint => 'PV 加载失败，已切换曲绘背景';
+
+  @override
+  String get chartPlayPvStreamingFallback => '正在切换流式加载 PV…';
+
+  @override
+  String get chartMetronomeSpeed => '节拍器流速';
+
+  @override
+  String awmcLastFetchedTime(String time) {
+    return '上次获取：$time';
+  }
+
+  @override
+  String get lxnsNoteStyleCreditDetails => '街机还原 NOTE 样式与绘制比例参考（MIT）';
+
+  @override
+  String get chartPlayLxnsNoteStyleCreditPill => 'NOTE 样式参考 落雪咖啡屋 · MIT';
+
+  @override
+  String get chartPlayCellularPvBanner => '当前正在使用移动数据，下载 PV 视频将消耗较多流量';
+
+  @override
+  String get chartPlayCellularPvDialogTitle => '移动数据流量提醒';
+
+  @override
+  String get chartPlayCellularPvDialogBody =>
+      '当前正在使用移动数据，该曲目的 PV 尚未缓存，下载 PV 将消耗较多移动数据流量，是否继续？';
+
+  @override
+  String get chartPlayCellularContinueDownload => '继续下载';
+
+  @override
+  String get chartPlayCellularEnterWithoutPv => '不加载 PV 直接进入';
+
+  @override
+  String get videoExportPvNeedDownloadTitle => '需要下载 PV';
+
+  @override
+  String get videoExportPvNeedDownloadBody =>
+      '当前曲目的 PV 尚未下载到本地，需要先下载后才能作为视频导出背景。';
+
+  @override
+  String get videoExportPvCellularWarning =>
+      '检测到当前正在使用移动数据，下载 PV 将消耗较多流量，请留意流量使用。';
+
+  @override
+  String get videoExportPvDownloadAction => '下载 PV';
+
+  @override
+  String get videoExportPvDownloading => '正在下载 PV…';
+
+  @override
+  String get videoExportPvDownloadFailed => 'PV 下载失败，请稍后重试';
+
+  @override
+  String get videoExportPvNotAvailable => '该曲目暂无可用 PV';
+
+  @override
+  String get songSearchScope => '搜索范围';
+
+  @override
+  String get songSearchScopeAll => '全部';
+
+  @override
+  String get songSearchScopeTitleAndAlias => '歌名与别名';
+
+  @override
+  String get songSearchScopeTitleOnly => '仅歌名';
+
+  @override
+  String get songSearchScopeAliasOnly => '仅别名';
+
+  @override
+  String get songSearchHintTitleAndAlias => '按歌名或别名搜索';
+
+  @override
+  String get songSearchHintAliasOnly => '仅按别名搜索';
+
+  @override
+  String get favoriteSortCustom => '自定义排序';
+
+  @override
+  String get favoriteReorderMode => '排序';
+
+  @override
+  String get favoriteReorderDone => '完成';
+
+  @override
+  String get favoriteReorderHint => '拖动左侧手柄、点击序号或使用右侧按钮调整顺序';
+
+  @override
+  String get favoriteMoveUp => '上移';
+
+  @override
+  String get favoriteMoveDown => '下移';
+
+  @override
+  String get favoriteMoveToTop => '置顶';
+
+  @override
+  String get favoriteMoveToBottom => '置底';
+
+  @override
+  String get favoriteMoveToIndex => '输入序号';
+
+  @override
+  String get favoriteSwapMode => '点选交换';
+
+  @override
+  String get favoriteSwapHintIdle => '点击第一项以开始交换位置';
+
+  @override
+  String favoriteSwapHintSelected(String position) {
+    return '已选中第 $position 项，点击另一项完成交换';
+  }
+
+  @override
+  String get favoriteSwapCompleted => '已交换位置';
+
+  @override
+  String get favoriteMoveIndexDialogTitle => '移动到指定序号';
+
+  @override
+  String favoriteMoveIndexDialogHint(String max) {
+    return '请输入 1 到 $max 之间的序号';
+  }
+
+  @override
+  String favoriteMoveIndexInvalid(String max) {
+    return '请输入 1～$max 的有效整数';
+  }
+
+  @override
+  String get favoriteReorderUnavailableEmpty => '至少需要 2 项才能调整顺序';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -31084,7 +31239,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get displayModeStandardHint => '顯示全部 5 個分頁、背景裝飾、完整說明與動效';
 
   @override
-  String get displayModeSimpleHint => '精簡為 3 個核心分頁，隱藏背景裝飾、動效與冗餘說明，保留緊湊一致的功能佈局';
+  String get displayModeSimpleHint => '隱藏背景裝飾、動效與冗餘說明，合併遊玩頁分區並保持緊湊佈局';
 
   @override
   String get simpleModeActiveHint => '目前為簡潔模式';
@@ -31524,4 +31679,159 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get firstBindSkipForNow => '暫不綁定，先逛逛';
+
+  @override
+  String get chartPlayPreparingPv => '正在準備 PV…';
+
+  @override
+  String get chartPlayInitializingPv => '正在初始化 PV 畫面…';
+
+  @override
+  String get chartPlayPvReady => 'PV 已就緒';
+
+  @override
+  String get chartPlayPvUnavailable => '暫無可用 PV，將使用曲繪背景';
+
+  @override
+  String get chartPlayWaitingForPv => '譜面與音源已就緒，正在等待 PV 載入…';
+
+  @override
+  String get chartPlayAudioLoadFailedHint => '音源載入失敗，目前僅播放正解音';
+
+  @override
+  String get chartPlayPvLoadFailedHint => 'PV 載入失敗，已切換曲繪背景';
+
+  @override
+  String get chartPlayPvStreamingFallback => '正在切換串流載入 PV…';
+
+  @override
+  String get chartMetronomeSpeed => '節拍器流速';
+
+  @override
+  String awmcLastFetchedTime(String time) {
+    return '上次取得：$time';
+  }
+
+  @override
+  String get lxnsNoteStyleCreditDetails => '街機還原 NOTE 樣式與繪製比例參考（MIT）';
+
+  @override
+  String get chartPlayLxnsNoteStyleCreditPill => 'NOTE 樣式參考 落雪咖啡屋 · MIT';
+
+  @override
+  String get chartPlayCellularPvBanner => '目前正在使用行動數據，下載 PV 影片將消耗較多流量';
+
+  @override
+  String get chartPlayCellularPvDialogTitle => '行動數據流量提醒';
+
+  @override
+  String get chartPlayCellularPvDialogBody =>
+      '目前正在使用行動數據，此曲目的 PV 尚未快取，下載 PV 將消耗較多行動數據流量，是否繼續？';
+
+  @override
+  String get chartPlayCellularContinueDownload => '繼續下載';
+
+  @override
+  String get chartPlayCellularEnterWithoutPv => '不載入 PV 直接進入';
+
+  @override
+  String get videoExportPvNeedDownloadTitle => '需要下載 PV';
+
+  @override
+  String get videoExportPvNeedDownloadBody =>
+      '目前曲目的 PV 尚未下載至本機，需要先下載後才能作為影片匯出背景。';
+
+  @override
+  String get videoExportPvCellularWarning =>
+      '偵測到目前正在使用行動數據，下載 PV 將消耗較多流量，請留意流量使用。';
+
+  @override
+  String get videoExportPvDownloadAction => '下載 PV';
+
+  @override
+  String get videoExportPvDownloading => '正在下載 PV…';
+
+  @override
+  String get videoExportPvDownloadFailed => 'PV 下載失敗，請稍後重試';
+
+  @override
+  String get videoExportPvNotAvailable => '此曲目暫無可用 PV';
+
+  @override
+  String get songSearchScope => '搜尋範圍';
+
+  @override
+  String get songSearchScopeAll => '全部';
+
+  @override
+  String get songSearchScopeTitleAndAlias => '歌名與別名';
+
+  @override
+  String get songSearchScopeTitleOnly => '僅歌名';
+
+  @override
+  String get songSearchScopeAliasOnly => '僅別名';
+
+  @override
+  String get songSearchHintTitleAndAlias => '依歌名或別名搜尋';
+
+  @override
+  String get songSearchHintAliasOnly => '僅依別名搜尋';
+
+  @override
+  String get favoriteSortCustom => '自訂排序';
+
+  @override
+  String get favoriteReorderMode => '排序';
+
+  @override
+  String get favoriteReorderDone => '完成';
+
+  @override
+  String get favoriteReorderHint => '拖曳左側控制柄、點擊序號或使用右側按鈕調整順序';
+
+  @override
+  String get favoriteMoveUp => '上移';
+
+  @override
+  String get favoriteMoveDown => '下移';
+
+  @override
+  String get favoriteMoveToTop => '置頂';
+
+  @override
+  String get favoriteMoveToBottom => '置底';
+
+  @override
+  String get favoriteMoveToIndex => '輸入序號';
+
+  @override
+  String get favoriteSwapMode => '點選交換';
+
+  @override
+  String get favoriteSwapHintIdle => '點擊第一項以開始交換位置';
+
+  @override
+  String favoriteSwapHintSelected(String position) {
+    return '已選取第 $position 項，點擊另一項完成交換';
+  }
+
+  @override
+  String get favoriteSwapCompleted => '已交換位置';
+
+  @override
+  String get favoriteMoveIndexDialogTitle => '移動到指定序號';
+
+  @override
+  String favoriteMoveIndexDialogHint(String max) {
+    return '請輸入 1 到 $max 之間的序號';
+  }
+
+  @override
+  String favoriteMoveIndexInvalid(String max) {
+    return '請輸入 1～$max 的有效整數';
+  }
+
+  @override
+  String get favoriteReorderUnavailableEmpty => '至少需要 2 項才能調整順序';
 }

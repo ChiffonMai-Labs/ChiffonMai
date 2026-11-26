@@ -10607,7 +10607,7 @@
   "displayModeStandard": "常规模式",
   "displayModeSimple": "简洁模式",
   "displayModeStandardHint": "显示全部 5 个标签页、背景装饰、完整说明与动效",
-  "displayModeSimpleHint": "精简为 3 个核心标签页，隐藏背景装饰、动效与冗余说明，保留紧凑一致的功能布局",
+  "displayModeSimpleHint": "隐藏背景装饰、动效与冗余说明，合并游玩页分区并保持紧凑布局",
   "simpleModeActiveHint": "当前为简洁模式",
   "switchToStandardMode": "切回常规模式",
   "simpleModeBackgroundHiddenHint": "简洁模式下已自动隐藏背景图与装饰图，切回常规模式后恢复原有设置",
@@ -10836,5 +10836,81 @@
     }
   },
   "firstBindSkipPullEnter": "跳过拉取，直接进入首页",
-  "firstBindSkipForNow": "暂不绑定，先逛逛"
+  "firstBindSkipForNow": "暂不绑定，先逛逛",
+  "chartPlayPreparingPv": "正在准备 PV…",
+  "chartPlayInitializingPv": "正在初始化 PV 画面…",
+  "chartPlayPvReady": "PV 已就绪",
+  "chartPlayPvUnavailable": "暂无可用 PV，将使用曲绘背景",
+  "chartPlayWaitingForPv": "谱面与音源已就绪，正在等待 PV 加载…",
+  "chartPlayAudioLoadFailedHint": "音源加载失败，当前仅播放正解音",
+  "chartPlayPvLoadFailedHint": "PV 加载失败，已切换曲绘背景",
+  "chartPlayPvStreamingFallback": "正在切换流式加载 PV…",
+  "chartMetronomeSpeed": "节拍器流速",
+  "awmcLastFetchedTime": "上次获取：{time}",
+  "@awmcLastFetchedTime": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "lxnsNoteStyleCreditDetails": "街机还原 NOTE 样式与绘制比例参考（MIT）",
+  "chartPlayLxnsNoteStyleCreditPill": "NOTE 样式参考 落雪咖啡屋 · MIT",
+  "chartPlayCellularPvBanner": "当前正在使用移动数据，下载 PV 视频将消耗较多流量",
+  "chartPlayCellularPvDialogTitle": "移动数据流量提醒",
+  "chartPlayCellularPvDialogBody": "当前正在使用移动数据，该曲目的 PV 尚未缓存，下载 PV 将消耗较多移动数据流量，是否继续？",
+  "chartPlayCellularContinueDownload": "继续下载",
+  "chartPlayCellularEnterWithoutPv": "不加载 PV 直接进入",
+  "videoExportPvNeedDownloadTitle": "需要下载 PV",
+  "videoExportPvNeedDownloadBody": "当前曲目的 PV 尚未下载到本地，需要先下载后才能作为视频导出背景。",
+  "videoExportPvCellularWarning": "检测到当前正在使用移动数据，下载 PV 将消耗较多流量，请留意流量使用。",
+  "videoExportPvDownloadAction": "下载 PV",
+  "videoExportPvDownloading": "正在下载 PV…",
+  "videoExportPvDownloadFailed": "PV 下载失败，请稍后重试",
+  "videoExportPvNotAvailable": "该曲目暂无可用 PV",
+  "songSearchScope": "搜索范围",
+  "songSearchScopeAll": "全部",
+  "songSearchScopeTitleAndAlias": "歌名与别名",
+  "songSearchScopeTitleOnly": "仅歌名",
+  "songSearchScopeAliasOnly": "仅别名",
+  "songSearchHintTitleAndAlias": "按歌名或别名搜索",
+  "songSearchHintAliasOnly": "仅按别名搜索",
+  "favoriteSortCustom": "自定义排序",
+  "favoriteReorderMode": "排序",
+  "favoriteReorderDone": "完成",
+  "favoriteReorderHint": "拖动左侧手柄、点击序号或使用右侧按钮调整顺序",
+  "favoriteMoveUp": "上移",
+  "favoriteMoveDown": "下移",
+  "favoriteMoveToTop": "置顶",
+  "favoriteMoveToBottom": "置底",
+  "favoriteMoveToIndex": "输入序号",
+  "favoriteSwapMode": "点选交换",
+  "favoriteSwapHintIdle": "点击第一项以开始交换位置",
+  "favoriteSwapHintSelected": "已选中第 {position} 项，点击另一项完成交换",
+  "@favoriteSwapHintSelected": {
+    "placeholders": {
+      "position": {
+        "type": "String"
+      }
+    }
+  },
+  "favoriteSwapCompleted": "已交换位置",
+  "favoriteMoveIndexDialogTitle": "移动到指定序号",
+  "favoriteMoveIndexDialogHint": "请输入 1 到 {max} 之间的序号",
+  "@favoriteMoveIndexDialogHint": {
+    "placeholders": {
+      "max": {
+        "type": "String"
+      }
+    }
+  },
+  "favoriteMoveIndexInvalid": "请输入 1～{max} 的有效整数",
+  "@favoriteMoveIndexInvalid": {
+    "placeholders": {
+      "max": {
+        "type": "String"
+      }
+    }
+  },
+  "favoriteReorderUnavailableEmpty": "至少需要 2 项才能调整顺序"
 }

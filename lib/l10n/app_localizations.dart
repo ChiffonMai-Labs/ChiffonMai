@@ -26777,7 +26777,7 @@ abstract class AppLocalizations {
   /// No description provided for @displayModeSimpleHint.
   ///
   /// In zh, this message translates to:
-  /// **'精简为 3 个核心标签页，隐藏背景装饰、动效与冗余说明，保留紧凑一致的功能布局'**
+  /// **'隐藏背景装饰、动效与冗余说明，合并游玩页分区并保持紧凑布局'**
   String get displayModeSimpleHint;
 
   /// No description provided for @simpleModeActiveHint.
@@ -27615,6 +27615,294 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'暂不绑定，先逛逛'**
   String get firstBindSkipForNow;
+
+  /// No description provided for @chartPlayPreparingPv.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在准备 PV…'**
+  String get chartPlayPreparingPv;
+
+  /// No description provided for @chartPlayInitializingPv.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在初始化 PV 画面…'**
+  String get chartPlayInitializingPv;
+
+  /// No description provided for @chartPlayPvReady.
+  ///
+  /// In zh, this message translates to:
+  /// **'PV 已就绪'**
+  String get chartPlayPvReady;
+
+  /// No description provided for @chartPlayPvUnavailable.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无可用 PV，将使用曲绘背景'**
+  String get chartPlayPvUnavailable;
+
+  /// No description provided for @chartPlayWaitingForPv.
+  ///
+  /// In zh, this message translates to:
+  /// **'谱面与音源已就绪，正在等待 PV 加载…'**
+  String get chartPlayWaitingForPv;
+
+  /// No description provided for @chartPlayAudioLoadFailedHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'音源加载失败，当前仅播放正解音'**
+  String get chartPlayAudioLoadFailedHint;
+
+  /// No description provided for @chartPlayPvLoadFailedHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'PV 加载失败，已切换曲绘背景'**
+  String get chartPlayPvLoadFailedHint;
+
+  /// No description provided for @chartPlayPvStreamingFallback.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在切换流式加载 PV…'**
+  String get chartPlayPvStreamingFallback;
+
+  /// No description provided for @chartMetronomeSpeed.
+  ///
+  /// In zh, this message translates to:
+  /// **'节拍器流速'**
+  String get chartMetronomeSpeed;
+
+  /// No description provided for @awmcLastFetchedTime.
+  ///
+  /// In zh, this message translates to:
+  /// **'上次获取：{time}'**
+  String awmcLastFetchedTime(String time);
+
+  /// No description provided for @lxnsNoteStyleCreditDetails.
+  ///
+  /// In zh, this message translates to:
+  /// **'街机还原 NOTE 样式与绘制比例参考（MIT）'**
+  String get lxnsNoteStyleCreditDetails;
+
+  /// No description provided for @chartPlayLxnsNoteStyleCreditPill.
+  ///
+  /// In zh, this message translates to:
+  /// **'NOTE 样式参考 落雪咖啡屋 · MIT'**
+  String get chartPlayLxnsNoteStyleCreditPill;
+
+  /// No description provided for @chartPlayCellularPvBanner.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前正在使用移动数据，下载 PV 视频将消耗较多流量'**
+  String get chartPlayCellularPvBanner;
+
+  /// No description provided for @chartPlayCellularPvDialogTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'移动数据流量提醒'**
+  String get chartPlayCellularPvDialogTitle;
+
+  /// No description provided for @chartPlayCellularPvDialogBody.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前正在使用移动数据，该曲目的 PV 尚未缓存，下载 PV 将消耗较多移动数据流量，是否继续？'**
+  String get chartPlayCellularPvDialogBody;
+
+  /// No description provided for @chartPlayCellularContinueDownload.
+  ///
+  /// In zh, this message translates to:
+  /// **'继续下载'**
+  String get chartPlayCellularContinueDownload;
+
+  /// No description provided for @chartPlayCellularEnterWithoutPv.
+  ///
+  /// In zh, this message translates to:
+  /// **'不加载 PV 直接进入'**
+  String get chartPlayCellularEnterWithoutPv;
+
+  /// No description provided for @videoExportPvNeedDownloadTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'需要下载 PV'**
+  String get videoExportPvNeedDownloadTitle;
+
+  /// No description provided for @videoExportPvNeedDownloadBody.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前曲目的 PV 尚未下载到本地，需要先下载后才能作为视频导出背景。'**
+  String get videoExportPvNeedDownloadBody;
+
+  /// No description provided for @videoExportPvCellularWarning.
+  ///
+  /// In zh, this message translates to:
+  /// **'检测到当前正在使用移动数据，下载 PV 将消耗较多流量，请留意流量使用。'**
+  String get videoExportPvCellularWarning;
+
+  /// No description provided for @videoExportPvDownloadAction.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载 PV'**
+  String get videoExportPvDownloadAction;
+
+  /// No description provided for @videoExportPvDownloading.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在下载 PV…'**
+  String get videoExportPvDownloading;
+
+  /// No description provided for @videoExportPvDownloadFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'PV 下载失败，请稍后重试'**
+  String get videoExportPvDownloadFailed;
+
+  /// No description provided for @videoExportPvNotAvailable.
+  ///
+  /// In zh, this message translates to:
+  /// **'该曲目暂无可用 PV'**
+  String get videoExportPvNotAvailable;
+
+  /// No description provided for @songSearchScope.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索范围'**
+  String get songSearchScope;
+
+  /// No description provided for @songSearchScopeAll.
+  ///
+  /// In zh, this message translates to:
+  /// **'全部'**
+  String get songSearchScopeAll;
+
+  /// No description provided for @songSearchScopeTitleAndAlias.
+  ///
+  /// In zh, this message translates to:
+  /// **'歌名与别名'**
+  String get songSearchScopeTitleAndAlias;
+
+  /// No description provided for @songSearchScopeTitleOnly.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅歌名'**
+  String get songSearchScopeTitleOnly;
+
+  /// No description provided for @songSearchScopeAliasOnly.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅别名'**
+  String get songSearchScopeAliasOnly;
+
+  /// No description provided for @songSearchHintTitleAndAlias.
+  ///
+  /// In zh, this message translates to:
+  /// **'按歌名或别名搜索'**
+  String get songSearchHintTitleAndAlias;
+
+  /// No description provided for @songSearchHintAliasOnly.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅按别名搜索'**
+  String get songSearchHintAliasOnly;
+
+  /// No description provided for @favoriteSortCustom.
+  ///
+  /// In zh, this message translates to:
+  /// **'自定义排序'**
+  String get favoriteSortCustom;
+
+  /// No description provided for @favoriteReorderMode.
+  ///
+  /// In zh, this message translates to:
+  /// **'排序'**
+  String get favoriteReorderMode;
+
+  /// No description provided for @favoriteReorderDone.
+  ///
+  /// In zh, this message translates to:
+  /// **'完成'**
+  String get favoriteReorderDone;
+
+  /// No description provided for @favoriteReorderHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'拖动左侧手柄、点击序号或使用右侧按钮调整顺序'**
+  String get favoriteReorderHint;
+
+  /// No description provided for @favoriteMoveUp.
+  ///
+  /// In zh, this message translates to:
+  /// **'上移'**
+  String get favoriteMoveUp;
+
+  /// No description provided for @favoriteMoveDown.
+  ///
+  /// In zh, this message translates to:
+  /// **'下移'**
+  String get favoriteMoveDown;
+
+  /// No description provided for @favoriteMoveToTop.
+  ///
+  /// In zh, this message translates to:
+  /// **'置顶'**
+  String get favoriteMoveToTop;
+
+  /// No description provided for @favoriteMoveToBottom.
+  ///
+  /// In zh, this message translates to:
+  /// **'置底'**
+  String get favoriteMoveToBottom;
+
+  /// No description provided for @favoriteMoveToIndex.
+  ///
+  /// In zh, this message translates to:
+  /// **'输入序号'**
+  String get favoriteMoveToIndex;
+
+  /// No description provided for @favoriteSwapMode.
+  ///
+  /// In zh, this message translates to:
+  /// **'点选交换'**
+  String get favoriteSwapMode;
+
+  /// No description provided for @favoriteSwapHintIdle.
+  ///
+  /// In zh, this message translates to:
+  /// **'点击第一项以开始交换位置'**
+  String get favoriteSwapHintIdle;
+
+  /// No description provided for @favoriteSwapHintSelected.
+  ///
+  /// In zh, this message translates to:
+  /// **'已选中第 {position} 项，点击另一项完成交换'**
+  String favoriteSwapHintSelected(String position);
+
+  /// No description provided for @favoriteSwapCompleted.
+  ///
+  /// In zh, this message translates to:
+  /// **'已交换位置'**
+  String get favoriteSwapCompleted;
+
+  /// No description provided for @favoriteMoveIndexDialogTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'移动到指定序号'**
+  String get favoriteMoveIndexDialogTitle;
+
+  /// No description provided for @favoriteMoveIndexDialogHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入 1 到 {max} 之间的序号'**
+  String favoriteMoveIndexDialogHint(String max);
+
+  /// No description provided for @favoriteMoveIndexInvalid.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入 1～{max} 的有效整数'**
+  String favoriteMoveIndexInvalid(String max);
+
+  /// No description provided for @favoriteReorderUnavailableEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'至少需要 2 项才能调整顺序'**
+  String get favoriteReorderUnavailableEmpty;
 }
 
 class _AppLocalizationsDelegate

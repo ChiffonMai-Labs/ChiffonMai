@@ -15637,7 +15637,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get displayModeSimpleHint =>
-      '3つの主要タブに整理し、背景装飾・アニメーション・説明文を省いたコンパクトな表示にします';
+      '背景装飾・アニメーション・補足説明を省き、プレイの区分をまとめてコンパクトに表示します';
 
   @override
   String get simpleModeActiveHint => 'シンプルモード中';
@@ -16089,4 +16089,161 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get firstBindSkipForNow => '今はスキップして始める';
+
+  @override
+  String get chartPlayPreparingPv => 'PVを準備しています…';
+
+  @override
+  String get chartPlayInitializingPv => 'PV映像を初期化しています…';
+
+  @override
+  String get chartPlayPvReady => 'PVの準備が完了しました';
+
+  @override
+  String get chartPlayPvUnavailable => 'PVを利用できないためジャケット背景を使用します';
+
+  @override
+  String get chartPlayWaitingForPv => '譜面と音源の準備完了、PVの読み込みを待機中…';
+
+  @override
+  String get chartPlayAudioLoadFailedHint => '音源の読み込みに失敗したため、アンサー音のみで再生します';
+
+  @override
+  String get chartPlayPvLoadFailedHint => 'PVの読み込みに失敗したため、ジャケット背景に切り替えました';
+
+  @override
+  String get chartPlayPvStreamingFallback => 'PVのストリーミング読み込みに切り替えています…';
+
+  @override
+  String get chartMetronomeSpeed => 'メトロノーム速度';
+
+  @override
+  String awmcLastFetchedTime(String time) {
+    return '前回取得：$time';
+  }
+
+  @override
+  String get lxnsNoteStyleCreditDetails => 'アーケード風ノーツスタイル・描画比率参考（MIT）';
+
+  @override
+  String get chartPlayLxnsNoteStyleCreditPill => 'ノーツスタイル参考 落雪咖啡屋 · MIT';
+
+  @override
+  String get chartPlayCellularPvBanner =>
+      'モバイルデータ通信中です。PV動画のダウンロードは通信量を多く消費します';
+
+  @override
+  String get chartPlayCellularPvDialogTitle => 'モバイルデータ通信の注意';
+
+  @override
+  String get chartPlayCellularPvDialogBody =>
+      '現在モバイルデータ通信を使用しており、この曲のPVはまだキャッシュされていません。PVのダウンロードは多くの通信量を消費します。続行しますか？';
+
+  @override
+  String get chartPlayCellularContinueDownload => 'ダウンロードを続行';
+
+  @override
+  String get chartPlayCellularEnterWithoutPv => 'PVなしで開始';
+
+  @override
+  String get videoExportPvNeedDownloadTitle => 'PVのダウンロードが必要';
+
+  @override
+  String get videoExportPvNeedDownloadBody =>
+      'この曲のPVはまだローカルに保存されていません。動画書き出しの背景に使用するには先にダウンロードが必要です。';
+
+  @override
+  String get videoExportPvCellularWarning =>
+      'モバイルデータ通信中です。PVのダウンロードは通信量を多く消費します。';
+
+  @override
+  String get videoExportPvDownloadAction => 'PVをダウンロード';
+
+  @override
+  String get videoExportPvDownloading => 'PVをダウンロード中…';
+
+  @override
+  String get videoExportPvDownloadFailed =>
+      'PVのダウンロードに失敗しました。しばらくしてから再試行してください';
+
+  @override
+  String get videoExportPvNotAvailable => 'この曲に利用可能なPVはありません';
+
+  @override
+  String get songSearchScope => '検索範囲';
+
+  @override
+  String get songSearchScopeAll => 'すべて';
+
+  @override
+  String get songSearchScopeTitleAndAlias => '曲名とエイリアス';
+
+  @override
+  String get songSearchScopeTitleOnly => '曲名のみ';
+
+  @override
+  String get songSearchScopeAliasOnly => 'エイリアスのみ';
+
+  @override
+  String get songSearchHintTitleAndAlias => '曲名またはエイリアスで検索';
+
+  @override
+  String get songSearchHintAliasOnly => 'エイリアスのみで検索';
+
+  @override
+  String get favoriteSortCustom => 'カスタム順';
+
+  @override
+  String get favoriteReorderMode => '並び替え';
+
+  @override
+  String get favoriteReorderDone => '完了';
+
+  @override
+  String get favoriteReorderHint => '左のハンドルをドラッグ、番号をタップ、または右のボタンで順番を調整します';
+
+  @override
+  String get favoriteMoveUp => '上へ';
+
+  @override
+  String get favoriteMoveDown => '下へ';
+
+  @override
+  String get favoriteMoveToTop => '先頭へ';
+
+  @override
+  String get favoriteMoveToBottom => '末尾へ';
+
+  @override
+  String get favoriteMoveToIndex => '番号指定';
+
+  @override
+  String get favoriteSwapMode => 'タップ入替';
+
+  @override
+  String get favoriteSwapHintIdle => '入れ替える1つ目の項目をタップしてください';
+
+  @override
+  String favoriteSwapHintSelected(String position) {
+    return '$position 番目を選択中、別の項目をタップして入れ替え';
+  }
+
+  @override
+  String get favoriteSwapCompleted => '位置を入れ替えました';
+
+  @override
+  String get favoriteMoveIndexDialogTitle => '指定した位置へ移動';
+
+  @override
+  String favoriteMoveIndexDialogHint(String max) {
+    return '1 から $max の番号を入力してください';
+  }
+
+  @override
+  String favoriteMoveIndexInvalid(String max) {
+    return '1〜$max の有効な整数を入力してください';
+  }
+
+  @override
+  String get favoriteReorderUnavailableEmpty => '並び替えには2件以上の項目が必要です';
 }

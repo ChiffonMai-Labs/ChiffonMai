@@ -4447,7 +4447,7 @@
   "displayModeStandard": "常規模式",
   "displayModeSimple": "簡潔模式",
   "displayModeStandardHint": "顯示全部 5 個分頁、背景裝飾、完整說明與動效",
-  "displayModeSimpleHint": "精簡為 3 個核心分頁，隱藏背景裝飾、動效與冗餘說明，保留緊湊一致的功能佈局",
+  "displayModeSimpleHint": "隱藏背景裝飾、動效與冗餘說明，合併遊玩頁分區並保持緊湊佈局",
   "simpleModeActiveHint": "目前為簡潔模式",
   "switchToStandardMode": "切回常規模式",
   "simpleModeBackgroundHiddenHint": "簡潔模式下已自動隱藏背景圖與裝飾圖，切回常規模式後恢復原有設定",
@@ -4613,5 +4613,81 @@
     }
   },
   "firstBindSkipPullEnter": "跳過拉取，直接進入首頁",
-  "firstBindSkipForNow": "暫不綁定，先逛逛"
+  "firstBindSkipForNow": "暫不綁定，先逛逛",
+  "chartPlayPreparingPv": "正在準備 PV…",
+  "chartPlayInitializingPv": "正在初始化 PV 畫面…",
+  "chartPlayPvReady": "PV 已就緒",
+  "chartPlayPvUnavailable": "暫無可用 PV，將使用曲繪背景",
+  "chartPlayWaitingForPv": "譜面與音源已就緒，正在等待 PV 載入…",
+  "chartPlayAudioLoadFailedHint": "音源載入失敗，目前僅播放正解音",
+  "chartPlayPvLoadFailedHint": "PV 載入失敗，已切換曲繪背景",
+  "chartPlayPvStreamingFallback": "正在切換串流載入 PV…",
+  "chartMetronomeSpeed": "節拍器流速",
+  "awmcLastFetchedTime": "上次取得：{time}",
+  "@awmcLastFetchedTime": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "lxnsNoteStyleCreditDetails": "街機還原 NOTE 樣式與繪製比例參考（MIT）",
+  "chartPlayLxnsNoteStyleCreditPill": "NOTE 樣式參考 落雪咖啡屋 · MIT",
+  "chartPlayCellularPvBanner": "目前正在使用行動數據，下載 PV 影片將消耗較多流量",
+  "chartPlayCellularPvDialogTitle": "行動數據流量提醒",
+  "chartPlayCellularPvDialogBody": "目前正在使用行動數據，此曲目的 PV 尚未快取，下載 PV 將消耗較多行動數據流量，是否繼續？",
+  "chartPlayCellularContinueDownload": "繼續下載",
+  "chartPlayCellularEnterWithoutPv": "不載入 PV 直接進入",
+  "videoExportPvNeedDownloadTitle": "需要下載 PV",
+  "videoExportPvNeedDownloadBody": "目前曲目的 PV 尚未下載至本機，需要先下載後才能作為影片匯出背景。",
+  "videoExportPvCellularWarning": "偵測到目前正在使用行動數據，下載 PV 將消耗較多流量，請留意流量使用。",
+  "videoExportPvDownloadAction": "下載 PV",
+  "videoExportPvDownloading": "正在下載 PV…",
+  "videoExportPvDownloadFailed": "PV 下載失敗，請稍後重試",
+  "videoExportPvNotAvailable": "此曲目暫無可用 PV",
+  "songSearchScope": "搜尋範圍",
+  "songSearchScopeAll": "全部",
+  "songSearchScopeTitleAndAlias": "歌名與別名",
+  "songSearchScopeTitleOnly": "僅歌名",
+  "songSearchScopeAliasOnly": "僅別名",
+  "songSearchHintTitleAndAlias": "依歌名或別名搜尋",
+  "songSearchHintAliasOnly": "僅依別名搜尋",
+  "favoriteSortCustom": "自訂排序",
+  "favoriteReorderMode": "排序",
+  "favoriteReorderDone": "完成",
+  "favoriteReorderHint": "拖曳左側控制柄、點擊序號或使用右側按鈕調整順序",
+  "favoriteMoveUp": "上移",
+  "favoriteMoveDown": "下移",
+  "favoriteMoveToTop": "置頂",
+  "favoriteMoveToBottom": "置底",
+  "favoriteMoveToIndex": "輸入序號",
+  "favoriteSwapMode": "點選交換",
+  "favoriteSwapHintIdle": "點擊第一項以開始交換位置",
+  "favoriteSwapHintSelected": "已選取第 {position} 項，點擊另一項完成交換",
+  "@favoriteSwapHintSelected": {
+    "placeholders": {
+      "position": {
+        "type": "String"
+      }
+    }
+  },
+  "favoriteSwapCompleted": "已交換位置",
+  "favoriteMoveIndexDialogTitle": "移動到指定序號",
+  "favoriteMoveIndexDialogHint": "請輸入 1 到 {max} 之間的序號",
+  "@favoriteMoveIndexDialogHint": {
+    "placeholders": {
+      "max": {
+        "type": "String"
+      }
+    }
+  },
+  "favoriteMoveIndexInvalid": "請輸入 1～{max} 的有效整數",
+  "@favoriteMoveIndexInvalid": {
+    "placeholders": {
+      "max": {
+        "type": "String"
+      }
+    }
+  },
+  "favoriteReorderUnavailableEmpty": "至少需要 2 項才能調整順序"
 }

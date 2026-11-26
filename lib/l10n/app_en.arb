@@ -4447,7 +4447,7 @@
   "displayModeStandard": "Standard",
   "displayModeSimple": "Simple",
   "displayModeStandardHint": "Shows all 5 tabs, background artwork, full descriptions, and animations",
-  "displayModeSimpleHint": "Streamlines to 3 core tabs, hides backgrounds, animations, and extra descriptions while keeping the same clean layout",
+  "displayModeSimpleHint": "Hides background artwork, animations, and extra descriptions, merges Play sections, and keeps a compact layout",
   "simpleModeActiveHint": "Simple mode active",
   "switchToStandardMode": "Switch to Standard",
   "simpleModeBackgroundHiddenHint": "Background and decorative images are hidden in Simple mode and restored when switching back",
@@ -4613,5 +4613,81 @@
     }
   },
   "firstBindSkipPullEnter": "Skip fetch & go to Home",
-  "firstBindSkipForNow": "Skip for now"
+  "firstBindSkipForNow": "Skip for now",
+  "chartPlayPreparingPv": "Preparing PV...",
+  "chartPlayInitializingPv": "Initializing PV video...",
+  "chartPlayPvReady": "PV ready",
+  "chartPlayPvUnavailable": "PV unavailable, using cover background",
+  "chartPlayWaitingForPv": "Chart ready, waiting for PV...",
+  "chartPlayAudioLoadFailedHint": "Failed to load audio; playing answer SFX only",
+  "chartPlayPvLoadFailedHint": "Failed to load PV; switched to cover background",
+  "chartPlayPvStreamingFallback": "Switching to streaming PV...",
+  "chartMetronomeSpeed": "Metronome speed",
+  "awmcLastFetchedTime": "Last fetched: {time}",
+  "@awmcLastFetchedTime": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "lxnsNoteStyleCreditDetails": "Arcade note style & geometry reference (MIT)",
+  "chartPlayLxnsNoteStyleCreditPill": "Note style ref: LXNS · MIT",
+  "chartPlayCellularPvBanner": "Using mobile data: downloading PV video consumes significant data",
+  "chartPlayCellularPvDialogTitle": "Mobile Data Warning",
+  "chartPlayCellularPvDialogBody": "You are on mobile data and this song's PV is not cached yet. Downloading the PV may use significant cellular data. Continue?",
+  "chartPlayCellularContinueDownload": "Continue download",
+  "chartPlayCellularEnterWithoutPv": "Enter without PV",
+  "videoExportPvNeedDownloadTitle": "PV Download Required",
+  "videoExportPvNeedDownloadBody": "This song's PV is not cached locally yet. Download it before using it as the video export background.",
+  "videoExportPvCellularWarning": "Mobile data detected: downloading the PV will consume significant data.",
+  "videoExportPvDownloadAction": "Download PV",
+  "videoExportPvDownloading": "Downloading PV...",
+  "videoExportPvDownloadFailed": "PV download failed, please try again later",
+  "videoExportPvNotAvailable": "No PV available for this song",
+  "songSearchScope": "Search scope",
+  "songSearchScopeAll": "All",
+  "songSearchScopeTitleAndAlias": "Title & Alias",
+  "songSearchScopeTitleOnly": "Title only",
+  "songSearchScopeAliasOnly": "Alias only",
+  "songSearchHintTitleAndAlias": "Search by title or alias",
+  "songSearchHintAliasOnly": "Search by alias only",
+  "favoriteSortCustom": "Custom order",
+  "favoriteReorderMode": "Reorder",
+  "favoriteReorderDone": "Done",
+  "favoriteReorderHint": "Drag handle, tap index, or use action buttons to reorder",
+  "favoriteMoveUp": "Move up",
+  "favoriteMoveDown": "Move down",
+  "favoriteMoveToTop": "Move to top",
+  "favoriteMoveToBottom": "Move to bottom",
+  "favoriteMoveToIndex": "Jump to index",
+  "favoriteSwapMode": "Tap to swap",
+  "favoriteSwapHintIdle": "Tap the first item to start swapping",
+  "favoriteSwapHintSelected": "Selected #{position}, tap another item to swap",
+  "@favoriteSwapHintSelected": {
+    "placeholders": {
+      "position": {
+        "type": "String"
+      }
+    }
+  },
+  "favoriteSwapCompleted": "Positions swapped",
+  "favoriteMoveIndexDialogTitle": "Move to position",
+  "favoriteMoveIndexDialogHint": "Enter a position between 1 and {max}",
+  "@favoriteMoveIndexDialogHint": {
+    "placeholders": {
+      "max": {
+        "type": "String"
+      }
+    }
+  },
+  "favoriteMoveIndexInvalid": "Enter a valid integer between 1 and {max}",
+  "@favoriteMoveIndexInvalid": {
+    "placeholders": {
+      "max": {
+        "type": "String"
+      }
+    }
+  },
+  "favoriteReorderUnavailableEmpty": "At least 2 items are required to reorder"
 }

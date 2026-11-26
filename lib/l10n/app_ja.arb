@@ -4447,7 +4447,7 @@
   "displayModeStandard": "標準モード",
   "displayModeSimple": "シンプルモード",
   "displayModeStandardHint": "5つのタブ、背景装飾、詳しい説明、アニメーションを表示します",
-  "displayModeSimpleHint": "3つの主要タブに整理し、背景装飾・アニメーション・説明文を省いたコンパクトな表示にします",
+  "displayModeSimpleHint": "背景装飾・アニメーション・補足説明を省き、プレイの区分をまとめてコンパクトに表示します",
   "simpleModeActiveHint": "シンプルモード中",
   "switchToStandardMode": "標準モードへ",
   "simpleModeBackgroundHiddenHint": "シンプルモードでは背景画像と装飾画像を非表示にし、標準モードに戻すと復元されます",
@@ -4613,5 +4613,81 @@
     }
   },
   "firstBindSkipPullEnter": "取得をスキップしてホームへ",
-  "firstBindSkipForNow": "今はスキップして始める"
+  "firstBindSkipForNow": "今はスキップして始める",
+  "chartPlayPreparingPv": "PVを準備しています…",
+  "chartPlayInitializingPv": "PV映像を初期化しています…",
+  "chartPlayPvReady": "PVの準備が完了しました",
+  "chartPlayPvUnavailable": "PVを利用できないためジャケット背景を使用します",
+  "chartPlayWaitingForPv": "譜面と音源の準備完了、PVの読み込みを待機中…",
+  "chartPlayAudioLoadFailedHint": "音源の読み込みに失敗したため、アンサー音のみで再生します",
+  "chartPlayPvLoadFailedHint": "PVの読み込みに失敗したため、ジャケット背景に切り替えました",
+  "chartPlayPvStreamingFallback": "PVのストリーミング読み込みに切り替えています…",
+  "chartMetronomeSpeed": "メトロノーム速度",
+  "awmcLastFetchedTime": "前回取得：{time}",
+  "@awmcLastFetchedTime": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "lxnsNoteStyleCreditDetails": "アーケード風ノーツスタイル・描画比率参考（MIT）",
+  "chartPlayLxnsNoteStyleCreditPill": "ノーツスタイル参考 落雪咖啡屋 · MIT",
+  "chartPlayCellularPvBanner": "モバイルデータ通信中です。PV動画のダウンロードは通信量を多く消費します",
+  "chartPlayCellularPvDialogTitle": "モバイルデータ通信の注意",
+  "chartPlayCellularPvDialogBody": "現在モバイルデータ通信を使用しており、この曲のPVはまだキャッシュされていません。PVのダウンロードは多くの通信量を消費します。続行しますか？",
+  "chartPlayCellularContinueDownload": "ダウンロードを続行",
+  "chartPlayCellularEnterWithoutPv": "PVなしで開始",
+  "videoExportPvNeedDownloadTitle": "PVのダウンロードが必要",
+  "videoExportPvNeedDownloadBody": "この曲のPVはまだローカルに保存されていません。動画書き出しの背景に使用するには先にダウンロードが必要です。",
+  "videoExportPvCellularWarning": "モバイルデータ通信中です。PVのダウンロードは通信量を多く消費します。",
+  "videoExportPvDownloadAction": "PVをダウンロード",
+  "videoExportPvDownloading": "PVをダウンロード中…",
+  "videoExportPvDownloadFailed": "PVのダウンロードに失敗しました。しばらくしてから再試行してください",
+  "videoExportPvNotAvailable": "この曲に利用可能なPVはありません",
+  "songSearchScope": "検索範囲",
+  "songSearchScopeAll": "すべて",
+  "songSearchScopeTitleAndAlias": "曲名とエイリアス",
+  "songSearchScopeTitleOnly": "曲名のみ",
+  "songSearchScopeAliasOnly": "エイリアスのみ",
+  "songSearchHintTitleAndAlias": "曲名またはエイリアスで検索",
+  "songSearchHintAliasOnly": "エイリアスのみで検索",
+  "favoriteSortCustom": "カスタム順",
+  "favoriteReorderMode": "並び替え",
+  "favoriteReorderDone": "完了",
+  "favoriteReorderHint": "左のハンドルをドラッグ、番号をタップ、または右のボタンで順番を調整します",
+  "favoriteMoveUp": "上へ",
+  "favoriteMoveDown": "下へ",
+  "favoriteMoveToTop": "先頭へ",
+  "favoriteMoveToBottom": "末尾へ",
+  "favoriteMoveToIndex": "番号指定",
+  "favoriteSwapMode": "タップ入替",
+  "favoriteSwapHintIdle": "入れ替える1つ目の項目をタップしてください",
+  "favoriteSwapHintSelected": "{position} 番目を選択中、別の項目をタップして入れ替え",
+  "@favoriteSwapHintSelected": {
+    "placeholders": {
+      "position": {
+        "type": "String"
+      }
+    }
+  },
+  "favoriteSwapCompleted": "位置を入れ替えました",
+  "favoriteMoveIndexDialogTitle": "指定した位置へ移動",
+  "favoriteMoveIndexDialogHint": "1 から {max} の番号を入力してください",
+  "@favoriteMoveIndexDialogHint": {
+    "placeholders": {
+      "max": {
+        "type": "String"
+      }
+    }
+  },
+  "favoriteMoveIndexInvalid": "1〜{max} の有効な整数を入力してください",
+  "@favoriteMoveIndexInvalid": {
+    "placeholders": {
+      "max": {
+        "type": "String"
+      }
+    }
+  },
+  "favoriteReorderUnavailableEmpty": "並び替えには2件以上の項目が必要です"
 }
