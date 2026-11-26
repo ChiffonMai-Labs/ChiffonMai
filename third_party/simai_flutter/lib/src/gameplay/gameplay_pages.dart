@@ -5,15 +5,24 @@ import 'package:flame/game.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_soloud/flutter_soloud.dart';
 
+import '../audio/soloud_audio_player.dart';
 import '../ui/fullscreen_utils.dart';
 import '../ui/note_geometry.dart';
+import '../ui/note_style.dart';
 import '../ui/simai_colors.dart';
 import '../ui/simai_game.dart';
+import '../ui/simai_visual_tokens.dart';
 import '../ui/simai_player.dart';
 import 'gameplay_controller.dart';
 import 'gameplay_models.dart';
 import 'gameplay_session.dart';
+
+String _formatSignedMs(int value) => value > 0 ? '+$value ms' : '$value ms';
+
+String _formatSignedDecimalMs(double value) =>
+    '${value >= 0 ? '+' : ''}${value.toStringAsFixed(2)} ms';
 
 class SimaiGameplayFlowPage extends StatefulWidget {
   const SimaiGameplayFlowPage({
@@ -22,12 +31,16 @@ class SimaiGameplayFlowPage extends StatefulWidget {
     this.disposeController = true,
     this.onCompleted,
     this.onExit,
+    this.onEnterGameplay,
+    this.onExitGameplay,
   });
 
   final SimaiGameplayController controller;
   final bool disposeController;
   final ValueChanged<SimaiGameplayResult>? onCompleted;
   final VoidCallback? onExit;
+  final Future<void> Function()? onEnterGameplay;
+  final Future<void> Function()? onExitGameplay;
 
   @override
   State<SimaiGameplayFlowPage> createState() => _SimaiGameplayFlowPageState();
@@ -73,6 +86,8 @@ class _SimaiGameplayFlowPageState extends State<SimaiGameplayFlowPage> {
       _GameplayFlowPhase.gameplay => SimaiGameplayPage(
         key: _gameplayKey,
         controller: widget.controller,
+        onEnterGameplay: widget.onEnterGameplay,
+        onExitGameplay: widget.onExitGameplay,
         onCompleted: (result) {
           widget.onCompleted?.call(result);
           if (!mounted) return;
@@ -89,6 +104,7 @@ class _SimaiGameplayFlowPageState extends State<SimaiGameplayFlowPage> {
       _GameplayFlowPhase.result => SimaiGameplayResultPage(
         result: _result!,
         title: widget.controller.title,
+        controller: widget.controller,
         onRetry: () {
           setState(() {
             _gameplayKey = UniqueKey();
@@ -141,6 +157,29 @@ class _SimaiGameplaySetupPageState extends State<SimaiGameplaySetupPage> {
     setState(() => _settings = settings.normalized());
   }
 
+  Future<void> _openCalibrationWizard() async {
+    final recommendedOffset = await showDialog<int>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => _LatencyCalibrationDialog(
+        currentOffsetMs: _settings.judgementOffsetMs,
+        volume: _settings.hitSoundVolume,
+      ),
+    );
+    if (!mounted || recommendedOffset == null) return;
+    final updated = _settings
+        .copyWith(judgementOffsetMs: recommendedOffset)
+        .normalized();
+    _update(updated);
+    // 一键应用后立即写回控制器，便于宿主层同步持久化。
+    widget.controller.updateSettings(updated);
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(
+        content: Text('判定偏移已更新为 ${_formatSignedMs(updated.judgementOffsetMs)}'),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -188,27 +227,62 @@ class _SimaiGameplaySetupPageState extends State<SimaiGameplaySetupPage> {
             valueLabel: _settings.noteSpeed.toStringAsFixed(2),
             onChanged: (value) => _update(_settings.copyWith(noteSpeed: value)),
           ),
-          _NoteSpeedPreview(noteSpeed: _settings.noteSpeed),
+          _NoteSpeedPreview(
+            noteSpeed: _settings.noteSpeed,
+            chartScale: _settings.chartScale,
+            noteStyle: _settings.noteStyle,
+          ),
           _SliderSetting(
             title: '音乐偏移',
+            subtitle: '负值推迟音符以对齐延迟音频（修 Late），正值提前音符（修 Fast）',
             value: _settings.musicOffsetMs.toDouble(),
             min: -2000,
             max: 2000,
-            divisions: 160,
-            valueLabel: '${_settings.musicOffsetMs} ms',
+            divisions: 800,
+            valueLabel: _formatSignedMs(_settings.musicOffsetMs),
             onChanged: (value) =>
                 _update(_settings.copyWith(musicOffsetMs: value.round())),
           ),
+          _OffsetNudgeRow(
+            deltas: const [-50, -10, -5, 5, 10, 50],
+            onNudge: (delta) => _update(
+              _settings.copyWith(
+                musicOffsetMs: (_settings.musicOffsetMs + delta).clamp(
+                  -2000,
+                  2000,
+                ),
+              ),
+            ),
+          ),
           _SliderSetting(
             title: '判定偏移',
-            subtitle: '正值会把输入视为更晚，可用于修正偏 Fast 的设备或习惯。',
+            subtitle: '偏 Late 往负调（-），偏 Fast 往正调（+）',
             value: _settings.judgementOffsetMs.toDouble(),
-            min: -200,
-            max: 200,
-            divisions: 80,
-            valueLabel: '${_settings.judgementOffsetMs} ms',
+            min: -500,
+            max: 500,
+            divisions: 200,
+            valueLabel: _formatSignedMs(_settings.judgementOffsetMs),
             onChanged: (value) =>
                 _update(_settings.copyWith(judgementOffsetMs: value.round())),
+          ),
+          _OffsetNudgeRow(
+            deltas: const [-10, -5, 5, 10],
+            onNudge: (delta) => _update(
+              _settings.copyWith(
+                judgementOffsetMs: (_settings.judgementOffsetMs + delta).clamp(
+                  -500,
+                  500,
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+            child: OutlinedButton.icon(
+              onPressed: _openCalibrationWizard,
+              icon: const Icon(Icons.timer_outlined),
+              label: const Text('音频/触控延迟校准向导'),
+            ),
           ),
           _SliderSetting(
             title: '音乐音量',
@@ -221,21 +295,57 @@ class _SimaiGameplaySetupPageState extends State<SimaiGameplaySetupPage> {
                 _update(_settings.copyWith(musicVolume: value)),
           ),
           SwitchListTile(
-            title: const Text('打击音'),
+            title: const Text('正解音（推荐，预调度与音乐零相对延迟）'),
+            value: _settings.answerSoundEnabled,
+            onChanged: (value) =>
+                _update(_settings.copyWith(answerSoundEnabled: value)),
+          ),
+          SwitchListTile(
+            title: const Text('打击音（按击触发，外放/蓝牙存在设备延迟）'),
             value: _settings.hitSoundEnabled,
             onChanged: (value) =>
                 _update(_settings.copyWith(hitSoundEnabled: value)),
           ),
           _SliderSetting(
-            title: '打击音音量',
+            title: '音效音量',
             value: _settings.hitSoundVolume,
             min: 0,
-            max: 1,
-            divisions: 20,
-            enabled: _settings.hitSoundEnabled,
+            max: simaiMaxHitSoundVolume,
+            divisions: 60,
+            enabled: _settings.answerSoundEnabled || _settings.hitSoundEnabled,
             valueLabel: '${(_settings.hitSoundVolume * 100).round()}%',
             onChanged: (value) =>
                 _update(_settings.copyWith(hitSoundVolume: value)),
+          ),
+          _SliderSetting(
+            title: '滑星触控灵敏度（接触半径）',
+            value: _settings.contactRadiusScale,
+            min: 0.8,
+            max: 1.6,
+            divisions: 16,
+            valueLabel: '${(_settings.contactRadiusScale * 100).round()}%',
+            onChanged: (value) =>
+                _update(_settings.copyWith(contactRadiusScale: value)),
+          ),
+          _SliderSetting(
+            title: '盘面大小',
+            value: _settings.chartScale,
+            min: 0.75,
+            max: 0.95,
+            divisions: 20,
+            valueLabel: '${(_settings.chartScale * 100).round()}%',
+            onChanged: (value) =>
+                _update(_settings.copyWith(chartScale: value)),
+          ),
+          _SliderSetting(
+            title: '背景透明度',
+            value: _settings.backgroundOpacity,
+            min: 0.0,
+            max: 1.0,
+            divisions: 100,
+            valueLabel: '${(_settings.backgroundOpacity * 100).round()}%',
+            onChanged: (value) =>
+                _update(_settings.copyWith(backgroundOpacity: value)),
           ),
           ListTile(
             title: const Text('镜像'),
@@ -259,6 +369,23 @@ class _SimaiGameplaySetupPageState extends State<SimaiGameplaySetupPage> {
               onChanged: (value) {
                 if (value != null) {
                   _update(_settings.copyWith(mirrorMode: value));
+                }
+              },
+            ),
+          ),
+          ListTile(
+            title: const Text('NOTE 样式'),
+            trailing: DropdownButton<SimaiNoteStyle>(
+              value: _settings.noteStyle,
+              items: SimaiNoteStyle.values
+                  .map(
+                    (style) =>
+                        DropdownMenuItem(value: style, child: Text(style.label)),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                if (value != null) {
+                  _update(_settings.copyWith(noteStyle: value));
                 }
               },
             ),
@@ -313,6 +440,23 @@ class _SimaiGameplaySetupPageState extends State<SimaiGameplaySetupPage> {
               onChanged: (value) {
                 if (value != null) {
                   _update(_settings.copyWith(centerDisplayMode: value));
+                }
+              },
+            ),
+          ),
+          ListTile(
+            title: const Text('右上角显示'),
+            trailing: DropdownButton<SimaiGameplayCenterDisplayMode>(
+              value: _settings.topRightDisplayMode,
+              items: SimaiGameplayCenterDisplayMode.values
+                  .map(
+                    (mode) =>
+                        DropdownMenuItem(value: mode, child: Text(mode.label)),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                if (value != null) {
+                  _update(_settings.copyWith(topRightDisplayMode: value));
                 }
               },
             ),
@@ -383,11 +527,15 @@ class SimaiGameplayPage extends StatefulWidget {
     required this.controller,
     required this.onCompleted,
     this.onExit,
+    this.onEnterGameplay,
+    this.onExitGameplay,
   });
 
   final SimaiGameplayController controller;
   final ValueChanged<SimaiGameplayResult> onCompleted;
   final VoidCallback? onExit;
+  final Future<void> Function()? onEnterGameplay;
+  final Future<void> Function()? onExitGameplay;
 
   @override
   State<SimaiGameplayPage> createState() => _SimaiGameplayPageState();
@@ -398,14 +546,22 @@ class _SimaiGameplayPageState extends State<SimaiGameplayPage>
   static const _countdownOverlay = 'countdown';
   static const _pauseOverlay = 'pause';
 
+  // 禁止 GameWidget 抢占焦点，避免 Flame 1.37.0 吞掉系统音量键与返回键。
+  late final FocusNode _gameFocusNode = FocusNode(
+    canRequestFocus: false,
+    skipTraversal: true,
+  );
+  // 使用 ValueNotifier 局部刷新 3-2-1 倒计时覆盖层，避免每秒 setState 重建 GameWidget。
+  final ValueNotifier<int> _countdownNotifier = ValueNotifier<int>(3);
   late final SimaiGameplaySession _session;
   late final SimaiGame _game;
   Timer? _countdownTimer;
-  int _countdown = 3;
   bool _ready = false;
   bool _paused = false;
   bool _completed = false;
   bool _mobileImmersive = false;
+  bool _gameplayHooksEntered = false;
+  bool _disposed = false;
   Object? _loadError;
 
   @override
@@ -419,13 +575,17 @@ class _SimaiGameplayPageState extends State<SimaiGameplayPage>
       gameplaySession: _session,
       isPlaying: false,
       ringApproachTime: settings.approachTime,
-      touchApproachTime: settings.approachTime,
+      touchApproachTime: settings.touchApproachTime,
       playbackRate: 1.0,
       musicVolume: settings.musicVolume,
       hitSoundVolume: settings.hitSoundVolume,
       hitSoundEnabled: settings.hitSoundEnabled,
+      gameplayAnswerSoundEnabled: settings.answerSoundEnabled,
+      gameplayContactRadiusScale: settings.contactRadiusScale,
       backgroundMode: settings.backgroundMode,
+      backgroundOpacity: settings.backgroundOpacity,
       mirrorMode: settings.mirrorMode,
+      noteStyle: settings.noteStyle,
       showApproachLine: settings.showApproachLine,
       showHitEffects: settings.showHitEffects,
       showGameplayInputPartitions: settings.showInputPartitions,
@@ -433,9 +593,7 @@ class _SimaiGameplayPageState extends State<SimaiGameplayPage>
       showAchievementRate: false,
       showCornerInfo: false,
       showFps: false,
-      // Keep the judge ring at 95% of the playfield short edge. Input regions
-      // may extend beyond the original square playfield up to 1.35R.
-      chartRadiusRatio: 0.95,
+      chartRadiusRatio: settings.chartScale,
       initialChartTime: widget.controller.initialChartTime,
       offset:
           widget.controller.initialChartTime + settings.musicOffsetMs / 1000.0,
@@ -444,52 +602,103 @@ class _SimaiGameplayPageState extends State<SimaiGameplayPage>
       backgroundImageProvider: widget.controller.backgroundImageProvider,
       onGameplayCompleted: _handleCompleted,
     );
-    _enterMobileImmersive();
+    unawaited(_enterMobileImmersive());
     _game.loaded
         .then((_) async {
           await WidgetsBinding.instance.endOfFrame;
-          if (!mounted) return;
+          if (!mounted || _completed || _loadError != null) return;
           setState(() => _ready = true);
           _startCountdown();
         })
         .catchError((Object error, StackTrace stackTrace) {
           if (!mounted) return;
+          // 先同步写入 _loadError，再触发退出恢复，确保进行中的 _enterMobileImmersive 立即中止。
           setState(() => _loadError = error);
+          unawaited(_exitMobileImmersive());
         });
   }
 
+  bool get _shouldAbortGameplayImmersive =>
+      _disposed || !mounted || _completed || _loadError != null;
+
   Future<void> _enterMobileImmersive() async {
-    if (kIsWeb ||
-        (defaultTargetPlatform != TargetPlatform.android &&
-            defaultTargetPlatform != TargetPlatform.iOS)) {
+    if (_shouldAbortGameplayImmersive) {
+      await _exitMobileImmersive();
       return;
     }
-    _mobileImmersive = true;
-    await FullScreenUtils.enterFullScreen();
+    final isMobile =
+        !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS);
+    if (isMobile) {
+      _mobileImmersive = true;
+      try {
+        await FullScreenUtils.enterFullScreen();
+      } catch (e) {
+        debugPrint('进入游玩全屏失败: $e');
+      }
+    }
+    if (_shouldAbortGameplayImmersive) {
+      // 若进入全屏异步途中发生加载失败、结算或销毁，补做一次退出全屏，避免残留横屏或误触 onEnterGameplay。
+      if (isMobile) _mobileImmersive = true;
+      await _exitMobileImmersive();
+      return;
+    }
+    if (!_gameplayHooksEntered) {
+      _gameplayHooksEntered = true;
+      try {
+        await widget.onEnterGameplay?.call();
+      } catch (e) {
+        debugPrint('onEnterGameplay 执行失败: $e');
+      }
+      if (_shouldAbortGameplayImmersive) {
+        // 确保在 onEnterGameplay 返回后补做一次退出恢复，防止异步乱序残留边沿保护或隐藏状态栏。
+        _gameplayHooksEntered = true;
+        if (isMobile) _mobileImmersive = true;
+        await _exitMobileImmersive();
+      }
+    }
   }
 
   Future<void> _exitMobileImmersive() async {
-    if (!_mobileImmersive) return;
+    final shouldExitFullScreen = _mobileImmersive;
+    final shouldExitHooks = _gameplayHooksEntered;
+    if (!shouldExitFullScreen && !shouldExitHooks) return;
     _mobileImmersive = false;
-    await FullScreenUtils.exitFullScreen();
+    _gameplayHooksEntered = false;
+    if (shouldExitFullScreen) {
+      try {
+        await FullScreenUtils.exitFullScreen();
+      } catch (e) {
+        debugPrint('退出游玩全屏失败: $e');
+      }
+    }
+    if (shouldExitHooks) {
+      try {
+        await widget.onExitGameplay?.call();
+      } catch (e) {
+        debugPrint('onExitGameplay 执行失败: $e');
+      }
+    }
   }
 
   void _startCountdown() {
     if (!_ready || _completed) return;
     _countdownTimer?.cancel();
+    _countdownNotifier.value = 3;
     _game.overlays.remove(_pauseOverlay);
     _game.overlays.add(_countdownOverlay);
-    setState(() {
-      _paused = false;
-      _countdown = 3;
-    });
+    if (_paused) {
+      setState(() => _paused = false);
+    }
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted || _completed) {
         timer.cancel();
         return;
       }
-      if (_countdown > 1) {
-        setState(() => _countdown--);
+      final current = _countdownNotifier.value;
+      if (current > 1) {
+        _countdownNotifier.value = current - 1;
       } else {
         timer.cancel();
         _game.overlays.remove(_countdownOverlay);
@@ -567,12 +776,15 @@ class _SimaiGameplayPageState extends State<SimaiGameplayPage>
 
   @override
   void dispose() {
+    _disposed = true;
     WidgetsBinding.instance.removeObserver(this);
     _countdownTimer?.cancel();
+    _countdownNotifier.dispose();
     _game.onGameplayCompleted = null;
     _game.clearGameplayPointers();
     if (!_completed) widget.controller.abandonSession(_session);
     unawaited(_exitMobileImmersive());
+    _gameFocusNode.dispose();
     super.dispose();
   }
 
@@ -616,79 +828,86 @@ class _SimaiGameplayPageState extends State<SimaiGameplayPage>
       },
       child: Scaffold(
         backgroundColor: Colors.black,
-        body: SafeArea(
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: Listener(
-                  key: const ValueKey('simai_gameplay_input_surface'),
-                  behavior: HitTestBehavior.opaque,
-                  onPointerDown: (event) {
-                    if (event.kind == PointerDeviceKind.mouse &&
-                        event.buttons != kPrimaryMouseButton) {
-                      return;
-                    }
-                    _game.handleGameplayPointerDown(
-                      pointerId: event.pointer,
-                      position: event.localPosition,
-                      eventTimestamp: event.timeStamp,
-                    );
-                  },
-                  onPointerMove: (event) => _game.handleGameplayPointerMove(
+        // 去掉外层垂直 SafeArea 裁切，让触控层与游戏画布铺满整屏，避免 1/4/5/8 轨被裁切。
+        body: Stack(
+          children: [
+            Positioned.fill(
+              child: Listener(
+                key: const ValueKey('simai_gameplay_input_surface'),
+                behavior: HitTestBehavior.opaque,
+                onPointerDown: (event) {
+                  if (event.kind == PointerDeviceKind.mouse &&
+                      event.buttons != kPrimaryMouseButton) {
+                    return;
+                  }
+                  _game.handleGameplayPointerDown(
                     pointerId: event.pointer,
                     position: event.localPosition,
                     eventTimestamp: event.timeStamp,
-                  ),
-                  onPointerUp: (event) => _game.handleGameplayPointerUp(
-                    pointerId: event.pointer,
-                    eventTimestamp: event.timeStamp,
-                  ),
-                  onPointerCancel: (event) => _game.handleGameplayPointerUp(
-                    pointerId: event.pointer,
-                    eventTimestamp: event.timeStamp,
-                  ),
-                  child: GameWidget<SimaiGame>(
-                    game: _game,
-                    loadingBuilder: (context) {
-                      final colorScheme = Theme.of(context).colorScheme;
-                      return ColoredBox(
-                        color: colorScheme.surface,
-                        child: const Center(child: CircularProgressIndicator()),
-                      );
-                    },
-                    overlayBuilderMap: {
-                      _countdownOverlay: (context, game) =>
-                          _CountdownOverlay(value: _countdown),
-                      _pauseOverlay: (context, game) => _PauseOverlay(
-                        onResume: _startCountdown,
-                        onExit: _requestExit,
-                      ),
-                    },
-                  ),
+                  );
+                },
+                onPointerMove: (event) => _game.handleGameplayPointerMove(
+                  pointerId: event.pointer,
+                  position: event.localPosition,
+                  eventTimestamp: event.timeStamp,
+                ),
+                onPointerUp: (event) => _game.handleGameplayPointerUp(
+                  pointerId: event.pointer,
+                  eventTimestamp: event.timeStamp,
+                ),
+                onPointerCancel: (event) => _game.handleGameplayPointerUp(
+                  pointerId: event.pointer,
+                  eventTimestamp: event.timeStamp,
+                ),
+                child: GameWidget<SimaiGame>(
+                  game: _game,
+                  focusNode: _gameFocusNode,
+                  autofocus: false,
+                  loadingBuilder: (context) {
+                    final colorScheme = Theme.of(context).colorScheme;
+                    return ColoredBox(
+                      color: colorScheme.surface,
+                      child: const Center(child: CircularProgressIndicator()),
+                    );
+                  },
+                  overlayBuilderMap: {
+                    _countdownOverlay: (context, game) => _CountdownOverlay(
+                      countdownListenable: _countdownNotifier,
+                    ),
+                    _pauseOverlay: (context, game) => _PauseOverlay(
+                      onResume: _startCountdown,
+                      onExit: _requestExit,
+                    ),
+                  },
                 ),
               ),
-              Positioned(
-                top: 4,
-                right: 4,
+            ),
+            Positioned(
+              top: 4,
+              right: 4,
+              child: SafeArea(
+                left: false,
+                bottom: false,
                 child: IconButton.filledTonal(
                   tooltip: '暂停',
                   onPressed: _ready && !_paused ? _pause : null,
                   icon: const Icon(Icons.pause),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class SimaiGameplayResultPage extends StatelessWidget {
+class SimaiGameplayResultPage extends StatefulWidget {
   const SimaiGameplayResultPage({
     super.key,
     required this.result,
     this.title,
+    this.controller,
     this.onRetry,
     this.onAdjustSettings,
     this.onExit,
@@ -696,12 +915,23 @@ class SimaiGameplayResultPage extends StatelessWidget {
 
   final SimaiGameplayResult result;
   final String? title;
+  final SimaiGameplayController? controller;
   final VoidCallback? onRetry;
   final VoidCallback? onAdjustSettings;
   final VoidCallback? onExit;
 
   @override
+  State<SimaiGameplayResultPage> createState() =>
+      _SimaiGameplayResultPageState();
+}
+
+class _SimaiGameplayResultPageState extends State<SimaiGameplayResultPage> {
+  bool _offsetApplied = false;
+  int? _appliedOffsetMs;
+
+  @override
   Widget build(BuildContext context) {
+    final result = widget.result;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isLight = theme.brightness == Brightness.light;
@@ -711,12 +941,31 @@ class SimaiGameplayResultPage extends StatelessWidget {
     final touchGroupColor = isLight
         ? const Color(0xFF00897B)
         : const Color(0xFF80CBC4);
+
+    final manualJudgedCount = result.judgements
+        .where(
+          (record) =>
+              !record.isAuto &&
+              record.grade != SimaiJudgeGrade.miss &&
+              !record.isGroupAssisted,
+        )
+        .length;
+    final double? averageManualOffsetMs =
+        manualJudgedCount > 0 && result.averageManualOffsetMs.isFinite
+        ? result.averageManualOffsetMs
+        : null;
+    final controller = widget.controller;
+    final canCalibrate =
+        controller != null &&
+        manualJudgedCount >= 5 &&
+        averageManualOffsetMs != null;
+
     return Scaffold(
       backgroundColor: colorScheme.surface,
       appBar: AppBar(
         backgroundColor: colorScheme.surface,
         surfaceTintColor: Colors.transparent,
-        title: Text(title ?? '游玩结算'),
+        title: Text(widget.title ?? '游玩结算'),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -793,8 +1042,7 @@ class SimaiGameplayResultPage extends StatelessWidget {
                   ),
                   _ResultRow(
                     label: '平均手动偏差',
-                    value:
-                        '${result.averageManualOffsetMs >= 0 ? '+' : ''}${result.averageManualOffsetMs.toStringAsFixed(2)} ms',
+                    value: _formatSignedDecimalMs(result.averageManualOffsetMs),
                   ),
                   if (result.touchGroupAssistCount > 0)
                     _ResultRow(
@@ -814,26 +1062,103 @@ class SimaiGameplayResultPage extends StatelessWidget {
               ),
             ),
           ),
+          if (canCalibrate)
+            Builder(
+              builder: (context) {
+                final currentOffset = controller.settings.judgementOffsetMs;
+                final newOffset = (currentOffset - averageManualOffsetMs.round())
+                    .clamp(-500, 500);
+                final tendency = averageManualOffsetMs > 1.0
+                    ? '偏 Late'
+                    : averageManualOffsetMs < -1.0
+                    ? '偏 Fast'
+                    : '接近精准';
+                return Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '判定偏移一键校准',
+                          style: theme.textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '本局平均偏差 ${_formatSignedDecimalMs(averageManualOffsetMs)}（$tendency，共 $manualJudgedCount 个手动判定样本）',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _offsetApplied && _appliedOffsetMs != null
+                              ? '已将判定偏移更新为 ${_formatSignedMs(_appliedOffsetMs!)}'
+                              : '建议判定偏移：${_formatSignedMs(currentOffset)} → ${_formatSignedMs(newOffset)}',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        FilledButton.tonalIcon(
+                          onPressed: _offsetApplied
+                              ? null
+                              : () {
+                                  final updated = controller.settings
+                                      .copyWith(judgementOffsetMs: newOffset)
+                                      .normalized();
+                                  controller.updateSettings(updated);
+                                  setState(() {
+                                    _offsetApplied = true;
+                                    _appliedOffsetMs =
+                                        updated.judgementOffsetMs;
+                                  });
+                                  ScaffoldMessenger.maybeOf(context)
+                                      ?.showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            '判定偏移已更新为 ${_formatSignedMs(updated.judgementOffsetMs)}',
+                                          ),
+                                        ),
+                                      );
+                                },
+                          icon: Icon(
+                            _offsetApplied
+                                ? Icons.check_circle_outline
+                                : Icons.auto_fix_high,
+                          ),
+                          label: Text(
+                            _offsetApplied
+                                ? '已应用（${_formatSignedMs(_appliedOffsetMs!)}）'
+                                : '应用偏差到判定偏移',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
           const SizedBox(height: 12),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             alignment: WrapAlignment.center,
             children: [
-              if (onRetry != null)
+              if (widget.onRetry != null)
                 FilledButton.icon(
-                  onPressed: onRetry,
+                  onPressed: widget.onRetry,
                   icon: const Icon(Icons.replay),
                   label: const Text('再次游玩'),
                 ),
-              if (onAdjustSettings != null)
+              if (widget.onAdjustSettings != null)
                 OutlinedButton.icon(
-                  onPressed: onAdjustSettings,
+                  onPressed: widget.onAdjustSettings,
                   icon: const Icon(Icons.tune),
                   label: const Text('调整设置'),
                 ),
-              if (onExit != null)
-                TextButton(onPressed: onExit, child: const Text('退出')),
+              if (widget.onExit != null)
+                TextButton(onPressed: widget.onExit, child: const Text('退出')),
             ],
           ),
         ],
@@ -876,9 +1201,15 @@ class SimaiGameplayResultPage extends StatelessWidget {
 }
 
 class _NoteSpeedPreview extends StatefulWidget {
-  const _NoteSpeedPreview({required this.noteSpeed});
+  const _NoteSpeedPreview({
+    required this.noteSpeed,
+    this.chartScale = 0.86,
+    this.noteStyle = SimaiNoteStyle.arcade,
+  });
 
   final double noteSpeed;
+  final double chartScale;
+  final SimaiNoteStyle noteStyle;
 
   @override
   State<_NoteSpeedPreview> createState() => _NoteSpeedPreviewState();
@@ -934,7 +1265,10 @@ class _NoteSpeedPreviewState extends State<_NoteSpeedPreview>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final canvasShortSide = MediaQuery.of(context).size.shortestSide;
-    final chartRadius = canvasShortSide / 2 * 0.95;
+    final safeScale = (widget.chartScale.isFinite ? widget.chartScale : 0.86)
+        .clamp(0.75, 0.95)
+        .toDouble();
+    final chartRadius = canvasShortSide / 2 * safeScale;
     final safeSpeed = (widget.noteSpeed.isFinite ? widget.noteSpeed : 8.0)
         .clamp(3.0, 9.0)
         .toDouble();
@@ -983,6 +1317,7 @@ class _NoteSpeedPreviewState extends State<_NoteSpeedPreview>
                               Duration.microsecondsPerSecond,
                           pixelsPerSecond: pixelsPerSecond,
                           noteScale: previewNoteScale,
+                          noteStyle: widget.noteStyle,
                           staticPreview: _animationsDisabled,
                           colorScheme: theme.colorScheme,
                         ),
@@ -1004,6 +1339,7 @@ class _NoteSpeedPreviewPainter extends CustomPainter {
     required this.elapsedSeconds,
     required this.pixelsPerSecond,
     required this.noteScale,
+    required this.noteStyle,
     required this.staticPreview,
     required this.colorScheme,
   });
@@ -1011,6 +1347,7 @@ class _NoteSpeedPreviewPainter extends CustomPainter {
   final double elapsedSeconds;
   final double pixelsPerSecond;
   final double noteScale;
+  final SimaiNoteStyle noteStyle;
   final bool staticPreview;
   final ColorScheme colorScheme;
 
@@ -1039,6 +1376,69 @@ class _NoteSpeedPreviewPainter extends CustomPainter {
     final position = Offset(centerX, centerY);
     const innerRatio = 0.65;
     final innerRadius = outerRadius * innerRatio;
+    final strokeWidth = max(1.0, 2.0 * noteScale);
+    if (noteStyle == SimaiNoteStyle.arcade) {
+      final light = Color.lerp(
+        SimaiVisualTokens.colorTapGradientStart,
+        Colors.white,
+        SimaiVisualTokens.noteLightenRatio,
+      )!;
+      final endColor = SimaiVisualTokens.colorTapGradientEnd;
+      final midR = (outerRadius + innerRadius) * 0.5;
+      final ringPaint = Paint()
+        ..isAntiAlias = true
+        ..style = PaintingStyle.fill;
+      for (int i = 0; i < 4; i++) {
+        final sAngle = i * (pi / 2);
+        final eAngle = sAngle + (pi / 2);
+        final p0 = position + Offset(cos(sAngle) * midR, sin(sAngle) * midR);
+        final p1 = position + Offset(cos(eAngle) * midR, sin(eAngle) * midR);
+        ringPaint.shader = LinearGradient(
+          colors: [light, endColor],
+        ).createShader(Rect.fromPoints(p0, p1));
+        final sectorPath = Path()
+          ..arcTo(
+            Rect.fromCircle(center: position, radius: outerRadius),
+            sAngle,
+            pi / 2,
+            false,
+          )
+          ..arcTo(
+            Rect.fromCircle(center: position, radius: innerRadius),
+            eAngle,
+            -pi / 2,
+            false,
+          )
+          ..close();
+        canvas.drawPath(sectorPath, ringPaint);
+      }
+      final blackPaint = Paint()
+        ..isAntiAlias = true
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..color = Colors.black;
+      canvas.drawCircle(position, outerRadius + strokeWidth, blackPaint);
+      final innerBlackR = innerRadius - strokeWidth;
+      if (innerBlackR > 0) {
+        canvas.drawCircle(position, innerBlackR, blackPaint);
+      }
+      final whitePaint = Paint()
+        ..isAntiAlias = true
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..color = Colors.white;
+      canvas.drawCircle(position, outerRadius, whitePaint);
+      canvas.drawCircle(position, innerRadius, whitePaint);
+      canvas.drawCircle(
+        position,
+        outerRadius * 0.15,
+        Paint()
+          ..isAntiAlias = true
+          ..color = SimaiColors.tapNormal,
+      );
+      return;
+    }
+
     final tapPaint = Paint()
       ..isAntiAlias = true
       ..style = PaintingStyle.fill
@@ -1052,7 +1452,7 @@ class _NoteSpeedPreviewPainter extends CustomPainter {
     final outlinePaint = Paint()
       ..isAntiAlias = true
       ..style = PaintingStyle.stroke
-      ..strokeWidth = max(1.0, 2.0 * noteScale)
+      ..strokeWidth = strokeWidth
       ..color = Colors.white;
     canvas.drawCircle(position, outerRadius, outlinePaint);
     canvas.drawCircle(position, innerRadius, outlinePaint);
@@ -1064,6 +1464,7 @@ class _NoteSpeedPreviewPainter extends CustomPainter {
       oldDelegate.elapsedSeconds != elapsedSeconds ||
       oldDelegate.pixelsPerSecond != pixelsPerSecond ||
       oldDelegate.noteScale != noteScale ||
+      oldDelegate.noteStyle != noteStyle ||
       oldDelegate.staticPreview != staticPreview ||
       oldDelegate.colorScheme != colorScheme;
 }
@@ -1120,10 +1521,423 @@ class _SliderSetting extends StatelessWidget {
   }
 }
 
-class _CountdownOverlay extends StatelessWidget {
-  const _CountdownOverlay({required this.value});
+class _OffsetNudgeRow extends StatelessWidget {
+  const _OffsetNudgeRow({required this.deltas, required this.onNudge});
 
-  final int value;
+  final List<int> deltas;
+  final ValueChanged<int> onNudge;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: [
+          for (final delta in deltas)
+            OutlinedButton(
+              onPressed: () => onNudge(delta),
+              style: OutlinedButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                minimumSize: const Size(0, 32),
+                side: BorderSide(color: colorScheme.outlineVariant),
+              ),
+              child: Text(delta > 0 ? '+$delta' : '$delta'),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 120 BPM 音频/触控延迟校准弹窗。
+///
+/// 通过共享池加载 `answer.wav` 播放等间隔节拍音，采集用户 8～12 次点击偏差，
+/// 去除极值后取中位数换算为推荐的 `judgementOffsetMs`。
+class _LatencyCalibrationDialog extends StatefulWidget {
+  const _LatencyCalibrationDialog({
+    required this.currentOffsetMs,
+    required this.volume,
+  });
+
+  final int currentOffsetMs;
+  final double volume;
+
+  @override
+  State<_LatencyCalibrationDialog> createState() =>
+      _LatencyCalibrationDialogState();
+}
+
+class _LatencyCalibrationDialogState extends State<_LatencyCalibrationDialog> {
+  static const String _clickAsset = 'packages/simai_flutter/assets/answer.wav';
+  static const int _beatIntervalUs = 500000; // 120 BPM（每拍 500 ms）
+  static const int _minSamples = 8;
+  static const int _targetSamples = 12;
+  static const int _scheduleLookaheadUs = 120000;
+
+  final Stopwatch _clock = Stopwatch();
+  final SimaiGameplayEventClockMapper _clockMapper =
+      SimaiGameplayEventClockMapper();
+  final List<double> _samplesMs = <double>[];
+  final List<SoundHandle> _activeHandles = <SoundHandle>[];
+
+  AudioSource? _clickSource;
+  Timer? _beatTimer;
+  Timer? _pulseResetTimer;
+  Duration? _engineBaseTime;
+  int _clockBaseUs = 0;
+  int _nextBeatToSchedule = 1;
+  int _lastSampledBeatIndex = -1;
+  double? _lastErrorMs;
+  bool _loading = true;
+  bool _running = false;
+  bool _beatPulse = false;
+  bool _disposed = false;
+  String? _errorText;
+
+  double get _clickVolume =>
+      (widget.volume.isFinite && widget.volume > 0.15 ? widget.volume : 0.72)
+          .clamp(0.15, simaiMaxHitSoundVolume)
+          .toDouble();
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_initAudioAndStart());
+  }
+
+  Future<void> _initAudioAndStart() async {
+    try {
+      await ensureSoLoudInitialized(SoLoud.instance);
+      final source = await SoLoudSourcePool.acquireAsset(
+        _clickAsset,
+        SoLoud.instance,
+      );
+      if (_disposed) {
+        unawaited(SoLoudSourcePool.release(source, SoLoud.instance));
+        return;
+      }
+      _clickSource = source;
+      if (!mounted) return;
+      setState(() => _loading = false);
+      _startMetronome();
+    } catch (e) {
+      if (_disposed || !mounted) return;
+      setState(() {
+        _loading = false;
+        _errorText = '音频初始化失败：$e';
+      });
+    }
+  }
+
+  void _startMetronome() {
+    if (_disposed || _clickSource == null) return;
+    _stopMetronome();
+    _samplesMs.clear();
+    _lastErrorMs = null;
+    _lastSampledBeatIndex = -1;
+    _clockMapper.reset();
+    _clock
+      ..reset()
+      ..start();
+    _clockBaseUs = _clock.elapsedMicroseconds;
+    try {
+      _engineBaseTime = SoLoud.instance.getEngineTime();
+    } catch (_) {
+      _engineBaseTime = null;
+    }
+    _nextBeatToSchedule = 1;
+    _running = true;
+
+    // 使用高频轮询 + SoLoud 引擎前瞻调度，规避 Dart Timer 抖动和累积漂移。
+    _beatTimer = Timer.periodic(const Duration(milliseconds: 20), (_) {
+      if (_disposed || !_running) return;
+      _tickMetronome();
+    });
+    _tickMetronome();
+    if (mounted) setState(() {});
+  }
+
+  void _tickMetronome() {
+    final source = _clickSource;
+    if (source == null || !SoLoud.instance.isInitialized) return;
+    final nowUs = _clock.elapsedMicroseconds;
+    final engineBase = _engineBaseTime;
+    final lookaheadUs = engineBase != null ? _scheduleLookaheadUs : 0;
+
+    while (_clockBaseUs + _nextBeatToSchedule * _beatIntervalUs <=
+        nowUs + lookaheadUs) {
+      final beatIndex = _nextBeatToSchedule++;
+      final beatClockUs = _clockBaseUs + beatIndex * _beatIntervalUs;
+      SoundHandle? handle;
+      try {
+        if (engineBase != null) {
+          final scheduledAt =
+              engineBase + Duration(microseconds: beatIndex * _beatIntervalUs);
+          handle = SoLoud.instance.playScheduled(
+            source,
+            scheduledAt,
+            volume: _clickVolume,
+          );
+        } else {
+          handle = SoLoud.instance.play(source, volume: _clickVolume);
+        }
+      } catch (_) {
+        try {
+          handle = SoLoud.instance.play(source, volume: _clickVolume);
+        } catch (_) {
+          handle = null;
+        }
+      }
+      if (handle != null && !handle.isError) {
+        _activeHandles.add(handle);
+        if (_activeHandles.length > 16) {
+          _activeHandles.removeRange(0, _activeHandles.length - 16);
+        }
+      }
+      final pulseDelayUs = max(0, beatClockUs - nowUs);
+      unawaited(
+        Future<void>.delayed(Duration(microseconds: pulseDelayUs), () {
+          if (_disposed || !_running || !mounted) return;
+          setState(() => _beatPulse = true);
+          _pulseResetTimer?.cancel();
+          _pulseResetTimer = Timer(const Duration(milliseconds: 110), () {
+            if (_disposed || !mounted) return;
+            setState(() => _beatPulse = false);
+          });
+        }),
+      );
+    }
+  }
+
+  void _stopMetronome() {
+    _running = false;
+    _beatPulse = false;
+    _beatTimer?.cancel();
+    _beatTimer = null;
+    _pulseResetTimer?.cancel();
+    _pulseResetTimer = null;
+    _clock.stop();
+    _stopActiveHandles();
+  }
+
+  void _stopActiveHandles() {
+    if (_activeHandles.isEmpty || !SoLoud.instance.isInitialized) {
+      _activeHandles.clear();
+      return;
+    }
+    for (final handle in _activeHandles) {
+      try {
+        if (SoLoud.instance.getIsValidVoiceHandle(handle)) {
+          unawaited(SoLoud.instance.stop(handle));
+        }
+      } catch (_) {}
+    }
+    _activeHandles.clear();
+  }
+
+  void _handleTap(Duration eventTimestamp) {
+    if (!_running || _samplesMs.length >= _targetSamples) return;
+    final mapped = _clockMapper.map(
+      eventTimestamp: eventTimestamp,
+      receiptTimestamp: _clock.elapsed,
+      allowCalibration: true,
+    );
+    final tapUs = mapped.inMicroseconds;
+    final relativeUs = tapUs - _clockBaseUs;
+    final nearestBeatIndex = (relativeUs / _beatIntervalUs).round();
+    if (nearestBeatIndex < 1 || nearestBeatIndex == _lastSampledBeatIndex) {
+      return;
+    }
+    final beatUs = _clockBaseUs + nearestBeatIndex * _beatIntervalUs;
+    final errorMs = (tapUs - beatUs) / 1000.0;
+    // 忽略超出半拍范围的误触。
+    if (errorMs.abs() > 250.0) return;
+
+    _lastSampledBeatIndex = nearestBeatIndex;
+    _samplesMs.add(errorMs);
+    _lastErrorMs = errorMs;
+    if (_samplesMs.length >= _targetSamples) {
+      _stopMetronome();
+    }
+    setState(() {});
+  }
+
+  double? _computeTrimmedMedianErrorMs() {
+    if (_samplesMs.length < _minSamples) return null;
+    final sorted = List<double>.of(_samplesMs)..sort();
+    // 去除首尾极值后取中位数，抵抗偶发误触。
+    final trim = sorted.length >= 10 ? 2 : 1;
+    final trimmed = sorted.sublist(trim, sorted.length - trim);
+    final mid = trimmed.length ~/ 2;
+    return trimmed.length.isOdd
+        ? trimmed[mid]
+        : (trimmed[mid - 1] + trimmed[mid]) / 2.0;
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _stopMetronome();
+    final source = _clickSource;
+    _clickSource = null;
+    if (source != null) {
+      unawaited(SoLoudSourcePool.release(source, SoLoud.instance));
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final medianErrorMs = _computeTrimmedMedianErrorMs();
+    // 偏 Late（errorMs > 0）对应负判定偏移，偏 Fast（errorMs < 0）对应正判定偏移。
+    final int? recommendedOffsetMs = medianErrorMs == null
+        ? null
+        : (-medianErrorMs).round().clamp(-500, 500);
+    final completed = _samplesMs.length >= _targetSamples;
+
+    return AlertDialog(
+      title: const Text('音频/触控延迟校准'),
+      content: SingleChildScrollView(
+        child: SizedBox(
+          width: 340,
+          child: _loading
+              ? const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 28),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 12),
+                      Text('正在准备节拍音…'),
+                    ],
+                  ),
+                )
+              : _errorText != null
+              ? Text(_errorText!)
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      '请跟随 120 BPM 节拍音，稳定点击下方节拍区 8～12 次。',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Listener(
+                      behavior: HitTestBehavior.opaque,
+                      onPointerDown: (event) => _handleTap(event.timeStamp),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 90),
+                        height: 132,
+                        decoration: BoxDecoration(
+                          color: completed
+                              ? colorScheme.secondaryContainer
+                              : _beatPulse
+                              ? colorScheme.primaryContainer
+                              : colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: _beatPulse
+                                ? colorScheme.primary
+                                : colorScheme.outlineVariant,
+                            width: _beatPulse ? 2 : 1,
+                          ),
+                        ),
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                completed
+                                    ? Icons.check_circle
+                                    : Icons.touch_app,
+                                size: 36,
+                                color: completed
+                                    ? colorScheme.onSecondaryContainer
+                                    : colorScheme.primary,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                completed ? '采集完成' : '按节拍点击此处',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '已采集 ${_samplesMs.length} / $_targetSamples 次'
+                                '${_samplesMs.length < _minSamples ? '（至少 $_minSamples 次可应用）' : ''}',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    if (_lastErrorMs != null)
+                      Text(
+                        '最近一次偏差：${_formatSignedDecimalMs(_lastErrorMs!)}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    if (medianErrorMs != null &&
+                        recommendedOffsetMs != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        '去极值中位数延迟：${_formatSignedDecimalMs(medianErrorMs)}',
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '推荐判定偏移：${_formatSignedMs(recommendedOffsetMs)}'
+                        '（当前 ${_formatSignedMs(widget.currentOffsetMs)}）',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          color: colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+        ),
+      ),
+      actions: [
+        if (!_loading && _errorText == null)
+          TextButton(onPressed: _startMetronome, child: const Text('重新校准')),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('关闭'),
+        ),
+        FilledButton(
+          onPressed: recommendedOffsetMs == null
+              ? null
+              : () => Navigator.of(context).pop(recommendedOffsetMs),
+          child: const Text('应用推荐值'),
+        ),
+      ],
+    );
+  }
+}
+
+class _CountdownOverlay extends StatelessWidget {
+  const _CountdownOverlay({required this.countdownListenable});
+
+  final ValueListenable<int> countdownListenable;
 
   @override
   Widget build(BuildContext context) {
@@ -1131,13 +1945,16 @@ class _CountdownOverlay extends StatelessWidget {
     return ColoredBox(
       color: colorScheme.surface.withValues(alpha: 0.38),
       child: Center(
-        child: Text(
-          '$value',
-          style: TextStyle(
-            color: colorScheme.onSurface,
-            fontSize: 72,
-            fontWeight: FontWeight.w900,
-            shadows: const [Shadow(color: Colors.black, blurRadius: 12)],
+        child: ValueListenableBuilder<int>(
+          valueListenable: countdownListenable,
+          builder: (context, value, _) => Text(
+            '$value',
+            style: TextStyle(
+              color: colorScheme.onSurface,
+              fontSize: 72,
+              fontWeight: FontWeight.w900,
+              shadows: const [Shadow(color: Colors.black, blurRadius: 12)],
+            ),
           ),
         ),
       ),

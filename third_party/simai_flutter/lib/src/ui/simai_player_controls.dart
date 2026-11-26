@@ -1,6 +1,11 @@
+import 'dart:async';
+import 'dart:math' as math;
+import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import '../../simai_flutter.dart';
-import '../internal/syntactic_analysis/serializer.dart';
+import 'chart_pattern_analyzer.dart';
 import 'chart_timing_mapper.dart';
 import 'simai_colors.dart';
 
@@ -131,7 +136,7 @@ class _TimelineData {
   final List<_NoteEvent> events;
   final List<double> measureStartTimes;
   final List<_TempoMarker> tempoMarkers;
-  final List<_MeasureStatement> statements;
+  final List<SimaiMeasureStatement> statements;
 
   const _TimelineData({
     required this.totalDuration,
@@ -139,67 +144,6 @@ class _TimelineData {
     required this.measureStartTimes,
     required this.tempoMarkers,
     required this.statements,
-  });
-}
-
-class _StatementToken {
-  final double time;
-  final String text;
-  final String? patternKey;
-  final int? ringIndex;
-
-  const _StatementToken({
-    required this.time,
-    required this.text,
-    required this.patternKey,
-    required this.ringIndex,
-  });
-}
-
-enum _TokenPatternType {
-  vertical,
-  alternating,
-  pairedBeat,
-  sweep,
-  reversingSweep,
-}
-
-class _TokenPattern {
-  final int start;
-  final int end;
-  final String subdivisionLabel;
-  final _TokenPatternType type;
-
-  const _TokenPattern({
-    required this.start,
-    required this.end,
-    required this.subdivisionLabel,
-    required this.type,
-  });
-
-  String get label {
-    final typeLabel = switch (type) {
-      _TokenPatternType.vertical => '纵连',
-      _TokenPatternType.alternating => '交互',
-      _TokenPatternType.pairedBeat => '对拍',
-      _TokenPatternType.sweep => '扫键',
-      _TokenPatternType.reversingSweep => '换向扫键',
-    };
-    return '$subdivisionLabel$typeLabel';
-  }
-}
-
-class _MeasureStatement {
-  final int measure;
-  final double startTime;
-  final List<_StatementToken> tokens;
-  final List<_TokenPattern> patterns;
-
-  const _MeasureStatement({
-    required this.measure,
-    required this.startTime,
-    required this.tokens,
-    required this.patterns,
   });
 }
 
@@ -215,6 +159,32 @@ class _TempoMarker {
   });
 }
 
+List<double> _computeChartMeasureStartTimes(MaiChart chart, double total) {
+  final starts = <double>[];
+  const epsilon = 1e-6;
+
+  void addStart(double t) {
+    final clamped = t.clamp(0.0, total).toDouble();
+    if (starts.isEmpty) {
+      starts.add(clamped);
+      return;
+    }
+    if ((clamped - starts.last).abs() <= 1e-4) return;
+    if (clamped < starts.last - 1e-4) return;
+    starts.add(clamped);
+  }
+
+  final totalSeconds = total.isFinite && total > 0 ? total : 0.0;
+  final totalBeats = ChartTimingMapper.beatsAtTime(chart, totalSeconds);
+  addStart(0.0);
+  for (double b = 4.0; b <= totalBeats + epsilon; b += 4.0) {
+    final t = ChartTimingMapper.timeAtBeats(chart, b);
+    if (t > totalSeconds + epsilon) break;
+    addStart(t);
+  }
+  return starts;
+}
+
 class _SimaiTimeline extends StatefulWidget {
   final SimaiPlayerController controller;
   final double height;
@@ -226,11 +196,135 @@ class _SimaiTimeline extends StatefulWidget {
 }
 
 class _SimaiTimelineState extends State<_SimaiTimeline> {
+  double? _dragTime;
+  double _totalDuration = 1.0;
+  List<SimaiMeasureStatement> _statements = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _rebuildStatements();
+  }
+
+  @override
+  void didUpdateWidget(_SimaiTimeline oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(widget.controller, oldWidget.controller)) {
+      _dragTime = null;
+      _rebuildStatements();
+    }
+  }
+
+  void _rebuildStatements() {
+    final controller = widget.controller;
+    double total = controller.chartInfo.totalDuration > 0
+        ? controller.chartInfo.totalDuration
+        : 0.0;
+    if (total <= 0) {
+      double maxT = 0.0;
+      for (final collection in controller.chart.noteCollections) {
+        if (collection.isNotEmpty && collection.time > maxT) {
+          maxT = collection.time;
+        }
+      }
+      total = maxT <= 0 ? 1.0 : maxT;
+    }
+    final measureStartTimes = _computeChartMeasureStartTimes(
+      controller.chart,
+      total,
+    );
+    _totalDuration = total;
+    _statements = SimaiChartPatternAnalyzer.buildStatements(
+      controller.chart,
+      measureStartTimes,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = widget.controller;
+    final densityHeight = math.max(0.0, widget.height - 44.0);
+    return SizedBox(
+      height: widget.height,
+      width: double.infinity,
+      child: Column(
+        children: [
+          // 将谱面语句条与时间轴直方图拆成独立 RepaintBoundary，且仅在当前小节/音符索引变化时重建语句条。
+          SizedBox(
+            height: 44,
+            width: double.infinity,
+            child: RepaintBoundary(
+              child: _SimaiStatementDisplay(
+                controller: controller,
+                statements: _statements,
+                dragTime: _dragTime,
+              ),
+            ),
+          ),
+          Expanded(
+            child: SimaiDensityTimeline(
+              chart: controller.chart,
+              totalDuration: _totalDuration,
+              timeListenable: controller.timeNotifier,
+              isPlaying: controller.isPlaying,
+              onSeek: (time, {bool syncAudio = true}) =>
+                  controller.seek(time, syncAudio: syncAudio),
+              onPause: controller.pause,
+              onPlay: controller.play,
+              height: densityHeight,
+              playbackRate: controller.playbackRate,
+              onDragTimeChanged: (dragTime) {
+                if (!mounted || _dragTime == dragTime) return;
+                setState(() => _dragTime = dragTime);
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 可复用的谱面密度直方图与进度条组件（含小节刻度、变速标记、播放头及点击/拖动定位）。
+class SimaiDensityTimeline extends StatefulWidget {
+  final MaiChart chart;
+  final double totalDuration;
+  final ValueListenable<double> timeListenable;
+  final bool isPlaying;
+  final FutureOr<void> Function(double time, {bool syncAudio}) onSeek;
+  final FutureOr<void> Function() onPause;
+  final FutureOr<void> Function() onPlay;
+  final double height;
+  final double playbackRate;
+  final ValueChanged<double?>? onDragTimeChanged;
+
+  const SimaiDensityTimeline({
+    super.key,
+    required this.chart,
+    required this.totalDuration,
+    required this.timeListenable,
+    required this.isPlaying,
+    required this.onSeek,
+    required this.onPause,
+    required this.onPlay,
+    required this.height,
+    this.playbackRate = 1.0,
+    this.onDragTimeChanged,
+  });
+
+  @override
+  State<SimaiDensityTimeline> createState() => _SimaiDensityTimelineState();
+}
+
+class _SimaiDensityTimelineState extends State<SimaiDensityTimeline> {
   bool _isDragging = false;
   bool _wasPlayingBeforeDrag = false;
   double _dragTime = 0.0;
 
   _TimelineData? _data;
+  Object _staticLayerIdentity = Object();
+  final _TimelineStaticLayerCache _staticLayerCache =
+      _TimelineStaticLayerCache();
   double _lastWidth = 0.0;
   int _lastBinCount = 0;
   List<int> _tapBins = const [];
@@ -244,349 +338,55 @@ class _SimaiTimelineState extends State<_SimaiTimeline> {
   void initState() {
     super.initState();
     _rebuildData();
-    _dragTime = widget.controller.chartTime;
+    _dragTime = widget.timeListenable.value;
   }
 
   @override
-  void didUpdateWidget(_SimaiTimeline oldWidget) {
+  void dispose() {
+    _staticLayerCache.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(SimaiDensityTimeline oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!identical(widget.controller, oldWidget.controller)) {
+    if (!identical(widget.chart, oldWidget.chart) ||
+        (widget.totalDuration - oldWidget.totalDuration).abs() > 1e-6) {
       _isDragging = false;
       _wasPlayingBeforeDrag = false;
       _lastWidth = 0.0;
       _lastBinCount = 0;
+      _staticLayerCache.invalidate();
       _rebuildData();
-      _dragTime = widget.controller.chartTime;
+      _dragTime = widget.timeListenable.value;
     }
   }
 
   void _rebuildData() {
-    final controller = widget.controller;
-    final total = controller.chartInfo.totalDuration > 0
-        ? controller.chartInfo.totalDuration
+    final total = widget.totalDuration.isFinite && widget.totalDuration > 0
+        ? widget.totalDuration
         : 0.0;
     final events = <_NoteEvent>[];
-    for (final collection in controller.chart.noteCollections) {
+    for (final collection in widget.chart.noteCollections) {
       final collectionTime = collection.time;
       for (final note in collection) {
         final category = _categorize(collection, note);
         events.add(_NoteEvent(time: collectionTime, category: category));
       }
     }
-    final measureStartTimes = _computeMeasureStartTimes(
-      controller.chart,
-      total > 0 ? total : _inferTotalFromEvents(events),
+    final resolvedTotal = total > 0 ? total : _inferTotalFromEvents(events);
+    final measureStartTimes = _computeChartMeasureStartTimes(
+      widget.chart,
+      resolvedTotal,
     );
     _data = _TimelineData(
-      totalDuration: total > 0 ? total : _inferTotalFromEvents(events),
+      totalDuration: resolvedTotal,
       events: events,
       measureStartTimes: measureStartTimes,
-      tempoMarkers: _computeTempoMarkers(controller.chart),
-      statements: _computeStatements(controller.chart, measureStartTimes),
+      tempoMarkers: _computeTempoMarkers(widget.chart),
+      statements: const [],
     );
-  }
-
-  static List<_MeasureStatement> _computeStatements(
-    MaiChart chart,
-    List<double> measureStarts,
-  ) {
-    if (measureStarts.isEmpty) return const [];
-    final grouped = <int, List<_StatementToken>>{};
-    for (
-      int collectionIndex = 0;
-      collectionIndex < chart.noteCollections.length;
-      collectionIndex++
-    ) {
-      final collection = chart.noteCollections[collectionIndex];
-      if (collection.isEmpty) continue;
-      final measure = _indexAtOrBefore(measureStarts, collection.time);
-      final sourceStatements = chart.sourceNoteStatements;
-      String text;
-      if (sourceStatements != null &&
-          collectionIndex < sourceStatements.length) {
-        // The timeline is a single-line view; retain source syntax while
-        // folding formatting whitespace used by multiline maidata files.
-        text = sourceStatements[collectionIndex]
-            .replaceAll(RegExp(r'\s+'), ' ')
-            .trim();
-      } else {
-        final writer = StringBuffer();
-        Serializer.serializeNoteCollection(collection, writer);
-        text = writer.toString();
-      }
-      grouped
-          .putIfAbsent(measure, () => [])
-          .add(
-            _StatementToken(
-              time: collection.time,
-              text: text,
-              patternKey: collection.length == 1
-                  ? collection.single.location.toString()
-                  : null,
-              ringIndex:
-                  collection.length == 1 &&
-                      collection.single.location.group == NoteGroup.tap
-                  ? collection.single.location.index
-                  : null,
-            ),
-          );
-    }
-    return grouped.entries.map((entry) {
-      entry.value.sort((a, b) => a.time.compareTo(b.time));
-      return _MeasureStatement(
-        measure: entry.key,
-        startTime: measureStarts[entry.key],
-        tokens: List.unmodifiable(entry.value),
-        patterns: List.unmodifiable(_detectPatterns(chart, entry.value)),
-      );
-    }).toList()..sort((a, b) => a.startTime.compareTo(b.startTime));
-  }
-
-  static List<_TokenPattern> _detectPatterns(
-    MaiChart chart,
-    List<_StatementToken> tokens,
-  ) {
-    final patterns = <_TokenPattern>[];
-    int i = 0;
-    while (i <= tokens.length - 4) {
-      final first = tokens[i].patternKey;
-      if (first == null) {
-        i++;
-        continue;
-      }
-      var end = i + 1;
-      while (end < tokens.length && tokens[end].patternKey == first) {
-        end++;
-      }
-      if (end - i >= 4 && _hasEvenIntervals(tokens, i, end)) {
-        patterns.add(
-          _TokenPattern(
-            start: i,
-            end: end,
-            subdivisionLabel: _patternSubdivisionLabel(chart, tokens, i, end),
-            type: _TokenPatternType.vertical,
-          ),
-        );
-        i = end;
-        continue;
-      }
-
-      final pairedBeatEnd = _pairedBeatEnd(tokens, i);
-      if (pairedBeatEnd >= i + 4) {
-        final pairStartTimes = <double>[
-          for (int pair = i; pair < pairedBeatEnd; pair += 2) tokens[pair].time,
-        ];
-        patterns.add(
-          _TokenPattern(
-            start: i,
-            end: pairedBeatEnd,
-            subdivisionLabel: _subdivisionLabelForTimes(chart, pairStartTimes),
-            type: _TokenPatternType.pairedBeat,
-          ),
-        );
-        i = pairedBeatEnd;
-        continue;
-      }
-
-      final second = tokens[i + 1].patternKey;
-      if (second != null && second != first) {
-        end = i + 2;
-        while (end < tokens.length &&
-            tokens[end].patternKey == ((end - i).isEven ? first : second)) {
-          end++;
-        }
-        if (end - i >= 4 && _hasEvenIntervals(tokens, i, end)) {
-          patterns.add(
-            _TokenPattern(
-              start: i,
-              end: end,
-              subdivisionLabel: _patternSubdivisionLabel(chart, tokens, i, end),
-              type: _TokenPatternType.alternating,
-            ),
-          );
-          i = end;
-          continue;
-        }
-      }
-
-      final sweepEnd = _sweepEnd(tokens, i);
-      if (sweepEnd > i + 1) {
-        final directions = <int>[];
-        for (int j = i + 1; j < sweepEnd; j++) {
-          directions.add(_ringDirection(tokens[j - 1], tokens[j]));
-        }
-        final reversing = directions
-            .skip(1)
-            .any((direction) => direction != directions.first);
-        patterns.add(
-          _TokenPattern(
-            start: i,
-            end: sweepEnd,
-            subdivisionLabel: _patternSubdivisionLabel(
-              chart,
-              tokens,
-              i,
-              sweepEnd,
-            ),
-            type: reversing
-                ? _TokenPatternType.reversingSweep
-                : _TokenPatternType.sweep,
-          ),
-        );
-        i = sweepEnd;
-        continue;
-      }
-      i++;
-    }
-    return patterns;
-  }
-
-  static bool _hasEvenIntervals(
-    List<_StatementToken> tokens,
-    int start,
-    int end,
-  ) {
-    final interval = tokens[start + 1].time - tokens[start].time;
-    if (interval <= 1e-6) return false;
-    for (int i = start + 2; i < end; i++) {
-      if (((tokens[i].time - tokens[i - 1].time) - interval).abs() > 1e-4) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  static int _ringDirection(_StatementToken from, _StatementToken to) {
-    if (from.ringIndex == null || to.ringIndex == null) return 0;
-    final difference = (to.ringIndex! - from.ringIndex!) % 8;
-    if (difference == 1) return 1;
-    if (difference == 7) return -1;
-    return 0;
-  }
-
-  static int _pairedBeatEnd(List<_StatementToken> tokens, int start) {
-    if (start + 3 >= tokens.length) return start;
-    int end = start;
-    while (end + 1 < tokens.length) {
-      final first = tokens[end];
-      final second = tokens[end + 1];
-      if (_ringDirection(first, second) == 0 ||
-          !_isClosePairGap(first, second)) {
-        break;
-      }
-      if (end > start) {
-        final previousPairEnd = tokens[end - 1];
-        final interPairGap = first.time - previousPairEnd.time;
-        final intraPairGap = second.time - first.time;
-        final hasTemporalBoundary =
-            interPairGap > intraPairGap * 1.5 + 1e-4 && interPairGap > 0.01;
-        final hasSpatialBoundary = _ringDirection(previousPairEnd, first) == 0;
-        if (!hasTemporalBoundary && !hasSpatialBoundary) {
-          break;
-        }
-      }
-      end += 2;
-    }
-    return end >= start + 4 ? end : start;
-  }
-
-  static bool _isClosePairGap(_StatementToken first, _StatementToken second) {
-    final gap = second.time - first.time;
-    return gap > 1e-6 && gap <= 0.050001;
-  }
-
-  static int _sweepEnd(List<_StatementToken> tokens, int start) {
-    if (start + 1 >= tokens.length) return start;
-    int direction = 0;
-    bool reversed = false;
-    int end = start + 1;
-    while (end < tokens.length) {
-      final stepDirection = _ringDirection(tokens[end - 1], tokens[end]);
-      if (stepDirection == 0 ||
-          !_isSmallSweepGap(tokens[end - 1], tokens[end])) {
-        break;
-      }
-      if (direction == 0) {
-        direction = stepDirection;
-      } else if (stepDirection != direction) {
-        if (reversed) break;
-        reversed = true;
-        direction = stepDirection;
-      }
-      end++;
-    }
-    final noteCount = end - start;
-    if (noteCount < 2) return start;
-    final firstGap = tokens[start + 1].time - tokens[start].time;
-    final startGapLimit = switch (noteCount) {
-      2 => 0.075,
-      3 => 0.100,
-      4 => 0.125,
-      _ => 0.150,
-    };
-    return firstGap <= startGapLimit + 1e-6 ? end : start;
-  }
-
-  static bool _isSmallSweepGap(_StatementToken from, _StatementToken to) {
-    final gap = to.time - from.time;
-    return gap > 1e-6 && gap <= 0.150001;
-  }
-
-  static String _patternSubdivisionLabel(
-    MaiChart chart,
-    List<_StatementToken> tokens,
-    int start,
-    int end,
-  ) {
-    final subdivisions = <int>[];
-    for (int i = start + 1; i < end; i++) {
-      final interval = tokens[i].time - tokens[i - 1].time;
-      final bpm = ChartTimingMapper.timingAtTime(
-        chart,
-        tokens[i - 1].time,
-      ).tempo;
-      if (interval <= 0 || bpm <= 0) continue;
-      subdivisions.add((240.0 / (bpm * interval)).round().clamp(1, 1024));
-    }
-    if (subdivisions.isEmpty) return '4分';
-    final unique = <int>[];
-    for (final value in subdivisions) {
-      if (unique.isEmpty || unique.last != value) unique.add(value);
-    }
-    if (unique.length == 1) return '${unique.single}分';
-    return '${unique.join('→')}分变速';
-  }
-
-  static String _subdivisionLabelForTimes(MaiChart chart, List<double> times) {
-    if (times.length < 2) return '4分';
-    final subdivisions = <int>[];
-    for (int i = 1; i < times.length; i++) {
-      final interval = times[i] - times[i - 1];
-      final bpm = ChartTimingMapper.timingAtTime(chart, times[i - 1]).tempo;
-      if (interval <= 0 || bpm <= 0) continue;
-      subdivisions.add((240.0 / (bpm * interval)).round().clamp(1, 1024));
-    }
-    if (subdivisions.isEmpty) return '4分';
-    final unique = <int>[];
-    for (final value in subdivisions) {
-      if (unique.isEmpty || unique.last != value) unique.add(value);
-    }
-    if (unique.length == 1) return '${unique.single}分';
-    return '${unique.join('→')}分变速';
-  }
-
-  static int _indexAtOrBefore(List<double> values, double time) {
-    int lo = 0;
-    int hi = values.length - 1;
-    while (lo <= hi) {
-      final mid = (lo + hi) >> 1;
-      if (values[mid] <= time + 1e-7) {
-        lo = mid + 1;
-      } else {
-        hi = mid - 1;
-      }
-    }
-    return hi.clamp(0, values.length - 1);
+    _staticLayerIdentity = Object();
   }
 
   static List<_TempoMarker> _computeTempoMarkers(MaiChart chart) {
@@ -634,32 +434,6 @@ class _SimaiTimelineState extends State<_SimaiTimeline> {
     if (isSlide) return _TimelineCategory.slide;
     if (note.type == NoteType.touch) return _TimelineCategory.touch;
     return _TimelineCategory.tap;
-  }
-
-  static List<double> _computeMeasureStartTimes(MaiChart chart, double total) {
-    final starts = <double>[];
-    const epsilon = 1e-6;
-
-    void addStart(double t) {
-      final clamped = t.clamp(0.0, total).toDouble();
-      if (starts.isEmpty) {
-        starts.add(clamped);
-        return;
-      }
-      if ((clamped - starts.last).abs() <= 1e-4) return;
-      if (clamped < starts.last - 1e-4) return;
-      starts.add(clamped);
-    }
-
-    final totalSeconds = total.isFinite && total > 0 ? total : 0.0;
-    final totalBeats = ChartTimingMapper.beatsAtTime(chart, totalSeconds);
-    addStart(0.0);
-    for (double b = 4.0; b <= totalBeats + epsilon; b += 4.0) {
-      final t = ChartTimingMapper.timeAtBeats(chart, b);
-      if (t > totalSeconds + epsilon) break;
-      addStart(t);
-    }
-    return starts;
   }
 
   void _ensureBinsForWidth(double width) {
@@ -712,6 +486,25 @@ class _SimaiTimelineState extends State<_SimaiTimeline> {
       if (sum > maxSum) maxSum = sum;
     }
     _maxBinSum = maxSum;
+    _staticLayerIdentity = Object();
+  }
+
+  Future<void> _finishDrag(double total) async {
+    if (!_isDragging) return;
+    final currentChart = widget.chart;
+    final shouldResume = _wasPlayingBeforeDrag;
+    final t = _dragTime.clamp(0.0, total).toDouble();
+    _isDragging = false;
+    _wasPlayingBeforeDrag = false;
+    widget.onDragTimeChanged?.call(null);
+    await widget.onSeek(t, syncAudio: true);
+    if (!mounted || !identical(widget.chart, currentChart) || _isDragging) {
+      return;
+    }
+    if (shouldResume) {
+      await widget.onPlay();
+    }
+    if (mounted) setState(() {});
   }
 
   @override
@@ -720,32 +513,31 @@ class _SimaiTimelineState extends State<_SimaiTimeline> {
       builder: (context, constraints) {
         _ensureBinsForWidth(constraints.maxWidth);
         final data = _data;
-        final controller = widget.controller;
         final total =
             data?.totalDuration ??
-            (controller.chartInfo.totalDuration > 0
-                ? controller.chartInfo.totalDuration
-                : 1.0);
+            (widget.totalDuration > 0 ? widget.totalDuration : 1.0);
 
         return SizedBox(
           height: widget.height,
           width: double.infinity,
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTapDown: (details) {
+            // 使用 onTapUp 避免按下瞬间与横向拖动手势抢跑触发带音频同步的 seek。
+            onTapUp: (details) {
               final box = context.findRenderObject() as RenderBox?;
               if (box == null) return;
               final local = box.globalToLocal(details.globalPosition);
               final t = (local.dx / box.size.width * total)
                   .clamp(0.0, total)
                   .toDouble();
-              controller.seek(t, syncAudio: true);
+              widget.onSeek(t, syncAudio: true);
             },
             onHorizontalDragStart: (details) {
               _isDragging = true;
-              _wasPlayingBeforeDrag = controller.isPlaying;
-              _dragTime = controller.chartTime;
-              if (_wasPlayingBeforeDrag) controller.pause();
+              _wasPlayingBeforeDrag = widget.isPlaying;
+              _dragTime = widget.timeListenable.value;
+              widget.onDragTimeChanged?.call(_dragTime);
+              if (_wasPlayingBeforeDrag) widget.onPause();
               setState(() {});
             },
             onHorizontalDragUpdate: (details) {
@@ -758,53 +550,39 @@ class _SimaiTimelineState extends State<_SimaiTimeline> {
               setState(() {
                 _dragTime = t;
               });
-              controller.seek(t, syncAudio: false);
+              widget.onDragTimeChanged?.call(t);
+              widget.onSeek(t, syncAudio: false);
             },
-            onHorizontalDragEnd: (_) async {
-              final t = _dragTime.clamp(0.0, total).toDouble();
-              _isDragging = false;
-              await controller.seek(t, syncAudio: true);
-              if (_wasPlayingBeforeDrag) controller.play();
-              if (mounted) setState(() {});
-            },
-            child: ValueListenableBuilder<double>(
-              valueListenable: controller.timeNotifier,
-              builder: (context, notifiedTime, child) {
-                final displayTime = (_isDragging ? _dragTime : notifiedTime)
-                    .clamp(0.0, total)
-                    .toDouble();
-                return Column(
-                  children: [
-                    SizedBox(
-                      height: 44,
-                      width: double.infinity,
-                      child: _SimaiStatementDisplay(
-                        statements: data?.statements ?? const [],
-                        currentTime: displayTime,
-                      ),
+            onHorizontalDragEnd: (_) => unawaited(_finishDrag(total)),
+            onHorizontalDragCancel: () => unawaited(_finishDrag(total)),
+            child: RepaintBoundary(
+              child: ValueListenableBuilder<double>(
+                valueListenable: widget.timeListenable,
+                builder: (context, notifiedTime, child) {
+                  final displayTime = (_isDragging ? _dragTime : notifiedTime)
+                      .clamp(0.0, total)
+                      .toDouble();
+                  return CustomPaint(
+                    size: Size.infinite,
+                    painter: _SimaiTimelinePainter(
+                      staticCache: _staticLayerCache,
+                      dataIdentity: _staticLayerIdentity,
+                      displayFont: Theme.of(context).textTheme.bodySmall,
+                      totalDuration: total,
+                      currentTime: displayTime,
+                      playbackRate: widget.playbackRate,
+                      measureStartTimes: data?.measureStartTimes ?? const [],
+                      tempoMarkers: data?.tempoMarkers ?? const [],
+                      tapBins: _tapBins,
+                      touchBins: _touchBins,
+                      eachBins: _eachBins,
+                      slideBins: _slideBins,
+                      breakBins: _breakBins,
+                      maxBinSum: _maxBinSum,
                     ),
-                    Expanded(
-                      child: CustomPaint(
-                        size: Size.infinite,
-                        painter: _SimaiTimelinePainter(
-                          displayFont: Theme.of(context).textTheme.bodySmall,
-                          totalDuration: total,
-                          currentTime: displayTime,
-                          measureStartTimes:
-                              data?.measureStartTimes ?? const [],
-                          tempoMarkers: data?.tempoMarkers ?? const [],
-                          tapBins: _tapBins,
-                          touchBins: _touchBins,
-                          eachBins: _eachBins,
-                          slideBins: _slideBins,
-                          breakBins: _breakBins,
-                          maxBinSum: _maxBinSum,
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              },
+                  );
+                },
+              ),
             ),
           ),
         );
@@ -814,12 +592,14 @@ class _SimaiTimelineState extends State<_SimaiTimeline> {
 }
 
 class _SimaiStatementDisplay extends StatefulWidget {
-  final List<_MeasureStatement> statements;
-  final double currentTime;
+  final SimaiPlayerController controller;
+  final List<SimaiMeasureStatement> statements;
+  final double? dragTime;
 
   const _SimaiStatementDisplay({
+    required this.controller,
     required this.statements,
-    required this.currentTime,
+    this.dragTime,
   });
 
   @override
@@ -828,54 +608,203 @@ class _SimaiStatementDisplay extends StatefulWidget {
 
 class _SimaiStatementDisplayState extends State<_SimaiStatementDisplay> {
   final ScrollController _scrollController = ScrollController();
-  GlobalKey _activeTokenKey = GlobalKey();
-  int _lastStatementIndex = -1;
-  int _lastTokenIndex = -1;
+  final Stopwatch _scrollClock = Stopwatch()..start();
+
+  // 按小节复用的稳定 GlobalKey 映射：仅在切换小节时清空，确保配置块 Widget 不在播放期间反复销毁重建。
+  final Map<int, GlobalKey> _itemKeys = <int, GlobalKey>{};
+  int _statementIndex = -1;
+  int _tokenIndex = -1;
+  int _lastActiveItemStart = -1;
+  int _lastScrolledStatement = -1;
+  int _lastOuterScrollAtUs = 0;
+  bool _outerScrollQueued = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.timeNotifier.addListener(_onTimeChanged);
+    _syncIndices(notify: false);
+  }
+
+  @override
+  void didUpdateWidget(_SimaiStatementDisplay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(widget.controller, oldWidget.controller)) {
+      oldWidget.controller.timeNotifier.removeListener(_onTimeChanged);
+      widget.controller.timeNotifier.addListener(_onTimeChanged);
+    }
+    if (!identical(widget.statements, oldWidget.statements)) {
+      _itemKeys.clear();
+      _statementIndex = -1;
+      _tokenIndex = -1;
+      _lastActiveItemStart = -1;
+      _lastScrolledStatement = -1;
+    }
+    _syncIndices(notify: false);
+  }
 
   @override
   void dispose() {
+    widget.controller.timeNotifier.removeListener(_onTimeChanged);
+    _scrollClock.stop();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onTimeChanged() {
+    if (widget.dragTime != null) return;
+    _syncIndices(notify: true);
+  }
+
+  static int _binarySearchStatement(
+    List<SimaiMeasureStatement> statements,
+    double time,
+  ) {
+    int low = 0;
+    int high = statements.length - 1;
+    int result = 0;
+    while (low <= high) {
+      final mid = (low + high) >> 1;
+      if (statements[mid].startTime <= time + 1e-7) {
+        result = mid;
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+    return result;
+  }
+
+  static int _binarySearchToken(List<SimaiStatementToken> tokens, double time) {
+    int low = 0;
+    int high = tokens.length - 1;
+    int result = 0;
+    while (low <= high) {
+      final mid = (low + high) >> 1;
+      if (tokens[mid].time <= time + 1e-7) {
+        result = mid;
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+    return result;
+  }
+
+  void _syncIndices({required bool notify}) {
+    final statements = widget.statements;
+    if (statements.isEmpty) {
+      if (_statementIndex != -1 || _tokenIndex != -1) {
+        _itemKeys.clear();
+        _statementIndex = -1;
+        _tokenIndex = -1;
+        _lastActiveItemStart = -1;
+        _lastScrolledStatement = -1;
+        if (notify && mounted) setState(() {});
+      }
+      return;
+    }
+
+    final currentTime = widget.dragTime ?? widget.controller.timeNotifier.value;
+    final nextStatementIndex = _binarySearchStatement(statements, currentTime);
+    final tokens = statements[nextStatementIndex].tokens;
+    final nextTokenIndex = tokens.isEmpty
+        ? 0
+        : _binarySearchToken(tokens, currentTime);
+
+    if (nextStatementIndex == _statementIndex &&
+        nextTokenIndex == _tokenIndex) {
+      return;
+    }
+
+    if (nextStatementIndex != _statementIndex) {
+      // 仅在真正切换到新小节时重建本小节条目 Key。
+      _itemKeys.clear();
+      _lastActiveItemStart = -1;
+    }
+    _statementIndex = nextStatementIndex;
+    _tokenIndex = nextTokenIndex;
+
+    if (notify && mounted) {
+      setState(() {});
+    }
+  }
+
+  static int _resolveActiveItemStart(
+    SimaiMeasureStatement statement,
+    int tokenIndex,
+  ) {
+    for (final pattern in statement.patterns) {
+      if (tokenIndex >= pattern.start && tokenIndex < pattern.end) {
+        return pattern.start;
+      }
+    }
+    return tokenIndex;
+  }
+
+  void _scheduleOuterScrollIfNeeded(int statementIndex, int itemStart) {
+    final statementChanged = statementIndex != _lastScrolledStatement;
+    // 同配置块内部推进音符时不再重复滚动外层，避免与内层滚动动画互相打架。
+    if (!statementChanged && itemStart == _lastActiveItemStart) return;
+    _lastScrolledStatement = statementIndex;
+    _lastActiveItemStart = itemStart;
+    if (_outerScrollQueued) return;
+    _outerScrollQueued = true;
+
+    final int targetStatement = statementIndex;
+    final int targetItemStart = itemStart;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _outerScrollQueued = false;
+      if (!mounted || targetStatement != _statementIndex) return;
+      if (!_scrollController.hasClients) return;
+      final position = _scrollController.position;
+      if (!position.hasContentDimensions) return;
+
+      final key = _itemKeys[targetItemStart];
+      final renderObject = key?.currentContext?.findRenderObject();
+      if (renderObject == null || !renderObject.attached) return;
+      final viewport = RenderAbstractViewport.maybeOf(renderObject);
+      if (viewport == null) return;
+
+      final targetOffset = viewport
+          .getOffsetToReveal(renderObject, 0.35)
+          .offset
+          .clamp(position.minScrollExtent, position.maxScrollExtent)
+          .toDouble();
+      final delta = (targetOffset - position.pixels).abs();
+      if (!statementChanged && delta <= 20.0) return;
+
+      final nowUs = _scrollClock.elapsedMicroseconds;
+      final highFreq = nowUs - _lastOuterScrollAtUs < 140000;
+      _lastOuterScrollAtUs = nowUs;
+      if (statementChanged || highFreq) {
+        _scrollController.jumpTo(targetOffset);
+      } else {
+        unawaited(
+          _scrollController.animateTo(
+            targetOffset,
+            duration: const Duration(milliseconds: 140),
+            curve: Curves.easeOutCubic,
+          ),
+        );
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final statements = widget.statements;
-    if (statements.isEmpty) return const SizedBox.shrink();
-    var statementIndex = 0;
-    for (int i = 1; i < statements.length; i++) {
-      if (statements[i].startTime <= widget.currentTime + 1e-7) {
-        statementIndex = i;
-      } else {
-        break;
-      }
+    if (statements.isEmpty ||
+        _statementIndex < 0 ||
+        _statementIndex >= statements.length) {
+      return const SizedBox.shrink();
     }
-    final statement = statements[statementIndex];
-    var tokenIndex = 0;
-    for (int i = 1; i < statement.tokens.length; i++) {
-      if (statement.tokens[i].time <= widget.currentTime + 1e-7) {
-        tokenIndex = i;
-      } else {
-        break;
-      }
-    }
-
-    if (statementIndex != _lastStatementIndex ||
-        tokenIndex != _lastTokenIndex) {
-      _lastStatementIndex = statementIndex;
-      _lastTokenIndex = tokenIndex;
-      _activeTokenKey = GlobalKey();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final activeContext = _activeTokenKey.currentContext;
-        if (!mounted || activeContext == null) return;
-        Scrollable.ensureVisible(
-          activeContext,
-          alignment: 0.35,
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-        );
-      });
-    }
+    final statement = statements[_statementIndex];
+    final tokenIndex = statement.tokens.isEmpty
+        ? 0
+        : _tokenIndex.clamp(0, statement.tokens.length - 1);
+    final activeItemStart = _resolveActiveItemStart(statement, tokenIndex);
+    _scheduleOuterScrollIfNeeded(_statementIndex, activeItemStart);
 
     const normalStyle = TextStyle(
       color: Colors.white60,
@@ -923,7 +852,7 @@ class _SimaiStatementDisplayState extends State<_SimaiStatementDisplay> {
   }
 
   List<Widget> _buildStatementItems(
-    _MeasureStatement statement,
+    SimaiMeasureStatement statement,
     int activeIndex,
     TextStyle normalStyle,
     TextStyle activeStyle,
@@ -941,9 +870,10 @@ class _SimaiStatementDisplayState extends State<_SimaiStatementDisplay> {
       if (pattern != null && pattern.start == tokenIndex) {
         final containsActive =
             activeIndex >= pattern.start && activeIndex < pattern.end;
+        final groupKey = _itemKeys.putIfAbsent(pattern.start, GlobalKey.new);
         items.add(
           _PatternTokenGroup(
-            key: containsActive ? _activeTokenKey : null,
+            key: groupKey,
             pattern: pattern,
             tokens: statement.tokens.sublist(pattern.start, pattern.end),
             activeLocalIndex: containsActive
@@ -956,9 +886,10 @@ class _SimaiStatementDisplayState extends State<_SimaiStatementDisplay> {
         continue;
       }
       final active = tokenIndex == activeIndex;
+      final itemKey = _itemKeys.putIfAbsent(tokenIndex, GlobalKey.new);
       items.add(
         Container(
-          key: active ? _activeTokenKey : null,
+          key: itemKey,
           padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
           decoration: active
               ? BoxDecoration(
@@ -981,8 +912,8 @@ class _SimaiStatementDisplayState extends State<_SimaiStatementDisplay> {
 }
 
 class _PatternTokenGroup extends StatefulWidget {
-  final _TokenPattern pattern;
-  final List<_StatementToken> tokens;
+  final SimaiTokenPattern pattern;
+  final List<SimaiStatementToken> tokens;
   final int? activeLocalIndex;
 
   const _PatternTokenGroup({
@@ -997,34 +928,201 @@ class _PatternTokenGroup extends StatefulWidget {
 }
 
 class _PatternTokenGroupState extends State<_PatternTokenGroup> {
+  static const TextStyle _labelTextStyle = TextStyle(
+    color: Color(0xFF81D4FA),
+    fontSize: 9,
+    height: 1,
+    fontWeight: FontWeight.bold,
+  );
+  static const TextStyle _activeTokenTextStyle = TextStyle(
+    color: Colors.black,
+    fontSize: 11,
+    fontWeight: FontWeight.bold,
+  );
+  static const TextStyle _normalTokenTextStyle = TextStyle(
+    color: Colors.white70,
+    fontSize: 11,
+    fontWeight: FontWeight.w600,
+  );
+
   final ScrollController _controller = ScrollController();
-  GlobalKey _activeKey = GlobalKey();
+  final Stopwatch _scrollClock = Stopwatch()..start();
+  late List<GlobalKey> _tokenKeys;
+  late double _boxWidth;
+  TextStyle? _measuredBaseStyle;
+  TextScaler _measuredTextScaler = TextScaler.noScaling;
   int? _lastActiveIndex;
+  int _lastScrollAtUs = 0;
+  bool _scrollQueued = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _tokenKeys = List<GlobalKey>.generate(
+      widget.tokens.length,
+      (_) => GlobalKey(),
+    );
+    _boxWidth = _computeBoxWidth();
+    _lastActiveIndex = widget.activeLocalIndex;
+    if (_lastActiveIndex != null) {
+      _scheduleScrollToActive();
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final baseStyle = DefaultTextStyle.of(context).style;
+    final textScaler = MediaQuery.textScalerOf(context);
+    if (baseStyle != _measuredBaseStyle || textScaler != _measuredTextScaler) {
+      _measuredBaseStyle = baseStyle;
+      _measuredTextScaler = textScaler;
+      _boxWidth = _computeBoxWidth(
+        baseTextStyle: baseStyle,
+        textScaler: textScaler,
+      );
+    }
+  }
+
+  @override
+  void didUpdateWidget(_PatternTokenGroup oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.tokens.length != oldWidget.tokens.length) {
+      _tokenKeys = List<GlobalKey>.generate(
+        widget.tokens.length,
+        (_) => GlobalKey(),
+      );
+    }
+    if (widget.pattern.label != oldWidget.pattern.label ||
+        !_sameTokenTexts(widget.tokens, oldWidget.tokens)) {
+      _boxWidth = _computeBoxWidth(
+        baseTextStyle: _measuredBaseStyle,
+        textScaler: _measuredTextScaler,
+      );
+    }
+    if (widget.activeLocalIndex != _lastActiveIndex) {
+      _lastActiveIndex = widget.activeLocalIndex;
+      if (_lastActiveIndex != null) {
+        _scheduleScrollToActive();
+      }
+    }
+  }
+
+  static bool _sameTokenTexts(
+    List<SimaiStatementToken> a,
+    List<SimaiStatementToken> b,
+  ) {
+    if (identical(a, b)) return true;
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i].text != b[i].text) return false;
+    }
+    return true;
+  }
+
+  double _measureTextWidth(
+    String text,
+    TextStyle style,
+    TextScaler textScaler,
+  ) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+      textScaler: textScaler,
+    );
+    try {
+      painter.layout();
+      return painter.width;
+    } finally {
+      painter.dispose();
+    }
+  }
+
+  /// 按标签与 token 内容计算紧凑宽度，避免短配置块右侧拖出大片空白。
+  double _computeBoxWidth({
+    TextStyle? baseTextStyle,
+    TextScaler textScaler = TextScaler.noScaling,
+  }) {
+    final resolvedLabelStyle =
+        baseTextStyle?.merge(_labelTextStyle) ?? _labelTextStyle;
+    final resolvedTokenStyle =
+        baseTextStyle?.merge(_activeTokenTextStyle) ?? _activeTokenTextStyle;
+    // 标题左右各 5px 内边距 + 外框左右各 1px 边框 + 2px 容错余量。
+    final labelWidth =
+        _measureTextWidth(
+          widget.pattern.label,
+          resolvedLabelStyle,
+          textScaler,
+        ) +
+        14.0;
+    final joinedTokens = widget.tokens.map((t) => t.text).join(',');
+    // 每个 token 左右各 2px 内边距 + 外框左右各 1px 边框 + 4px 视觉余量。
+    final tokensWidth =
+        _measureTextWidth(joinedTokens, resolvedTokenStyle, textScaler) +
+        widget.tokens.length * 4.0 +
+        6.0;
+    return math.max(labelWidth, tokensWidth).clamp(48.0, 196.0).toDouble();
+  }
 
   @override
   void dispose() {
+    _scrollClock.stop();
     _controller.dispose();
     super.dispose();
   }
 
+  void _scheduleScrollToActive() {
+    if (_scrollQueued) return;
+    _scrollQueued = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollQueued = false;
+      final activeIndex = widget.activeLocalIndex;
+      if (!mounted ||
+          activeIndex == null ||
+          activeIndex < 0 ||
+          activeIndex >= _tokenKeys.length) {
+        return;
+      }
+      if (!_controller.hasClients) return;
+      final position = _controller.position;
+      if (!position.hasContentDimensions) return;
+
+      final renderObject = _tokenKeys[activeIndex].currentContext
+          ?.findRenderObject();
+      if (renderObject == null || !renderObject.attached) return;
+      final viewport = RenderAbstractViewport.maybeOf(renderObject);
+      if (viewport == null) return;
+
+      final targetOffset = viewport
+          .getOffsetToReveal(renderObject, 0.45)
+          .offset
+          .clamp(position.minScrollExtent, position.maxScrollExtent)
+          .toDouble();
+      if ((targetOffset - position.pixels).abs() <= 16.0) return;
+
+      // 高频扫键/转圈时直接 jumpTo 避免 120ms 动画不断被下一次音符打断堆积。
+      final nowUs = _scrollClock.elapsedMicroseconds;
+      final highFreq = nowUs - _lastScrollAtUs < 120000;
+      _lastScrollAtUs = nowUs;
+      if (highFreq) {
+        _controller.jumpTo(targetOffset);
+      } else {
+        unawaited(
+          _controller.animateTo(
+            targetOffset,
+            duration: const Duration(milliseconds: 120),
+            curve: Curves.easeOutCubic,
+          ),
+        );
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (_lastActiveIndex != widget.activeLocalIndex) {
-      _lastActiveIndex = widget.activeLocalIndex;
-      _activeKey = GlobalKey();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final activeContext = _activeKey.currentContext;
-        if (!mounted || activeContext == null) return;
-        Scrollable.ensureVisible(
-          activeContext,
-          alignment: 0.45,
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOutCubic,
-        );
-      });
-    }
     return Container(
-      width: 176,
+      width: _boxWidth,
       height: 40,
       decoration: BoxDecoration(
         color: const Color(0x2219B5FE),
@@ -1044,12 +1142,10 @@ class _PatternTokenGroupState extends State<_PatternTokenGroup> {
             ),
             child: Text(
               widget.pattern.label,
-              style: const TextStyle(
-                color: Color(0xFF81D4FA),
-                fontSize: 9,
-                height: 1,
-                fontWeight: FontWeight.bold,
-              ),
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
+              style: _labelTextStyle,
             ),
           ),
           Expanded(
@@ -1067,7 +1163,7 @@ class _PatternTokenGroupState extends State<_PatternTokenGroup> {
                           style: TextStyle(color: Colors.white54, fontSize: 11),
                         ),
                       Container(
-                        key: i == widget.activeLocalIndex ? _activeKey : null,
+                        key: _tokenKeys[i],
                         margin: const EdgeInsets.symmetric(vertical: 2),
                         padding: const EdgeInsets.symmetric(horizontal: 2),
                         decoration: i == widget.activeLocalIndex
@@ -1080,15 +1176,9 @@ class _PatternTokenGroupState extends State<_PatternTokenGroup> {
                           widget.tokens[i].text,
                           maxLines: 1,
                           softWrap: false,
-                          style: TextStyle(
-                            color: i == widget.activeLocalIndex
-                                ? Colors.black
-                                : Colors.white70,
-                            fontSize: 11,
-                            fontWeight: i == widget.activeLocalIndex
-                                ? FontWeight.bold
-                                : FontWeight.w600,
-                          ),
+                          style: i == widget.activeLocalIndex
+                              ? _activeTokenTextStyle
+                              : _normalTokenTextStyle,
                         ),
                       ),
                     ],
@@ -1103,10 +1193,97 @@ class _PatternTokenGroupState extends State<_PatternTokenGroup> {
   }
 }
 
+/// 时间轴静态层与播放头小节号缓存，由 `_SimaiTimelineState` 持有并在 dispose 时释放。
+class _TimelineStaticLayerCache {
+  ui.Picture? _picture;
+  Size? _size;
+  Object? _dataIdentity;
+  double? _totalDuration;
+  double? _playbackRate;
+  int? _maxBinSum;
+  TextStyle? _displayFont;
+
+  TextPainter? _playheadPainter;
+  int? _playheadMeasure;
+  TextStyle? _playheadFont;
+
+  void invalidate() {
+    _picture?.dispose();
+    _picture = null;
+    _size = null;
+    _dataIdentity = null;
+    _totalDuration = null;
+    _playbackRate = null;
+    _maxBinSum = null;
+    _displayFont = null;
+  }
+
+  ui.Picture obtainStaticPicture({
+    required Size size,
+    required Object dataIdentity,
+    required double totalDuration,
+    required double playbackRate,
+    required int maxBinSum,
+    required TextStyle? displayFont,
+    required void Function(Canvas canvas, Size size) builder,
+  }) {
+    if (_picture != null &&
+        _size == size &&
+        identical(_dataIdentity, dataIdentity) &&
+        _totalDuration == totalDuration &&
+        _playbackRate == playbackRate &&
+        _maxBinSum == maxBinSum &&
+        _displayFont == displayFont) {
+      return _picture!;
+    }
+    _picture?.dispose();
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    builder(canvas, size);
+    _picture = recorder.endRecording();
+    _size = size;
+    _dataIdentity = dataIdentity;
+    _totalDuration = totalDuration;
+    _playbackRate = playbackRate;
+    _maxBinSum = maxBinSum;
+    _displayFont = displayFont;
+    return _picture!;
+  }
+
+  TextPainter obtainPlayheadPainter({
+    required int measure,
+    required TextStyle? displayFont,
+    required TextPainter Function() builder,
+  }) {
+    if (_playheadPainter != null &&
+        _playheadMeasure == measure &&
+        _playheadFont == displayFont) {
+      return _playheadPainter!;
+    }
+    _playheadPainter?.dispose();
+    final painter = builder();
+    _playheadPainter = painter;
+    _playheadMeasure = measure;
+    _playheadFont = displayFont;
+    return painter;
+  }
+
+  void dispose() {
+    invalidate();
+    _playheadPainter?.dispose();
+    _playheadPainter = null;
+    _playheadMeasure = null;
+    _playheadFont = null;
+  }
+}
+
 class _SimaiTimelinePainter extends CustomPainter {
+  final _TimelineStaticLayerCache staticCache;
+  final Object dataIdentity;
   final TextStyle? displayFont;
   final double totalDuration;
   final double currentTime;
+  final double playbackRate;
   final List<double> measureStartTimes;
   final List<_TempoMarker> tempoMarkers;
   final List<int> tapBins;
@@ -1116,10 +1293,18 @@ class _SimaiTimelinePainter extends CustomPainter {
   final List<int> breakBins;
   final int maxBinSum;
 
+  static final Paint _playheadLinePaint = Paint()
+    ..color = Colors.white
+    ..strokeWidth = 1.5;
+  static final Paint _playheadBoxPaint = Paint()..color = Colors.white;
+
   const _SimaiTimelinePainter({
+    required this.staticCache,
+    required this.dataIdentity,
     required this.displayFont,
     required this.totalDuration,
     required this.currentTime,
+    required this.playbackRate,
     required this.measureStartTimes,
     required this.tempoMarkers,
     required this.tapBins,
@@ -1143,6 +1328,25 @@ class _SimaiTimelinePainter extends CustomPainter {
     final total = totalDuration > 0 ? totalDuration : 1.0;
     final clampedTime = currentTime.clamp(0.0, total).toDouble();
 
+    // 静态直方图、时间刻度、小节号与变速标签按 (size, dataIdentity, playbackRate) 缓存为 ui.Picture，
+    // 每 32ms 重绘仅 drawPicture + 播放头标线 + 1 个播放头标签。
+    final staticPicture = staticCache.obtainStaticPicture(
+      size: size,
+      dataIdentity: dataIdentity,
+      totalDuration: total,
+      playbackRate: playbackRate,
+      maxBinSum: maxBinSum,
+      displayFont: displayFont,
+      builder: (staticCanvas, staticSize) =>
+          _paintStaticLayer(staticCanvas, staticSize, total),
+    );
+    canvas.drawPicture(staticPicture);
+    _paintPlayhead(canvas, size, total, clampedTime);
+  }
+
+  void _paintStaticLayer(Canvas canvas, Size size, double total) {
+    final w = size.width;
+    final h = size.height;
     const topLabelHeight = 18.0;
     const bottomLabelHeight = 24.0;
     final barRect = Rect.fromLTWH(
@@ -1165,7 +1369,6 @@ class _SimaiTimelinePainter extends CustomPainter {
     _paintBars(canvas, barRect, total);
     _paintMeasureTicks(canvas, size, total, barRect.bottom, bottomLabelHeight);
     _paintTempoMarkers(canvas, barRect, total);
-    _paintPlayhead(canvas, size, total, clampedTime);
   }
 
   void _paintTimeScale(
@@ -1179,13 +1382,11 @@ class _SimaiTimelinePainter extends CustomPainter {
       ..color = const Color(0x99FFFFFF)
       ..strokeWidth = 1.0;
 
-    final labelStyle = const TextStyle(
-      color: Colors.white,
-      fontSize: 10,
-      height: 1.0,
+    final resolvedStyle = _withDisplayFont(
+      const TextStyle(color: Colors.white, fontSize: 10, height: 1.0),
     );
 
-    final step = 30.0;
+    const step = 30.0;
     for (double t = 0.0; t <= total + 1e-6; t += step) {
       final x = (t / total * w).clamp(0.0, w);
       canvas.drawLine(
@@ -1195,14 +1396,15 @@ class _SimaiTimelinePainter extends CustomPainter {
       );
 
       final tp = TextPainter(
-        text: TextSpan(
-          text: _formatTime(t),
-          style: _withDisplayFont(labelStyle),
-        ),
+        text: TextSpan(text: _formatTime(t), style: resolvedStyle),
         textDirection: TextDirection.ltr,
       )..layout();
-      final dx = (x - tp.width / 2).clamp(0.0, w - tp.width);
-      tp.paint(canvas, Offset(dx, 0));
+      try {
+        final dx = (x - tp.width / 2).clamp(0.0, w - tp.width);
+        tp.paint(canvas, Offset(dx, 0));
+      } finally {
+        tp.dispose();
+      }
     }
   }
 
@@ -1221,7 +1423,7 @@ class _SimaiTimelinePainter extends CustomPainter {
     final gridPaint = Paint()
       ..color = const Color(0x22FFFFFF)
       ..strokeWidth = 1;
-    final gridLines = 3;
+    const gridLines = 3;
     for (int i = 1; i <= gridLines; i++) {
       final y = barRect.bottom - barRect.height * (i / (gridLines + 1));
       canvas.drawLine(
@@ -1279,11 +1481,13 @@ class _SimaiTimelinePainter extends CustomPainter {
     final majorTickPaint = Paint()
       ..color = Colors.lightBlue
       ..strokeWidth = 1.25;
-    final majorLabelStyle = const TextStyle(
-      color: Colors.lightBlue,
-      fontSize: 10,
-      height: 1.0,
-      fontWeight: FontWeight.w600,
+    final majorLabelStyle = _withDisplayFont(
+      const TextStyle(
+        color: Colors.lightBlue,
+        fontSize: 10,
+        height: 1.0,
+        fontWeight: FontWeight.w600,
+      ),
     );
 
     final measureCount = measureStartTimes.length;
@@ -1297,8 +1501,7 @@ class _SimaiTimelinePainter extends CustomPainter {
     double? lastLabelRight;
     if (measureCount <= 1) return;
     for (int i = 0; i < measureCount; i++) {
-      // Measures occupy their real location in time. This makes high-BPM
-      // sections denser and low-BPM sections wider on the fixed time axis.
+      // 小节刻度按真实时间落点排列，高 BPM 段更密、低 BPM 段更宽。
       final x = (measureStartTimes[i] / total * w).clamp(0.0, w);
       final isMajor = i % 5 == 0;
       if (!isMajor && lastMinorX != null && x - lastMinorX < 3.0) continue;
@@ -1315,17 +1518,21 @@ class _SimaiTimelinePainter extends CustomPainter {
       if (isMajor) {
         final label = '$i';
         final tp = TextPainter(
-          text: TextSpan(text: label, style: _withDisplayFont(majorLabelStyle)),
+          text: TextSpan(text: label, style: majorLabelStyle),
           textDirection: TextDirection.ltr,
         )..layout();
-        final dx = (x - tp.width / 2).clamp(0.0, w - tp.width);
-        if (lastLabelRight != null && dx < lastLabelRight + 4.0) continue;
-        lastLabelRight = dx + tp.width;
-        final labelY = (endY + tickToLabelGap).clamp(
-          0.0,
-          (h - tp.height).clamp(0.0, h),
-        );
-        tp.paint(canvas, Offset(dx, labelY));
+        try {
+          final dx = (x - tp.width / 2).clamp(0.0, w - tp.width);
+          if (lastLabelRight != null && dx < lastLabelRight + 4.0) continue;
+          lastLabelRight = dx + tp.width;
+          final labelY = (endY + tickToLabelGap).clamp(
+            0.0,
+            (h - tp.height).clamp(0.0, h),
+          );
+          tp.paint(canvas, Offset(dx, labelY));
+        } finally {
+          tp.dispose();
+        }
       }
     }
   }
@@ -1334,64 +1541,70 @@ class _SimaiTimelinePainter extends CustomPainter {
     if (tempoMarkers.isEmpty) return;
     const increasedColor = Color(0xFFFF8A65);
     const decreasedColor = Color(0xFF64B5F6);
-    const labelStyle = TextStyle(
-      fontSize: 9,
-      height: 1.0,
-      fontWeight: FontWeight.bold,
+    final baseLabelStyle = _withDisplayFont(
+      const TextStyle(fontSize: 9, height: 1.0, fontWeight: FontWeight.bold),
     );
+    final markerLinePaint = Paint()..strokeWidth = 1.5;
 
     double lastLabelRight = -double.infinity;
     for (final marker in tempoMarkers) {
       if (marker.time < 0 || marker.time > total) continue;
       final x = (marker.time / total * barRect.width).clamp(0.0, barRect.width);
       final color = marker.increased ? increasedColor : decreasedColor;
+      markerLinePaint.color = color.withValues(alpha: 0.8);
       canvas.drawLine(
         Offset(x, barRect.top),
         Offset(x, barRect.bottom),
-        Paint()
-          ..color = color.withValues(alpha: 0.8)
-          ..strokeWidth = 1.5,
+        markerLinePaint,
       );
 
+      final effectiveTempo = marker.tempo * playbackRate;
       final painter = TextPainter(
         text: TextSpan(
-          text: '${marker.increased ? '▲' : '▼'}${_formatBpm(marker.tempo)}',
-          style: _withDisplayFont(labelStyle).copyWith(color: color),
+          text: '${marker.increased ? '▲' : '▼'}${_formatBpm(effectiveTempo)}',
+          style: baseLabelStyle.copyWith(color: color),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
-      final dx = (x + 2).clamp(0.0, barRect.right - painter.width);
-      if (dx >= lastLabelRight + 3.0) {
-        painter.paint(canvas, Offset(dx, barRect.top + 2));
-        lastLabelRight = dx + painter.width;
+      try {
+        final dx = (x + 2).clamp(0.0, barRect.right - painter.width);
+        if (dx >= lastLabelRight + 3.0) {
+          painter.paint(canvas, Offset(dx, barRect.top + 2));
+          lastLabelRight = dx + painter.width;
+        }
+      } finally {
+        painter.dispose();
       }
     }
   }
 
-  static String _formatBpm(double bpm) => bpm == bpm.roundToDouble()
-      ? bpm.round().toString()
-      : bpm.toStringAsFixed(1);
+  static String _formatBpm(double bpm) {
+    final rounded = (bpm * 10).roundToDouble() / 10.0;
+    return (rounded - rounded.roundToDouble()).abs() < 1e-6
+        ? rounded.round().toString()
+        : rounded.toStringAsFixed(1);
+  }
 
   void _paintPlayhead(Canvas canvas, Size size, double total, double time) {
     final w = size.width;
     final h = size.height;
     final x = (time / total * w).clamp(0.0, w);
-    final linePaint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 1.5;
-    canvas.drawLine(Offset(x, 0), Offset(x, h), linePaint);
+    canvas.drawLine(Offset(x, 0), Offset(x, h), _playheadLinePaint);
 
     final measure = _measureIndexForTime(time);
-    final label = '$measure';
-    final tp = TextPainter(
-      text: TextSpan(
-        text: label,
-        style: _withDisplayFont(
-          const TextStyle(color: Colors.black, fontSize: 10, height: 1.0),
+    final tp = staticCache.obtainPlayheadPainter(
+      measure: measure,
+      displayFont: displayFont,
+      builder: () => TextPainter(
+        text: TextSpan(
+          text: '$measure',
+          style: _withDisplayFont(
+            const TextStyle(color: Colors.black, fontSize: 10, height: 1.0),
+          ),
         ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
+        textDirection: TextDirection.ltr,
+      )..layout(),
+    );
 
     const padding = 4.0;
     final boxW = tp.width + padding * 2;
@@ -1401,8 +1614,7 @@ class _SimaiTimelinePainter extends CustomPainter {
       Rect.fromLTWH(dx, 2, boxW, boxH),
       const Radius.circular(6),
     );
-    final boxPaint = Paint()..color = Colors.white;
-    canvas.drawRRect(rect, boxPaint);
+    canvas.drawRRect(rect, _playheadBoxPaint);
     tp.paint(canvas, Offset(dx + padding, 2 + padding));
   }
 
@@ -1433,15 +1645,10 @@ class _SimaiTimelinePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _SimaiTimelinePainter oldDelegate) {
     return oldDelegate.currentTime != currentTime ||
+        !identical(oldDelegate.dataIdentity, dataIdentity) ||
         oldDelegate.displayFont != displayFont ||
         oldDelegate.totalDuration != totalDuration ||
-        oldDelegate.maxBinSum != maxBinSum ||
-        oldDelegate.tapBins != tapBins ||
-        oldDelegate.touchBins != touchBins ||
-        oldDelegate.eachBins != eachBins ||
-        oldDelegate.slideBins != slideBins ||
-        oldDelegate.breakBins != breakBins ||
-        oldDelegate.measureStartTimes != measureStartTimes ||
-        oldDelegate.tempoMarkers != tempoMarkers;
+        oldDelegate.playbackRate != playbackRate ||
+        oldDelegate.maxBinSum != maxBinSum;
   }
 }

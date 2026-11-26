@@ -1,5 +1,26 @@
 part of 'notes_batch_renderer.dart';
 
+// 复用星星 EX 光晕与降级画笔。
+final Paint _starHighlightPaint = Paint()
+  ..style = PaintingStyle.stroke
+  ..strokeJoin = StrokeJoin.round
+  ..isAntiAlias = true;
+
+final Paint _starExFillPaint = Paint()
+  ..style = PaintingStyle.fill
+  ..isAntiAlias = true;
+
+final Path _starExRingPath = Path()..fillType = PathFillType.evenOdd;
+
+final Paint _starFallbackFillPaint = Paint()
+  ..style = PaintingStyle.fill
+  ..isAntiAlias = true;
+
+final Paint _starFallbackStrokePaint = Paint()
+  ..style = PaintingStyle.stroke
+  ..strokeJoin = StrokeJoin.round
+  ..isAntiAlias = true;
+
 void _drawStarWithCache(
   Canvas canvas, {
   required SimaiGame game,
@@ -23,24 +44,10 @@ void _drawStarWithCache(
   } else if (color == SimaiColors.tapEach) {
     key = 'star_tap_each';
   } else if (color == SimaiColors.tapBreak) {
-    key = 'tap_break';
+    // 修复 pinkSlideStar && breakHead 此前误映射为 tap_break 并回退矢量绘制的问题，统一走图集。
+    key = 'star_tap_break';
   } else {
     key = 'star_normal';
-  }
-
-  if (key == 'tap_break') {
-    game.noteAssets.flush(canvas);
-    _drawStar(
-      canvas,
-      position: position,
-      color: color,
-      scale: scale,
-      alpha: alpha,
-      rotation: rotation,
-      noteScale: noteScale,
-      highlight: highlight,
-    );
-    return;
   }
 
   if (game.noteAssets.hasAsset(key)) {
@@ -57,8 +64,7 @@ void _drawStarWithCache(
       );
     }
 
-    final double baseSize = 110.0 * noteScale;
-    final double size = baseSize * scale;
+    final double size = NoteAssetManager.cellExtent * noteScale * scale;
     if (game.noteAssets.drawSprite(
       canvas,
       key: key,
@@ -92,21 +98,37 @@ void _drawStarHighlight(
   required int alpha,
   required double rotation,
   required double noteScale,
+  SimaiNoteStyle noteStyle = SimaiNoteStyle.classic,
 }) {
-  final Paint highlightPaint = Paint()
+  final double outerRadius = NoteGeometry.tapStarHoldRadius * scale * noteScale;
+  if (noteStyle == SimaiNoteStyle.arcade) {
+    final Path outerEx = NoteUtils.createStarPath(outerRadius * 1.19);
+    final Path innerStar = NoteUtils.createStarPath(outerRadius);
+    _starExRingPath
+      ..reset()
+      ..fillType = PathFillType.evenOdd
+      ..addPath(outerEx, Offset.zero)
+      ..addPath(innerStar, Offset.zero);
+    _starExFillPaint.color = color.withAlpha((alpha * 0.72).round().clamp(0, 255));
+    canvas.save();
+    canvas.translate(position.dx, position.dy);
+    canvas.rotate(rotation);
+    canvas.drawPath(_starExRingPath, _starExFillPaint);
+    canvas.restore();
+    return;
+  }
+
+  _starHighlightPaint
     ..color = color.withAlpha((alpha * 0.4).toInt())
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = 12.0 * scale * noteScale
-    ..strokeJoin = StrokeJoin.round;
+    ..strokeWidth = 12.0 * scale * noteScale;
 
   final Path highlightStarPath = NoteUtils.createStarPath(
-    NoteGeometry.tapStarHoldRadius * scale * noteScale +
-        6.0 * scale * noteScale,
+    outerRadius + 6.0 * scale * noteScale,
   );
   canvas.save();
   canvas.translate(position.dx, position.dy);
   canvas.rotate(rotation);
-  canvas.drawPath(highlightStarPath, highlightPaint);
+  canvas.drawPath(highlightStarPath, _starHighlightPaint);
   canvas.restore();
 }
 
@@ -123,20 +145,15 @@ void _drawStar(
   final double radius = NoteGeometry.tapStarHoldRadius * scale * noteScale;
 
   if (highlight && alpha > 0) {
-    final Paint highlightPaint = Paint()
-      ..color = color.withAlpha((alpha * 0.4).toInt())
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 12.0 * scale * noteScale
-      ..strokeJoin = StrokeJoin.round;
-
-    final Path highlightStarPath = NoteUtils.createStarPath(
-      radius + 6.0 * scale * noteScale,
+    _drawStarHighlight(
+      canvas,
+      position: position,
+      color: color,
+      scale: scale,
+      alpha: alpha,
+      rotation: rotation,
+      noteScale: noteScale,
     );
-    canvas.save();
-    canvas.translate(position.dx, position.dy);
-    canvas.rotate(rotation);
-    canvas.drawPath(highlightStarPath, highlightPaint);
-    canvas.restore();
   }
 
   const double innerRatio = 0.6;
@@ -147,23 +164,19 @@ void _drawStar(
   canvas.translate(position.dx, position.dy);
   canvas.rotate(rotation);
 
-  final Paint paint = Paint()
-    ..color = color.withAlpha(alpha)
-    ..style = PaintingStyle.fill;
+  _starFallbackFillPaint.color = color.withAlpha(alpha);
 
   final Path combinedPath = Path()
     ..fillType = PathFillType.evenOdd
     ..addPath(outerPath, Offset.zero)
     ..addPath(innerPath, Offset.zero);
-  canvas.drawPath(combinedPath, paint);
+  canvas.drawPath(combinedPath, _starFallbackFillPaint);
 
-  final Paint strokePaint = Paint()
+  _starFallbackStrokePaint
     ..color = Colors.white.withAlpha(alpha)
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = 2.0 * scale * noteScale
-    ..strokeJoin = StrokeJoin.round;
+    ..strokeWidth = 2.0 * scale * noteScale;
 
-  canvas.drawPath(outerPath, strokePaint);
-  canvas.drawPath(innerPath, strokePaint);
+  canvas.drawPath(outerPath, _starFallbackStrokePaint);
+  canvas.drawPath(innerPath, _starFallbackStrokePaint);
   canvas.restore();
 }

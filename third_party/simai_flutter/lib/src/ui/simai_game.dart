@@ -3,10 +3,12 @@ import 'dart:collection';
 import 'dart:math';
 import 'dart:ui' as ui;
 import 'package:flame/cache.dart';
+import 'package:flame/events.dart';
 import 'package:flame/game.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_soloud/flutter_soloud.dart';
 import '../../simai_flutter.dart';
 import 'simai_colors.dart';
@@ -25,6 +27,9 @@ import 'note_motion.dart';
 
 typedef SimaiTextStyleResolver = TextStyle Function(TextStyle style);
 
+/// 正解音/打击音的最大增益倍率（300%），便于在响度较高的 BGM 中清晰辨识节奏。
+const double simaiMaxHitSoundVolume = 3.0;
+
 @visibleForTesting
 double hitSoundVoiceGain(int voiceCount, {double baseGain = 0.72}) {
   if (voiceCount <= 0) return 0.0;
@@ -34,7 +39,10 @@ double hitSoundVoiceGain(int voiceCount, {double baseGain = 0.72}) {
 @visibleForTesting
 bool shouldCompleteAtVisualEnd({required bool hasAudio}) => !hasAudio;
 
-class SimaiGame extends FlameGame {
+class SimaiGame extends FlameGame with KeyboardEvents {
+  /// 默认背景可见不透明度（黑底之上，0.0 为纯黑，1.0 为原亮度）。
+  static const double defaultBackgroundOpacity = 0.35;
+
   final MaiChart chart;
   final bool headlessExport;
   final bool Function()? headlessExportCancelled;
@@ -50,7 +58,9 @@ class SimaiGame extends FlameGame {
   double _hitSoundOffset;
   double hitSoundVolume;
   bool _hitSoundEnabled;
+  bool _gameplayAnswerSoundEnabled;
   SimaiBackgroundMode backgroundMode;
+  double backgroundOpacity;
   SimaiMirrorMode mirrorMode;
   bool rotateSlideStar;
   bool pinkSlideStar;
@@ -62,12 +72,15 @@ class SimaiGame extends FlameGame {
   bool showGameplayTouchIndicators;
   bool showAchievementRate;
   SimaiCenterDisplayMode centerDisplayMode;
+  SimaiCenterDisplayMode topRightDisplayMode;
+  SimaiNoteStyle noteStyle;
   bool showCornerInfo;
   bool showFps;
   bool showDetailedPerformanceInfo;
   bool hasVideoBackground;
   final double chartRadiusRatio;
   final double gameplayContactRadiusRatio;
+  final double gameplayContactRadiusScale;
   VoidCallback? onPlaybackCompleted;
   ValueChanged<SimaiGameplayResult>? onGameplayCompleted;
   String? audioAsset;
@@ -78,15 +91,20 @@ class SimaiGame extends FlameGame {
   double offset;
   StreamSubscription<SoLoudAudioClockSnapshot>? _clockSubscription;
   bool _audioClockAdvancing = false;
+  bool _waitingForAudioStart = false;
+  bool _audioLoaded = false;
+  bool _isRemoved = false;
   bool _gameplayAudioCompleted = false;
   bool _gameplayCompletionSent = false;
   final SimaiGameplayEventClockMapper _eventClockMapper =
       SimaiGameplayEventClockMapper();
   int _chartAnchorClockUs = 0;
   double _chartAnchorTime = 0.0;
-  final Map<int, Set<SimaiGameplayInputTarget>> _gameplayPointerInputs =
-      <int, Set<SimaiGameplayInputTarget>>{};
+  // 以 41-bit 位掩码维护单指按压状态，触控热路径零集合分配。
+  final Map<int, int> _gameplayPointerMasks = <int, int>{};
   final Map<int, Offset> _gameplayPointerContacts = <int, Offset>{};
+  final Map<int, ({double visualTime, double judgeTime})>
+  _gameplayPointerLastTimes = <int, ({double visualTime, double judgeTime})>{};
   bool _pendingSeekReset = false;
   bool _isSeeking = false;
   int _seekGeneration = 0;
@@ -159,12 +177,14 @@ class SimaiGame extends FlameGame {
   SoLoud get _soloud => SoLoud.instance;
   AudioSource? _sfxSource;
   final Queue<SoundHandle> _sfxVoices = Queue<SoundHandle>();
+  final Queue<int> _recentDaHitTimesUs = Queue<int>();
   static const int _maxSfxVoices = 24;
 
   late final NoteAssetManager noteAssets;
   double noteScale = 1.0;
   double chartRadius = 0.0;
   Offset chartCenter = Offset.zero;
+  Vector2? _lastGameSize;
 
   SimaiGame({
     required this.chart,
@@ -180,9 +200,11 @@ class SimaiGame extends FlameGame {
     this.playbackRate = 1.0,
     this.musicVolume = 0.8,
     double hitSoundOffset = 0.0,
-    this.hitSoundVolume = 0.72,
+    double hitSoundVolume = 0.72,
     bool hitSoundEnabled = true,
+    bool gameplayAnswerSoundEnabled = true,
     this.backgroundMode = SimaiBackgroundMode.judgeLine,
+    double backgroundOpacity = defaultBackgroundOpacity,
     this.mirrorMode = SimaiMirrorMode.none,
     this.rotateSlideStar = true,
     this.pinkSlideStar = false,
@@ -193,7 +215,9 @@ class SimaiGame extends FlameGame {
     this.showGameplayInputPartitions = false,
     this.showGameplayTouchIndicators = true,
     this.showAchievementRate = true,
-    this.centerDisplayMode = SimaiCenterDisplayMode.achievement,
+    this.centerDisplayMode = SimaiCenterDisplayMode.achievementAdd,
+    this.topRightDisplayMode = SimaiCenterDisplayMode.combo,
+    this.noteStyle = SimaiNoteStyle.arcade,
     this.showCornerInfo = true,
     this.showFps = true,
     this.showDetailedPerformanceInfo = false,
@@ -201,6 +225,7 @@ class SimaiGame extends FlameGame {
     this.chartRadiusRatio = 0.85,
     this.gameplayContactRadiusRatio =
         SimaiGameplayInputMapper.defaultContactRadiusRatio,
+    this.gameplayContactRadiusScale = 1.0,
     this.onPlaybackCompleted,
     this.onGameplayCompleted,
     this.audioAsset,
@@ -220,9 +245,23 @@ class SimaiGame extends FlameGame {
          gameplayContactRadiusRatio.isFinite && gameplayContactRadiusRatio >= 0,
          'gameplayContactRadiusRatio must be finite and non-negative.',
        ),
+       assert(
+         gameplayContactRadiusScale.isFinite && gameplayContactRadiusScale > 0,
+         'gameplayContactRadiusScale must be finite and positive.',
+       ),
        chartTime = initialChartTime,
+       hitSoundVolume = (hitSoundVolume.isFinite ? hitSoundVolume : 0.72)
+           .clamp(0.0, simaiMaxHitSoundVolume)
+           .toDouble(),
+       backgroundOpacity =
+           (backgroundOpacity.isFinite
+                   ? backgroundOpacity
+                   : defaultBackgroundOpacity)
+               .clamp(0.0, 1.0)
+               .toDouble(),
        _hitSoundOffset = hitSoundOffset.isFinite ? hitSoundOffset : 0.0,
-       _hitSoundEnabled = hitSoundEnabled {
+       _hitSoundEnabled = hitSoundEnabled,
+       _gameplayAnswerSoundEnabled = gameplayAnswerSoundEnabled {
     _monotonicClock = Stopwatch()..start();
     _audioPlayer = headlessExport ? null : SoLoudAudioPlayer(clock: _monotonicClock);
     _chartAnchorClockUs = _monotonicClock.elapsedMicroseconds;
@@ -242,13 +281,46 @@ class SimaiGame extends FlameGame {
     }
   }
 
+  /// Flame 1.37.0 在未混入 KeyboardEvents 时会默认吞掉所有硬件按键事件，
+  /// 显式放行以保留系统的音量键与返回键/返回手势。
+  @override
+  KeyEventResult onKeyEvent(
+    KeyEvent event,
+    Set<LogicalKeyboardKey> keysPressed,
+  ) => KeyEventResult.ignored;
+
   bool get _hasAudio => audioAsset != null || audioFilePath != null;
+
+  /// 预览态受 hitSoundEnabled 控制；游玩态受预调度正解音开关控制。
+  bool get _shouldPlayScheduledSfx =>
+      gameplaySession == null ? _hitSoundEnabled : _gameplayAnswerSoundEnabled;
+
+  /// 移动端按物理接触半径兜底并结合用户灵敏度倍率，同步用于触控判定与触摸指示圆绘制。
+  double get _effectiveGameplayContactRadius {
+    if (chartRadius <= 0 || gameplayContactRadiusRatio <= 0) return 0.0;
+    final maxRadius = chartRadius * 0.35;
+    final minRadius = min(16.0, maxRadius);
+    final baseRadius = max(chartRadius * 0.125, 22.0)
+        .clamp(minRadius, maxRadius)
+        .toDouble();
+    return baseRadius * gameplayContactRadiusScale;
+  }
 
   bool get hitSoundEnabled => _hitSoundEnabled;
   set hitSoundEnabled(bool value) {
     if (_hitSoundEnabled == value) return;
     _hitSoundEnabled = value;
-    if (!value) {
+    if (!value && !_shouldPlayScheduledSfx) {
+      _stopSfxVoices();
+    }
+    _resyncSfxPosition();
+  }
+
+  bool get gameplayAnswerSoundEnabled => _gameplayAnswerSoundEnabled;
+  set gameplayAnswerSoundEnabled(bool value) {
+    if (_gameplayAnswerSoundEnabled == value) return;
+    _gameplayAnswerSoundEnabled = value;
+    if (!_shouldPlayScheduledSfx) {
       _stopSfxVoices();
     }
     _resyncSfxPosition();
@@ -278,28 +350,47 @@ class SimaiGame extends FlameGame {
   late final JudgeBackgroundComponent _backgroundComponent;
   late final NotesLayerComponent _notesComponent;
   ChartStatusTextComponent? _statusTextComponent;
+  bool _backgroundReady = false;
   bool _notesReady = false;
 
   void refreshStatusText() => _statusTextComponent?.refreshNow();
 
   @override
   void onGameResize(Vector2 size) {
+    // 尺寸未实质变化时直接跳过，避免无谓触发图集重建与子组件重算。
+    if (_lastGameSize != null && (_lastGameSize! - size).length < 0.5) {
+      return;
+    }
+    _lastGameSize = size.clone();
     super.onGameResize(size);
     chartCenter = Offset(size.x / 2, size.y / 2);
     chartRadius = min(size.x, size.y) / 2 * chartRadiusRatio;
     noteScale = chartRadius / 300.0;
 
-    // Use async context to rebuild assets
+    // 异步重建与缩放比例/音符样式相关的图集
+    _scheduleNoteAssetsRebuild();
+  }
+
+  void _scheduleNoteAssetsRebuild() {
+    if (noteScale <= 0 || !noteScale.isFinite) return;
     final int rebuildGeneration = ++_assetRebuildGeneration;
+    final targetScale = noteScale;
+    final targetStyle = noteStyle;
     Future.microtask(() async {
       await _assetRebuildTask;
       if (rebuildGeneration != _assetRebuildGeneration) return;
-      final task = noteAssets.rebuild(noteScale);
+      final task = noteAssets.rebuild(targetScale, noteStyle: targetStyle);
       _assetRebuildTask = task;
       await task;
       if (rebuildGeneration != _assetRebuildGeneration) return;
       invalidateNotes();
     });
+  }
+
+  void setNoteStyle(SimaiNoteStyle style) {
+    if (noteStyle == style) return;
+    noteStyle = style;
+    _scheduleNoteAssetsRebuild();
   }
 
   int _assetRebuildGeneration = 0;
@@ -308,11 +399,14 @@ class SimaiGame extends FlameGame {
   @override
   Future<void> onLoad() async {
     ui.Image? sensorImage;
-    try {
-      sensorImage = await images.load('sensor.webp', package: 'simai_flutter');
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Sensor image load failed: $e');
+    // 游玩态不显示底图 sensor.webp，跳过解码与显存占用。
+    if (gameplaySession == null) {
+      try {
+        sensorImage = await images.load('sensor.webp', package: 'simai_flutter');
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('Sensor image load failed: $e');
+        }
       }
     }
 
@@ -321,6 +415,7 @@ class SimaiGame extends FlameGame {
       backgroundImageProvider: backgroundImageProvider,
       sensorImage: sensorImage,
     );
+    _backgroundReady = true;
     _backgroundComponent.priority = -1;
     add(_backgroundComponent);
 
@@ -376,19 +471,21 @@ class SimaiGame extends FlameGame {
 
       try {
         await ensureSoLoudInitialized(_soloud);
-        final assetPath = 'packages/simai_flutter/assets/answer.wav';
+        const assetPath = 'packages/simai_flutter/assets/answer.wav';
         try {
-          if (kIsWeb) {
-            _sfxSource = await _soloud.loadAsset(
-              assetPath,
-              mode: LoadMode.disk,
-            );
+          // 通过引用计数共享池复用 answer.wav，避免双 SimaiGame 冲突或退出时误销毁。
+          final source = await SoLoudSourcePool.acquireAsset(
+            assetPath,
+            _soloud,
+          );
+          if (_isRemoved) {
+            unawaited(SoLoudSourcePool.release(source, _soloud));
           } else {
-            _sfxSource = await _soloud.loadAsset(assetPath);
+            _sfxSource = source;
+            debugPrint('SFX: SoLoud acquired $assetPath');
           }
-          debugPrint('SFX: SoLoud loaded $assetPath');
         } catch (e) {
-          debugPrint('SFX: SoLoud failed to load $assetPath: $e');
+          debugPrint('SFX: SoLoud failed to acquire $assetPath: $e');
         }
       } catch (e) {
         debugPrint('SFX: SoLoud init failed: $e');
@@ -402,11 +499,17 @@ class SimaiGame extends FlameGame {
           } else {
             await audioPlayer.loadAsset(audioAsset!);
           }
+          _audioLoaded = true;
           await audioPlayer.setVolume(musicVolume);
           await audioPlayer.setRate(playbackRate);
-          // Ensure state consistency if source set after isPlaying
+          // 处于前奏区（chartTime < offset）时延后起播，防止开局前跳。
           if (isPlaying) {
-            unawaited(audioPlayer.play());
+            if (chartTime < offset) {
+              _waitingForAudioStart = true;
+            } else {
+              _waitingForAudioStart = false;
+              _startAudioPlayback(audioPlayer);
+            }
           }
         } catch (e) {
           debugPrint("Error loading audio source: $e");
@@ -430,7 +533,7 @@ class SimaiGame extends FlameGame {
       add(
         ChartCounterOverlayComponent(
           counterIndex,
-          achievementAt: achievementIndex.achievementAt,
+          achievementIndex: achievementIndex,
         )..priority = 2,
       );
     } else {
@@ -512,12 +615,16 @@ class SimaiGame extends FlameGame {
       if (_precalculationCancelled(generation)) return;
     }
 
-    final cached = _precalcCache[targetMode];
+    final cached =
+        _precalcCache[targetMode] ??
+        PrecalcChartCache.getCached(chart, targetMode);
     if (cached != null) {
-      // Refresh insertion order so the least recently used mode is evicted.
+      // 刷新本地 LRU 顺序并同步跨实例共享缓存，避免进游玩与重试重复预计算。
       _precalcCache
         ..remove(targetMode)
         ..[targetMode] = cached;
+      PrecalcChartCache.putCached(chart, targetMode, cached);
+      _debugPrecalcCompleted = cached.slides.length;
       if (atomicMirrorSwap) {
         _commitMirrorPrecalculation(targetMode, cached);
       } else {
@@ -537,9 +644,7 @@ class SimaiGame extends FlameGame {
         if (_precalculationCancelled(generation)) return;
         targetData.merge(message);
         _debugPrecalcCompleted = targetData.slides.length;
-        // A runtime mirror change keeps presenting the previous complete frame
-        // until the requested mode is fully ready. Initial loading remains
-        // progressive so large charts still reach first paint quickly.
+        // 运行时切换镜像保持上一帧完整画面直到新模式预计算完毕；首次加载维持渐进渲染。
         if (!atomicMirrorSwap) invalidateNotes();
       },
       () => _precalculationCancelled(generation),
@@ -549,6 +654,7 @@ class SimaiGame extends FlameGame {
     await task;
     if (_precalculationCancelled(generation)) return;
     _precalcCache[targetMode] = targetData;
+    PrecalcChartCache.putCached(chart, targetMode, targetData);
     while (_precalcCache.length > _precalcCacheLimit) {
       _precalcCache.remove(_precalcCache.keys.first);
     }
@@ -573,14 +679,19 @@ class SimaiGame extends FlameGame {
     _requestedMirrorMode = null;
     precalcData = targetData;
     _notesComponent.clearSlideCaches();
-    _backgroundComponent.requestBackgroundRedraw();
+    if (_backgroundReady) {
+      _backgroundComponent.requestBackgroundRedraw();
+    }
     invalidateNotes(resetWindow: true);
   }
 
   @override
   void onRemove() {
+    _isRemoved = true;
     _precalcGeneration++;
     _assetRebuildGeneration++;
+    _waitingForAudioStart = false;
+    _backgroundReady = false;
     _notesReady = false;
     noteAssets.dispose();
     images.clearCache();
@@ -597,9 +708,35 @@ class SimaiGame extends FlameGame {
     _sfxSource = null;
     _stopSfxVoices();
     if (src != null) {
-      _soloud.disposeSource(src);
+      // 通过共享池归还引用计数，仅计数归零时真正销毁底层音频资源。
+      unawaited(SoLoudSourcePool.release(src, _soloud));
     }
     super.onRemove();
+  }
+
+  void _startAudioPlayback(
+    SoLoudAudioPlayer audioPlayer, {
+    Duration? initialPosition,
+  }) {
+    if (!_audioLoaded || _isRemoved) return;
+    final generation = _seekGeneration;
+    if (initialPosition == null || initialPosition <= Duration.zero) {
+      unawaited(
+        audioPlayer.play().catchError((Object e) {
+          debugPrint('Audio resume failed: $e');
+        }),
+      );
+      return;
+    }
+    unawaited(() async {
+      try {
+        await audioPlayer.seek(initialPosition);
+        if (_isRemoved || !isPlaying || generation != _seekGeneration) return;
+        await audioPlayer.play();
+      } catch (e) {
+        debugPrint('Audio start failed: $e');
+      }
+    }());
   }
 
   void setPlaying(bool playing) {
@@ -616,12 +753,16 @@ class SimaiGame extends FlameGame {
       _resyncSfxPosition();
       final audioPlayer = _audioPlayer;
       if (_hasAudio && audioPlayer != null) {
-        audioPlayer.play().catchError((e) {
-          debugPrint("Audio resume failed: $e");
-        });
+        if (chartTime < offset) {
+          // 前奏等待期（musicOffsetMs > 0）不立即起播，待 update(dt) 首次跨越 offset 时再播音。
+          _waitingForAudioStart = true;
+        } else {
+          _waitingForAudioStart = false;
+          _startAudioPlayback(audioPlayer);
+        }
       }
-      // SoLoud state events start the clock only when playback is ready.
     } else {
+      _waitingForAudioStart = false;
       clearGameplayPointers();
       _stopSfxVoices();
       _resyncSfxPosition();
@@ -644,6 +785,9 @@ class SimaiGame extends FlameGame {
     playbackRate = clamped;
     _stopSfxVoices();
     _resyncSfxPosition();
+    // 倍速变化时立刻刷新左上角 BPM 文案，并在暂停态补绘一帧。
+    refreshStatusText();
+    _requestPausedFrame();
     final audioPlayer = _audioPlayer;
     if (audioPlayer == null) return;
     try {
@@ -669,7 +813,7 @@ class SimaiGame extends FlameGame {
 
   void setHitSoundVolume(double volume) {
     final safe = volume.isFinite ? volume : 0.72;
-    final clamped = safe.clamp(0.0, 1.0).toDouble();
+    final clamped = safe.clamp(0.0, simaiMaxHitSoundVolume).toDouble();
     if (hitSoundVolume == clamped) return;
     hitSoundVolume = clamped;
   }
@@ -677,7 +821,20 @@ class SimaiGame extends FlameGame {
   void setBackgroundMode(SimaiBackgroundMode mode) {
     if (backgroundMode == mode) return;
     backgroundMode = mode;
-    _backgroundComponent.requestBackgroundRedraw();
+    if (_backgroundReady) {
+      _backgroundComponent.requestBackgroundRedraw();
+    }
+    _requestPausedFrame();
+  }
+
+  void setBackgroundOpacity(double value) {
+    final safe = value.isFinite ? value : defaultBackgroundOpacity;
+    final clamped = safe.clamp(0.0, 1.0).toDouble();
+    if ((backgroundOpacity - clamped).abs() < 1e-6) return;
+    backgroundOpacity = clamped;
+    if (_backgroundReady) {
+      _backgroundComponent.requestBackgroundRedraw();
+    }
     _requestPausedFrame();
   }
 
@@ -695,19 +852,29 @@ class SimaiGame extends FlameGame {
     final audioPlayer = _audioPlayer;
     if (audioPlayer == null) return;
     if (asset != null) {
+      _audioLoaded = false;
       audioPlayer
           .loadAsset(asset)
           .then((_) {
+            if (_isRemoved || audioAsset != asset) return;
+            _audioLoaded = true;
             audioPlayer.setVolume(musicVolume);
             audioPlayer.setRate(playbackRate);
             if (isPlaying) {
-              audioPlayer.play();
+              if (chartTime < offset) {
+                _waitingForAudioStart = true;
+              } else {
+                _waitingForAudioStart = false;
+                _startAudioPlayback(audioPlayer);
+              }
             }
           })
           .catchError((e) {
             debugPrint("Error setting audio source: $e");
           });
     } else {
+      _audioLoaded = false;
+      _waitingForAudioStart = false;
       audioPlayer.stop();
     }
   }
@@ -719,19 +886,29 @@ class SimaiGame extends FlameGame {
     if (audioPlayer == null) return;
     if (path != null) {
       audioAsset = null;
+      _audioLoaded = false;
       audioPlayer
           .loadFile(path)
           .then((_) {
+            if (_isRemoved || audioFilePath != path) return;
+            _audioLoaded = true;
             audioPlayer.setVolume(musicVolume);
             audioPlayer.setRate(playbackRate);
             if (isPlaying) {
-              audioPlayer.play();
+              if (chartTime < offset) {
+                _waitingForAudioStart = true;
+              } else {
+                _waitingForAudioStart = false;
+                _startAudioPlayback(audioPlayer);
+              }
             }
           })
           .catchError((e) {
             debugPrint("Error setting audio file: $e");
           });
     } else if (audioAsset == null) {
+      _audioLoaded = false;
+      _waitingForAudioStart = false;
       audioPlayer.stop();
     }
   }
@@ -768,24 +945,32 @@ class SimaiGame extends FlameGame {
         final settled = audioPlayer.latestSnapshot;
         if (settled != null) {
           _audioClockSnapshot = settled;
-          if (wasPlaying && rawAudioPos >= 0) {
+          if (wasPlaying && isPlaying && rawAudioPos >= 0) {
             settledChartTime =
                 settled.position.inMicroseconds / 1000000.0 + offset;
           }
         }
-        if (wasPlaying) {
-          unawaited(audioPlayer.play());
+        // seek 期间若已被暂停或进入拖动，不再误恢复音频播放；
+        // 若目标位于前奏等待期（rawAudioPos < 0），标记延后起播避免提前出声。
+        if (wasPlaying && isPlaying) {
+          if (rawAudioPos < 0) {
+            _waitingForAudioStart = true;
+          } else {
+            _waitingForAudioStart = false;
+            _startAudioPlayback(audioPlayer);
+          }
+        } else {
+          _waitingForAudioStart = false;
         }
       } catch (e) {
         debugPrint("Seek failed: $e");
       }
     }
 
-    // Audio backends and the game loop continue producing callbacks while the
-    // asynchronous seek is in flight. Re-assert the target and visible window
-    // after the backend has settled so stale playback state cannot win.
+    // 异步 seek 期间后台回调可能继续到达，完成后重新锚定目标谱面时间与可见窗口。
     if (generation == _seekGeneration) {
       chartTime = settledChartTime;
+      _anchorChartClock();
       _pendingSeekReset = true;
       invalidateNotes(resetWindow: true);
       _stopSfxVoices();
@@ -842,20 +1027,18 @@ class SimaiGame extends FlameGame {
   void setHasVideoBackground(bool value) {
     if (hasVideoBackground == value) return;
     hasVideoBackground = value;
+    if (_backgroundReady) {
+      _backgroundComponent.requestBackgroundRedraw();
+    }
     _requestPausedFrame();
   }
 
   void setBackgroundImageProvider(ImageProvider? provider) {
     if (backgroundImageProvider == provider) return;
     backgroundImageProvider = provider;
-    // Check if _backgroundComponent is initialized before using it.
-    // It might be accessed before onLoad completes if setState happens early.
-    try {
+    if (_backgroundReady) {
       _backgroundComponent.setBackgroundImageProvider(provider);
       _requestPausedFrame();
-    } catch (e) {
-      // Ignore if not initialized yet.
-      // It will be rendered in onGameResize or render loop once initialized.
     }
   }
 
@@ -884,17 +1067,43 @@ class SimaiGame extends FlameGame {
         if (frameMs > 16.7) _debugJank16Count++;
         if (frameMs > 33.3) _debugJank32Count++;
       }
-      // Update chartTime first so components update against current time.
-      // Sync logic:
-      // 1. If we are in the intro period (chartTime < offset), accumulate dt.
-      // 2. If we have a valid audio position, sync to it.
-      // 3. Otherwise, accumulate dt.
-      if (_hasAudio && !_gameplayAudioCompleted && chartTime >= offset) {
+      // 时钟推进逻辑：
+      // 1. 音频前奏等待区（chartTime < offset）先按 dt 推进，首次跨越 offset 时再启动播音，避免开局前跳。
+      // 2. 正片播放区间按音频单调快照推进。
+      // 3. 无音频或音频结束后回落 dt 推进。
+      if (_hasAudio && !_gameplayAudioCompleted && chartTime < offset) {
+        chartTime += dt * playbackRate;
+        if (chartTime >= offset && _waitingForAudioStart) {
+          _waitingForAudioStart = false;
+          final audioPlayer = _audioPlayer;
+          if (audioPlayer != null) {
+            final overshootUs = ((chartTime - offset) * 1000000).round();
+            _startAudioPlayback(
+              audioPlayer,
+              initialPosition: overshootUs > 2000
+                  ? Duration(microseconds: overshootUs)
+                  : null,
+            );
+          }
+        }
+      } else if (_hasAudio && !_gameplayAudioCompleted && chartTime >= offset) {
+        if (_waitingForAudioStart) {
+          _waitingForAudioStart = false;
+          final audioPlayer = _audioPlayer;
+          if (audioPlayer != null) {
+            final targetUs = ((chartTime - offset) * 1000000).round();
+            _startAudioPlayback(
+              audioPlayer,
+              initialPosition: targetUs > 2000
+                  ? Duration(microseconds: targetUs)
+                  : null,
+            );
+          }
+        }
         final snapshot = _audioClockSnapshot;
         if (snapshot == null || !_audioClockAdvancing) {
-          // Do not let visuals run ahead while audio is loading,
-          // buffering, paused, or settling after a seek.
-          if (snapshot != null) {
+          // 音频尚未进入推进态（如加载、缓冲、seek 稳定期）时不让画面提前跑飞。
+          if (snapshot != null && snapshot.state != SoLoudAudioState.ready) {
             chartTime = snapshot.position.inMicroseconds / 1000000.0 + offset;
           }
         } else {
@@ -909,13 +1118,19 @@ class SimaiGame extends FlameGame {
           }
         }
       } else {
-        // Fallback or intro period
+        // 无音频或游玩尾声补完区间
         chartTime += dt * playbackRate;
       }
 
       _anchorChartClock();
       final session = gameplaySession;
-      session?.advanceTo(chartTime);
+      if (session != null) {
+        // 统一判定时钟（chartTime + 判定偏移）与视觉时钟（chartTime）。
+        session.advanceTo(
+          chartTime + session.judgementOffsetSeconds,
+          displayTime: chartTime,
+        );
+      }
 
       final double duration = totalVisualDuration;
       if (session == null &&
@@ -928,7 +1143,10 @@ class SimaiGame extends FlameGame {
       } else if (session != null &&
           !_gameplayCompletionSent &&
           (!_hasAudio || _gameplayAudioCompleted) &&
-          session.isReadyForResult(chartTime)) {
+          session.isReadyForResult(
+            chartTime + session.judgementOffsetSeconds,
+            displayTime: chartTime,
+          )) {
         _gameplayCompletionSent = true;
         final result = session.buildResult();
         setPlaying(false);
@@ -938,9 +1156,9 @@ class SimaiGame extends FlameGame {
         }
       }
 
-      // Only update logic when playing
+      // 仅播放中驱动组件更新；游玩态开启预调度正解音时同样调用 _updateSfx()。
       super.update(dt);
-      if (session == null) _updateSfx();
+      if (_shouldPlayScheduledSfx) _updateSfx();
 
       if ((kDebugMode || kProfileMode) && renderTime >= _debugNextLogTime) {
         gameplayInputP95Ms = _percentile95(_debugGameplayInputTimesMs);
@@ -1013,7 +1231,10 @@ class SimaiGame extends FlameGame {
     required int batchedSprites,
     required int batchFlushes,
   }) {
-    _recordCadenceMetrics();
+    // Release 模式下未开启帧率或详细性能面板时跳过节拍统计，避免无谓的列表分配与排序。
+    if (showFps || showDetailedPerformanceInfo || kDebugMode || kProfileMode) {
+      _recordCadenceMetrics();
+    }
     if (!kDebugMode && !kProfileMode) return;
     _debugRenderCount++;
     _debugRenderTimeTotalMs += elapsedMs;
@@ -1030,20 +1251,28 @@ class SimaiGame extends FlameGame {
     _chartAnchorClockUs = _monotonicClock.elapsedMicroseconds;
   }
 
-  double gameplayChartTimeForEvent(Duration eventTimestamp) {
+  ({double visualTime, double judgeTime}) _gameplayTimesForEvent(
+    Duration eventTimestamp, {
+    bool allowCalibration = true,
+  }) {
     final session = gameplaySession;
-    if (session == null) return chartTime;
-    final now = _monotonicClock.elapsed;
+    if (session == null) {
+      return (visualTime: chartTime, judgeTime: chartTime);
+    }
+    final now = _audioPlayer?.monotonicNow ?? _monotonicClock.elapsed;
     final eventClock = _eventClockMapper.map(
       eventTimestamp: eventTimestamp,
       receiptTimestamp: now,
+      allowCalibration: allowCalibration,
     );
     final eventClockUs = eventClock.inMicroseconds;
 
     double projected;
     final snapshot = _audioClockSnapshot;
+    // 时钟分支与 update(dt) 保持严格一致：仅当音频处于正片且推进中才走音频快照外推。
     if (_hasAudio &&
         !_gameplayAudioCompleted &&
+        chartTime >= offset &&
         snapshot != null &&
         snapshot.isAdvancing) {
       final position = snapshot.positionAt(eventClock);
@@ -1053,8 +1282,14 @@ class SimaiGame extends FlameGame {
           _chartAnchorTime +
           (eventClockUs - _chartAnchorClockUs) / 1000000.0 * playbackRate;
     }
-    return projected + session.judgementOffsetSeconds;
+    return (
+      visualTime: projected,
+      judgeTime: projected + session.judgementOffsetSeconds,
+    );
   }
+
+  double gameplayChartTimeForEvent(Duration eventTimestamp) =>
+      _gameplayTimesForEvent(eventTimestamp).judgeTime;
 
   @visibleForTesting
   SimaiGameplayLaneInput? gameplayInputAt(Offset position) {
@@ -1090,7 +1325,18 @@ class SimaiGame extends FlameGame {
       position: position,
       center: chartCenter,
       radius: chartRadius,
-      contactRadius: chartRadius * gameplayContactRadiusRatio,
+      contactRadius: _effectiveGameplayContactRadius,
+      mirrorMode: mirrorMode,
+    );
+  }
+
+  int _gameplayMaskAt(Offset position) {
+    if (gameplaySession == null || chartRadius <= 0) return 0;
+    return SimaiGameplayInputMapper.maskForContactCircle(
+      position: position,
+      center: chartCenter,
+      radius: chartRadius,
+      contactRadius: _effectiveGameplayContactRadius,
       mirrorMode: mirrorMode,
     );
   }
@@ -1104,13 +1350,19 @@ class SimaiGame extends FlameGame {
     try {
       final session = gameplaySession;
       if (session == null || !isPlaying) return false;
-      final eventTime = gameplayChartTimeForEvent(eventTimestamp);
+      final times = _gameplayTimesForEvent(
+        eventTimestamp,
+        allowCalibration: true,
+      );
       _gameplayPointerContacts[pointerId] = position;
-      final judged = _applyGameplayPointerTargets(
+      _gameplayPointerLastTimes[pointerId] = times;
+      final judged = _applyGameplayPointerMask(
         session: session,
         pointerId: pointerId,
-        targets: gameplayTargetsAt(position),
-        eventTime: eventTime,
+        mask: _gameplayMaskAt(position),
+        judgeTime: times.judgeTime,
+        visualTime: times.visualTime,
+        allowOuterButtonHeadJudge: true,
       );
       if (judged && hitSoundEnabled) _playDaSound();
       return judged;
@@ -1128,14 +1380,66 @@ class SimaiGame extends FlameGame {
     try {
       final session = gameplaySession;
       if (session == null || !isPlaying) return;
-      final eventTime = gameplayChartTimeForEvent(eventTimestamp);
-      _gameplayPointerContacts[pointerId] = position;
-      final judged = _applyGameplayPointerTargets(
-        session: session,
-        pointerId: pointerId,
-        targets: gameplayTargetsAt(position),
-        eventTime: eventTime,
+      // ACTION_MOVE 可能经过平台重采样，禁用时钟校准以避免污染事件时间戳锚点。
+      final times = _gameplayTimesForEvent(
+        eventTimestamp,
+        allowCalibration: false,
       );
+      final previousPosition = _gameplayPointerContacts[pointerId];
+      final previousTimes = _gameplayPointerLastTimes[pointerId] ?? times;
+      _gameplayPointerContacts[pointerId] = position;
+      _gameplayPointerLastTimes[pointerId] = times;
+
+      var judged = false;
+      final step = _effectiveGameplayContactRadius * 0.6;
+      if (previousPosition != null && step > 0) {
+        final delta = position - previousPosition;
+        final distance = delta.distance;
+        if (distance > step) {
+          // 沿帧间位移线段线性插值子步，彻底消除快滑与掉帧时的传感器漏检。
+          final k = min(16, (distance / step).ceil());
+          for (var i = 1; i <= k; i++) {
+            final t = i / k;
+            final samplePos = i == k ? position : previousPosition + delta * t;
+            final sampleVisual = i == k
+                ? times.visualTime
+                : previousTimes.visualTime +
+                      (times.visualTime - previousTimes.visualTime) * t;
+            final sampleJudge = i == k
+                ? times.judgeTime
+                : previousTimes.judgeTime +
+                      (times.judgeTime - previousTimes.judgeTime) * t;
+            if (_applyGameplayPointerMask(
+              session: session,
+              pointerId: pointerId,
+              mask: _gameplayMaskAt(samplePos),
+              judgeTime: sampleJudge,
+              visualTime: sampleVisual,
+              allowOuterButtonHeadJudge: false,
+            )) {
+              judged = true;
+            }
+          }
+        } else {
+          judged = _applyGameplayPointerMask(
+            session: session,
+            pointerId: pointerId,
+            mask: _gameplayMaskAt(position),
+            judgeTime: times.judgeTime,
+            visualTime: times.visualTime,
+            allowOuterButtonHeadJudge: false,
+          );
+        }
+      } else {
+        judged = _applyGameplayPointerMask(
+          session: session,
+          pointerId: pointerId,
+          mask: _gameplayMaskAt(position),
+          judgeTime: times.judgeTime,
+          visualTime: times.visualTime,
+          allowOuterButtonHeadJudge: false,
+        );
+      }
       if (judged && hitSoundEnabled) _playDaSound();
     } finally {
       _recordGameplayInputTime(startedAtUs);
@@ -1150,12 +1454,19 @@ class SimaiGame extends FlameGame {
     try {
       final session = gameplaySession;
       _gameplayPointerContacts.remove(pointerId);
+      _gameplayPointerLastTimes.remove(pointerId);
       if (session == null) return;
-      final judged = _applyGameplayPointerTargets(
+      final times = _gameplayTimesForEvent(
+        eventTimestamp,
+        allowCalibration: true,
+      );
+      final judged = _applyGameplayPointerMask(
         session: session,
         pointerId: pointerId,
-        targets: <SimaiGameplayInputTarget>{},
-        eventTime: gameplayChartTimeForEvent(eventTimestamp),
+        mask: 0,
+        judgeTime: times.judgeTime,
+        visualTime: times.visualTime,
+        allowOuterButtonHeadJudge: false,
       );
       if (judged && hitSoundEnabled) _playDaSound();
     } finally {
@@ -1163,29 +1474,33 @@ class SimaiGame extends FlameGame {
     }
   }
 
-  bool _applyGameplayPointerTargets({
+  bool _applyGameplayPointerMask({
     required SimaiGameplaySession session,
     required int pointerId,
-    required Set<SimaiGameplayInputTarget> targets,
-    required double eventTime,
+    required int mask,
+    required double judgeTime,
+    required double visualTime,
+    bool allowOuterButtonHeadJudge = true,
   }) {
-    final previous =
-        _gameplayPointerInputs[pointerId] ?? <SimaiGameplayInputTarget>{};
-    if (setEquals(previous, targets)) return false;
+    final previousMask = _gameplayPointerMasks[pointerId] ?? 0;
+    if (previousMask == mask) return false;
 
-    final judged = session.updatePointerTargets(
+    final releasedMask = previousMask & ~mask;
+    final pressedMask = mask & ~previousMask;
+
+    final judged = session.updatePointerMask(
       pointerId: pointerId,
-      releasedTargets: previous.difference(targets),
-      pressedTargets: targets.difference(previous),
-      chartTime: eventTime,
+      releasedMask: releasedMask,
+      pressedMask: pressedMask,
+      chartTime: judgeTime,
+      displayTime: visualTime,
+      allowOuterButtonHeadJudge: allowOuterButtonHeadJudge,
     );
 
-    if (targets.isEmpty) {
-      _gameplayPointerInputs.remove(pointerId);
+    if (mask == 0) {
+      _gameplayPointerMasks.remove(pointerId);
     } else {
-      _gameplayPointerInputs[pointerId] = Set<SimaiGameplayInputTarget>.of(
-        targets,
-      );
+      _gameplayPointerMasks[pointerId] = mask;
     }
     return judged;
   }
@@ -1201,10 +1516,14 @@ class SimaiGame extends FlameGame {
   void clearGameplayPointers() {
     final session = gameplaySession;
     if (session == null) return;
-    _gameplayPointerInputs.clear();
+    _gameplayPointerMasks.clear();
     _gameplayPointerContacts.clear();
+    _gameplayPointerLastTimes.clear();
     if (!session.isPrepared) return;
-    session.clearPointers(chartTime);
+    session.clearPointers(
+      chartTime + session.judgementOffsetSeconds,
+      displayTime: chartTime,
+    );
   }
 
   int get audioPositionUpdateCount => _audioPositionUpdateCount;
@@ -1268,7 +1587,7 @@ class SimaiGame extends FlameGame {
   }
 
   void _updateSfx() {
-    if (!hitSoundEnabled || playbackRate <= 0) return;
+    if (!_shouldPlayScheduledSfx || playbackRate <= 0) return;
     final src = _sfxSource;
     if (src == null || !_soloud.isInitialized) return;
 
@@ -1327,9 +1646,16 @@ class SimaiGame extends FlameGame {
       _debugSfxPlayDrops++;
       return;
     }
-    _pruneSfxVoices();
+    // 使用本地时间窗估算短时重叠声道数，免除每次打击时的 FFI 句柄巡检开销。
+    final nowUs = _monotonicClock.elapsedMicroseconds;
+    final windowStartUs = nowUs - _sfxOverlapWindowMs * 1000;
+    while (_recentDaHitTimesUs.isNotEmpty &&
+        _recentDaHitTimesUs.first < windowStartUs) {
+      _recentDaHitTimesUs.removeFirst();
+    }
+    _recentDaHitTimesUs.addLast(nowUs);
     final gain = hitSoundVoiceGain(
-      _sfxVoices.length + 1,
+      _recentDaHitTimesUs.length,
       baseGain: hitSoundVolume,
     );
     _playSfxVoice(src, gain: gain);
@@ -1342,7 +1668,10 @@ class SimaiGame extends FlameGame {
   }) {
     if (gain <= 0.0) return;
     if (!identical(src, _sfxSource) || !_soloud.isInitialized) return;
-    _pruneSfxVoices();
+    // 仅当活跃队列触及上限时剪枝一次，避免高频打击时的重复 FFI 校验。
+    if (_sfxVoices.length >= _maxSfxVoices) {
+      _pruneSfxVoices();
+    }
 
     while (_sfxVoices.length >= _maxSfxVoices) {
       final oldest = _sfxVoices.removeFirst();
@@ -1399,6 +1728,7 @@ class SimaiGame extends FlameGame {
   }
 
   void _stopSfxVoices() {
+    _recentDaHitTimesUs.clear();
     if (_sfxVoices.isEmpty || headlessExport || !_soloud.isInitialized) {
       _sfxVoices.clear();
       return;
@@ -1474,14 +1804,19 @@ class JudgeBackgroundComponent extends PositionComponent {
   final SimaiGame game;
 
   ui.Picture? _backgroundPicture;
+  ui.Picture? _idlePartitionsPicture;
   ui.Image? _backgroundImage;
+  ui.Image? _bakedBgImage;
+  double _bakedBgOpacity = -1.0;
+  SimaiBackgroundMode? _bakedBgMode;
+  bool _bakedHasVideoBg = false;
+  SimaiMirrorMode? _bakedPartitionsMirrorMode;
+  bool _bakedShowPartitions = false;
   ImageStream? _backgroundStream;
   ImageStreamListener? _backgroundStreamListener;
   Completer<void>? _backgroundResolutionCompleter;
   final ui.Image? _sensorImage;
   Vector2? _lastSize;
-  Rect? _backgroundRect;
-  Path? _backgroundClipPath;
   List<_GameplayInputVisualRegion> _gameplayInputRegions = const [];
   final Paint _sensorIdleFill = Paint()
     ..color = const Color(0x1239D8FF)
@@ -1514,30 +1849,6 @@ class JudgeBackgroundComponent extends PositionComponent {
     ..color = const Color(0xA0FFFFFF)
     ..style = PaintingStyle.stroke;
 
-  static final ColorFilter _dimBackgroundFilter = ColorFilter.matrix(
-    const <double>[
-      0.15,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0.15,
-      0,
-      0,
-      0,
-      0,
-      0,
-      0.15,
-      0,
-      0,
-      0,
-      0,
-      0,
-      1,
-      0,
-    ],
-  );
   static final ColorFilter _sensorFilter = ColorFilter.matrix(const <double>[
     1,
     0,
@@ -1588,6 +1899,8 @@ class JudgeBackgroundComponent extends PositionComponent {
     _stopListeningBackgroundStream();
     _backgroundPicture?.dispose();
     _backgroundPicture = null;
+    _idlePartitionsPicture?.dispose();
+    _idlePartitionsPicture = null;
     super.onRemove();
   }
 
@@ -1613,6 +1926,7 @@ class JudgeBackgroundComponent extends PositionComponent {
 
     _stopListeningBackgroundStream();
     _backgroundImage = null;
+    _renderBackground();
     _backgroundResolutionCompleter = Completer<void>();
     if (provider == null) {
       _backgroundResolutionCompleter!.complete();
@@ -1631,6 +1945,7 @@ class JudgeBackgroundComponent extends PositionComponent {
     _backgroundStreamListener = ImageStreamListener(
       (info, _) {
         _backgroundImage = info.image;
+        _renderBackground();
         final completer = _backgroundResolutionCompleter;
         if (completer != null && !completer.isCompleted) {
           completer.complete();
@@ -1654,58 +1969,43 @@ class JudgeBackgroundComponent extends PositionComponent {
     await _backgroundResolutionCompleter?.future;
   }
 
+  /// 将静态曲绘（带圆裁剪与透明度）、传感器底图及判定环统一烘焙进 Picture，消除每帧 clipPath。
   void _renderBackground() {
+    if (size.x <= 0 || size.y <= 0) return;
     final center = Offset(size.x / 2, size.y / 2);
     final radius = min(size.x, size.y) / 2 * game.chartRadiusRatio;
     final rect = Rect.fromCircle(center: center, radius: radius * 1.05);
-    _backgroundRect = rect;
-    _backgroundClipPath = Path()..addOval(rect);
+    final clipPath = Path()..addOval(rect);
+
+    final bgImage = game.hasVideoBackground ? null : _backgroundImage;
+    final opacity = game.backgroundOpacity.clamp(0.0, 1.0).toDouble();
+    final sensorImage = _sensorImage;
+    final mode = game.backgroundMode;
+    final showBg = bgImage != null && opacity > 0.0;
+    final showSensor =
+        sensorImage != null &&
+        mode == SimaiBackgroundMode.judgeZone &&
+        game.gameplaySession == null;
 
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
 
-    final mode = game.backgroundMode;
-
-    if (mode != SimaiBackgroundMode.none) {
-      final bool drawRing = mode != SimaiBackgroundMode.dots;
-      _drawJudgeLine(canvas, center, radius, drawRing: drawRing);
-    }
-
-    _backgroundPicture?.dispose();
-    _backgroundPicture = recorder.endRecording();
-  }
-
-  void requestBackgroundRedraw() {
-    _renderBackground();
-  }
-
-  @override
-  void render(Canvas canvas) {
-    final bgImage = game.hasVideoBackground ? null : _backgroundImage;
-    final sensorImage = _sensorImage;
-
-    if (bgImage != null || sensorImage != null) {
-      final rect = _backgroundRect;
-      final clipPath = _backgroundClipPath;
-      if (rect == null || clipPath == null) return;
-
+    if (showBg || showSensor) {
       canvas.save();
       canvas.clipPath(clipPath);
 
-      if (bgImage != null) {
+      if (showBg) {
         paintImage(
           canvas: canvas,
           rect: rect,
           image: bgImage,
           fit: BoxFit.cover,
           filterQuality: FilterQuality.medium,
-          colorFilter: _dimBackgroundFilter,
+          opacity: opacity,
         );
       }
 
-      if (sensorImage != null &&
-          game.backgroundMode == SimaiBackgroundMode.judgeZone &&
-          game.gameplaySession == null) {
+      if (showSensor) {
         paintImage(
           canvas: canvas,
           rect: rect,
@@ -1719,6 +2019,35 @@ class JudgeBackgroundComponent extends PositionComponent {
       canvas.restore();
     }
 
+    if (mode != SimaiBackgroundMode.none) {
+      final bool drawRing = mode != SimaiBackgroundMode.dots;
+      _drawJudgeLine(canvas, center, radius, drawRing: drawRing);
+    }
+
+    _backgroundPicture?.dispose();
+    _backgroundPicture = recorder.endRecording();
+    _bakedBgImage = bgImage;
+    _bakedBgOpacity = opacity;
+    _bakedBgMode = mode;
+    _bakedHasVideoBg = game.hasVideoBackground;
+  }
+
+  void requestBackgroundRedraw() {
+    _renderBackground();
+  }
+
+  @override
+  void render(Canvas canvas) {
+    final bgImage = game.hasVideoBackground ? null : _backgroundImage;
+    final opacity = game.backgroundOpacity.clamp(0.0, 1.0).toDouble();
+    if (_backgroundPicture == null ||
+        !identical(_bakedBgImage, bgImage) ||
+        (_bakedBgOpacity - opacity).abs() > 1e-6 ||
+        _bakedBgMode != game.backgroundMode ||
+        _bakedHasVideoBg != game.hasVideoBackground) {
+      _renderBackground();
+    }
+
     if (_backgroundPicture != null) {
       canvas.drawPicture(_backgroundPicture!);
     }
@@ -1727,8 +2056,11 @@ class JudgeBackgroundComponent extends PositionComponent {
   }
 
   void _rebuildGameplayInputRegions() {
+    _idlePartitionsPicture?.dispose();
+    _idlePartitionsPicture = null;
     if (game.gameplaySession == null) {
       _gameplayInputRegions = const [];
+      _bakedShowPartitions = false;
       return;
     }
     final center = Offset(size.x / 2, size.y / 2);
@@ -1744,6 +2076,7 @@ class JudgeBackgroundComponent extends PositionComponent {
     _contactStroke.strokeWidth = strokeWidth;
     if (!game.showGameplayInputPartitions) {
       _gameplayInputRegions = const [];
+      _bakedShowPartitions = false;
       return;
     }
     final regions = <_GameplayInputVisualRegion>[];
@@ -1835,6 +2168,23 @@ class JudgeBackgroundComponent extends PositionComponent {
       );
     }
     _gameplayInputRegions = regions;
+
+    // 将全部 59 个未按下分区预录进静态 Picture，运行时每帧仅重绘当前按下的活跃区。
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    for (final region in regions) {
+      final fillPaint = region.isOuterButton
+          ? _buttonIdleFill
+          : _sensorIdleFill;
+      final strokePaint = region.isOuterButton
+          ? _buttonIdleStroke
+          : _sensorIdleStroke;
+      canvas.drawPath(region.path, fillPaint);
+      canvas.drawPath(region.path, strokePaint);
+    }
+    _idlePartitionsPicture = recorder.endRecording();
+    _bakedPartitionsMirrorMode = game.mirrorMode;
+    _bakedShowPartitions = true;
   }
 
   void _renderGameplayInputRegions(Canvas canvas) {
@@ -1842,6 +2192,15 @@ class JudgeBackgroundComponent extends PositionComponent {
     if (session == null) return;
 
     if (game.showGameplayInputPartitions) {
+      if (!_bakedShowPartitions ||
+          _bakedPartitionsMirrorMode != game.mirrorMode ||
+          _idlePartitionsPicture == null) {
+        _rebuildGameplayInputRegions();
+      }
+      final idlePicture = _idlePartitionsPicture;
+      if (idlePicture != null) {
+        canvas.drawPicture(idlePicture);
+      }
       for (final region in _gameplayInputRegions) {
         final pressed = switch (region.target) {
           SimaiGameplayOuterButtonTarget(:final lane) => session.isInputPressed(
@@ -1852,12 +2211,13 @@ class JudgeBackgroundComponent extends PositionComponent {
             location,
           ),
         };
+        if (!pressed) continue;
         final fillPaint = region.isOuterButton
-            ? (pressed ? _buttonPressedFill : _buttonIdleFill)
-            : (pressed ? _sensorPressedFill : _sensorIdleFill);
+            ? _buttonPressedFill
+            : _sensorPressedFill;
         final strokePaint = region.isOuterButton
-            ? (pressed ? _buttonPressedStroke : _buttonIdleStroke)
-            : (pressed ? _sensorPressedStroke : _sensorIdleStroke);
+            ? _buttonPressedStroke
+            : _sensorPressedStroke;
 
         canvas.drawPath(region.path, fillPaint);
         canvas.drawPath(region.path, strokePaint);
@@ -1865,7 +2225,7 @@ class JudgeBackgroundComponent extends PositionComponent {
     }
 
     if (!game.showGameplayTouchIndicators) return;
-    final contactRadius = game.chartRadius * game.gameplayContactRadiusRatio;
+    final contactRadius = game._effectiveGameplayContactRadius;
     if (contactRadius <= 0) return;
     for (final position in game._gameplayPointerContacts.values) {
       canvas.drawCircle(position, contactRadius, _contactFill);
@@ -1964,7 +2324,13 @@ class NotesLayerComponent extends PositionComponent with Snapshot {
   void render(Canvas canvas) {
     if (!game.isResourcesLoaded) return;
 
-    if (game.isPlaying) {
+    final trackMetrics =
+        game.isPlaying &&
+        (game.showFps ||
+            game.showDetailedPerformanceInfo ||
+            kDebugMode ||
+            kProfileMode);
+    if (trackMetrics) {
       _renderStopwatch
         ..reset()
         ..start();
@@ -1978,7 +2344,7 @@ class NotesLayerComponent extends PositionComponent with Snapshot {
       runtimeIndex: game.runtimeIndex,
     );
 
-    if (game.isPlaying) {
+    if (trackMetrics) {
       _renderStopwatch.stop();
       game.recordRenderMetrics(
         elapsedMs: _renderStopwatch.elapsedMicroseconds / 1000.0,

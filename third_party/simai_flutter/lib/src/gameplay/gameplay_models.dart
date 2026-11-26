@@ -5,6 +5,9 @@ import 'package:flutter/foundation.dart';
 
 import '../structures/location.dart';
 import '../structures/note_group.dart';
+import '../ui/note_motion.dart';
+import '../ui/note_style.dart';
+import '../ui/simai_game.dart' show simaiMaxHitSoundVolume;
 import '../ui/simai_mirror.dart';
 import '../ui/simai_player.dart' show SimaiBackgroundMode;
 
@@ -133,17 +136,47 @@ enum SimaiJudgementDisplayMode {
   }
 }
 
+/// 谱面游玩时的盘面中央显示模式（与预览态 11 种模式一一对应）。
 enum SimaiGameplayCenterDisplayMode {
-  achievementAdd('达成率 0%+'),
-  achievement101Subtract('达成率 101%-'),
-  achievement100Subtract('达成率 100%-'),
-  combo('Combo'),
-  dxScoreAdd('DX 分数 0+'),
-  dxScoreSubtract('DX 分数 max-');
+  achievementAdd('0%+'),
+  achievement100Plus('100%+'),
+  achievement101Subtract('101%-'),
+  dxScoreAdd('DX分数+'),
+  dxScoreSubtract('DX分数-'),
+  dxStars('星数+x'),
+  combo('连击数'),
+  overS('超过S级'),
+  overSS('超过SS级'),
+  overSSS('超过SSS级'),
+  none('什么都不显示');
 
   const SimaiGameplayCenterDisplayMode(this.label);
 
+  /// 界面选择器展示的中文名称。
   final String label;
+
+  /// 解析枚举名称并兼容历史旧键（`achievement` 与 `achievement100Subtract`）。
+  static SimaiGameplayCenterDisplayMode fromNameOrLegacy(
+    Object? raw, {
+    SimaiGameplayCenterDisplayMode fallback =
+        SimaiGameplayCenterDisplayMode.achievementAdd,
+  }) {
+    if (raw is SimaiGameplayCenterDisplayMode) return raw;
+    if (raw is String) {
+      if (raw == 'achievement') {
+        return SimaiGameplayCenterDisplayMode.achievementAdd;
+      }
+      if (raw == 'achievement100Subtract') {
+        return SimaiGameplayCenterDisplayMode.achievement100Plus;
+      }
+      for (final value in values) {
+        if (value.name == raw) return value;
+      }
+    } else if (raw is int && raw >= 0 && raw < values.length) {
+      return values[raw];
+    }
+    return fallback;
+  }
 }
 
 @immutable
@@ -154,11 +187,17 @@ class SimaiGameplaySettings {
     this.judgementOffsetMs = 0,
     this.musicVolume = 0.8,
     this.hitSoundVolume = 0.72,
-    this.hitSoundEnabled = true,
+    this.answerSoundEnabled = true,
+    this.hitSoundEnabled = false,
+    this.contactRadiusScale = 1.0,
+    this.chartScale = 0.86,
+    this.backgroundOpacity = 0.35,
     this.mirrorMode = SimaiMirrorMode.none,
     this.backgroundMode = SimaiBackgroundMode.judgeZone,
     this.judgementDisplayMode = SimaiJudgementDisplayMode.twoB,
     this.centerDisplayMode = SimaiGameplayCenterDisplayMode.achievementAdd,
+    this.topRightDisplayMode = SimaiGameplayCenterDisplayMode.none,
+    this.noteStyle = SimaiNoteStyle.arcade,
     this.showApproachLine = true,
     this.showHitEffects = true,
     this.showInputPartitions = false,
@@ -170,20 +209,39 @@ class SimaiGameplaySettings {
   final int judgementOffsetMs;
   final double musicVolume;
   final double hitSoundVolume;
+
+  /// 是否开启预调度正解音（与 BGM 同流混音，零相对延迟）。
+  final bool answerSoundEnabled;
+
+  /// 是否开启反应式打击音（命中时即时发声，移动端受音频输出缓冲延迟影响）。
   final bool hitSoundEnabled;
+
+  /// 触摸接触圆半径缩放倍率（0.8 ~ 1.6）。
+  final double contactRadiusScale;
+
+  /// 游玩盘面半径占比（0.75 ~ 0.95）。
+  final double chartScale;
+
+  /// 曲绘/背景可见不透明度（0.0 ~ 1.0）。
+  final double backgroundOpacity;
+
   final SimaiMirrorMode mirrorMode;
   final SimaiBackgroundMode backgroundMode;
   final SimaiJudgementDisplayMode judgementDisplayMode;
   final SimaiGameplayCenterDisplayMode centerDisplayMode;
+  final SimaiGameplayCenterDisplayMode topRightDisplayMode;
+  final SimaiNoteStyle noteStyle;
   final bool showApproachLine;
   final bool showHitEffects;
   final bool showInputPartitions;
   final bool showTouchIndicators;
 
-  double get approachTime {
-    final safeSpeed = noteSpeed.isFinite ? noteSpeed : 8.0;
-    return 3.6 / safeSpeed.clamp(3.0, 9.0).toDouble();
-  }
+  /// 统一与预览页一致的音符流速公式。
+  double get approachTime => NoteMotion.approachTimeForSpeed(noteSpeed);
+
+  /// 统一与预览页一致的 Touch 音符出现时长。
+  double get touchApproachTime =>
+      approachTime * NoteMotion.touchApproachMultiplier;
 
   SimaiGameplaySettings normalized() {
     final safeSpeed = noteSpeed.isFinite ? noteSpeed : 8.0;
@@ -192,11 +250,21 @@ class SimaiGameplaySettings {
     return copyWith(
       noteSpeed: speed,
       musicOffsetMs: musicOffsetMs.clamp(-2000, 2000),
-      judgementOffsetMs: judgementOffsetMs.clamp(-200, 200),
+      judgementOffsetMs: judgementOffsetMs.clamp(-500, 500),
       musicVolume: (musicVolume.isFinite ? musicVolume : 0.8)
           .clamp(0.0, 1.0)
           .toDouble(),
       hitSoundVolume: (hitSoundVolume.isFinite ? hitSoundVolume : 0.72)
+          .clamp(0.0, simaiMaxHitSoundVolume)
+          .toDouble(),
+      contactRadiusScale:
+          (contactRadiusScale.isFinite ? contactRadiusScale : 1.0)
+              .clamp(0.8, 1.6)
+              .toDouble(),
+      chartScale: (chartScale.isFinite ? chartScale : 0.86)
+          .clamp(0.75, 0.95)
+          .toDouble(),
+      backgroundOpacity: (backgroundOpacity.isFinite ? backgroundOpacity : 0.35)
           .clamp(0.0, 1.0)
           .toDouble(),
     );
@@ -208,11 +276,17 @@ class SimaiGameplaySettings {
     int? judgementOffsetMs,
     double? musicVolume,
     double? hitSoundVolume,
+    bool? answerSoundEnabled,
     bool? hitSoundEnabled,
+    double? contactRadiusScale,
+    double? chartScale,
+    double? backgroundOpacity,
     SimaiMirrorMode? mirrorMode,
     SimaiBackgroundMode? backgroundMode,
     SimaiJudgementDisplayMode? judgementDisplayMode,
     SimaiGameplayCenterDisplayMode? centerDisplayMode,
+    SimaiGameplayCenterDisplayMode? topRightDisplayMode,
+    SimaiNoteStyle? noteStyle,
     bool? showApproachLine,
     bool? showHitEffects,
     bool? showInputPartitions,
@@ -224,16 +298,156 @@ class SimaiGameplaySettings {
       judgementOffsetMs: judgementOffsetMs ?? this.judgementOffsetMs,
       musicVolume: musicVolume ?? this.musicVolume,
       hitSoundVolume: hitSoundVolume ?? this.hitSoundVolume,
+      answerSoundEnabled: answerSoundEnabled ?? this.answerSoundEnabled,
       hitSoundEnabled: hitSoundEnabled ?? this.hitSoundEnabled,
+      contactRadiusScale: contactRadiusScale ?? this.contactRadiusScale,
+      chartScale: chartScale ?? this.chartScale,
+      backgroundOpacity: backgroundOpacity ?? this.backgroundOpacity,
       mirrorMode: mirrorMode ?? this.mirrorMode,
       backgroundMode: backgroundMode ?? this.backgroundMode,
       judgementDisplayMode: judgementDisplayMode ?? this.judgementDisplayMode,
       centerDisplayMode: centerDisplayMode ?? this.centerDisplayMode,
+      topRightDisplayMode: topRightDisplayMode ?? this.topRightDisplayMode,
+      noteStyle: noteStyle ?? this.noteStyle,
       showApproachLine: showApproachLine ?? this.showApproachLine,
       showHitEffects: showHitEffects ?? this.showHitEffects,
       showInputPartitions: showInputPartitions ?? this.showInputPartitions,
       showTouchIndicators: showTouchIndicators ?? this.showTouchIndicators,
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    final safe = normalized();
+    return <String, dynamic>{
+      'noteSpeed': safe.noteSpeed,
+      'musicOffsetMs': safe.musicOffsetMs,
+      'judgementOffsetMs': safe.judgementOffsetMs,
+      'musicVolume': safe.musicVolume,
+      'hitSoundVolume': safe.hitSoundVolume,
+      'answerSoundEnabled': safe.answerSoundEnabled,
+      'hitSoundEnabled': safe.hitSoundEnabled,
+      'contactRadiusScale': safe.contactRadiusScale,
+      'chartScale': safe.chartScale,
+      'backgroundOpacity': safe.backgroundOpacity,
+      'mirrorMode': safe.mirrorMode.name,
+      'backgroundMode': safe.backgroundMode.name,
+      'judgementDisplayMode': safe.judgementDisplayMode.name,
+      'centerDisplayMode': safe.centerDisplayMode.name,
+      'topRightDisplayMode': safe.topRightDisplayMode.name,
+      'noteStyle': safe.noteStyle.name,
+      'showApproachLine': safe.showApproachLine,
+      'showHitEffects': safe.showHitEffects,
+      'showInputPartitions': safe.showInputPartitions,
+      'showTouchIndicators': safe.showTouchIndicators,
+    };
+  }
+
+  factory SimaiGameplaySettings.fromJson(Map<String, dynamic> json) {
+    const defaults = SimaiGameplaySettings();
+    return SimaiGameplaySettings(
+      noteSpeed: _readDouble(json['noteSpeed'], defaults.noteSpeed),
+      musicOffsetMs: _readInt(json['musicOffsetMs'], defaults.musicOffsetMs),
+      judgementOffsetMs: _readInt(
+        json['judgementOffsetMs'],
+        defaults.judgementOffsetMs,
+      ),
+      musicVolume: _readDouble(json['musicVolume'], defaults.musicVolume),
+      hitSoundVolume: _readDouble(
+        json['hitSoundVolume'],
+        defaults.hitSoundVolume,
+      ),
+      answerSoundEnabled: _readBool(
+        json['answerSoundEnabled'],
+        defaults.answerSoundEnabled,
+      ),
+      hitSoundEnabled: _readBool(
+        json['hitSoundEnabled'],
+        defaults.hitSoundEnabled,
+      ),
+      contactRadiusScale: _readDouble(
+        json['contactRadiusScale'],
+        defaults.contactRadiusScale,
+      ),
+      chartScale: _readDouble(json['chartScale'], defaults.chartScale),
+      backgroundOpacity: _readDouble(
+        json['backgroundOpacity'],
+        defaults.backgroundOpacity,
+      ),
+      mirrorMode: _readEnum(
+        json['mirrorMode'],
+        SimaiMirrorMode.values,
+        defaults.mirrorMode,
+      ),
+      backgroundMode: _readEnum(
+        json['backgroundMode'],
+        SimaiBackgroundMode.values,
+        defaults.backgroundMode,
+      ),
+      judgementDisplayMode: _readEnum(
+        json['judgementDisplayMode'],
+        SimaiJudgementDisplayMode.values,
+        defaults.judgementDisplayMode,
+      ),
+      centerDisplayMode: SimaiGameplayCenterDisplayMode.fromNameOrLegacy(
+        json['centerDisplayMode'],
+        fallback: defaults.centerDisplayMode,
+      ),
+      topRightDisplayMode: SimaiGameplayCenterDisplayMode.fromNameOrLegacy(
+        json['topRightDisplayMode'],
+        fallback: defaults.topRightDisplayMode,
+      ),
+      noteStyle: SimaiNoteStyle.fromName(
+        json['noteStyle'],
+        fallback: defaults.noteStyle,
+      ),
+      showApproachLine: _readBool(
+        json['showApproachLine'],
+        defaults.showApproachLine,
+      ),
+      showHitEffects: _readBool(
+        json['showHitEffects'],
+        defaults.showHitEffects,
+      ),
+      showInputPartitions: _readBool(
+        json['showInputPartitions'],
+        defaults.showInputPartitions,
+      ),
+      showTouchIndicators: _readBool(
+        json['showTouchIndicators'],
+        defaults.showTouchIndicators,
+      ),
+    ).normalized();
+  }
+
+  static double _readDouble(Object? raw, double fallback) {
+    if (raw is num && raw.isFinite) return raw.toDouble();
+    return fallback;
+  }
+
+  static int _readInt(Object? raw, int fallback) {
+    if (raw is int) return raw;
+    if (raw is num && raw.isFinite) return raw.round();
+    return fallback;
+  }
+
+  static bool _readBool(Object? raw, bool fallback) {
+    if (raw is bool) return raw;
+    return fallback;
+  }
+
+  static T _readEnum<T extends Enum>(
+    Object? raw,
+    List<T> values,
+    T fallback,
+  ) {
+    if (raw is String) {
+      for (final value in values) {
+        if (value.name == raw) return value;
+      }
+    } else if (raw is int && raw >= 0 && raw < values.length) {
+      return values[raw];
+    }
+    return fallback;
   }
 
   @override
@@ -245,11 +459,17 @@ class SimaiGameplaySettings {
           judgementOffsetMs == other.judgementOffsetMs &&
           musicVolume == other.musicVolume &&
           hitSoundVolume == other.hitSoundVolume &&
+          answerSoundEnabled == other.answerSoundEnabled &&
           hitSoundEnabled == other.hitSoundEnabled &&
+          contactRadiusScale == other.contactRadiusScale &&
+          chartScale == other.chartScale &&
+          backgroundOpacity == other.backgroundOpacity &&
           mirrorMode == other.mirrorMode &&
           backgroundMode == other.backgroundMode &&
           judgementDisplayMode == other.judgementDisplayMode &&
           centerDisplayMode == other.centerDisplayMode &&
+          topRightDisplayMode == other.topRightDisplayMode &&
+          noteStyle == other.noteStyle &&
           showApproachLine == other.showApproachLine &&
           showHitEffects == other.showHitEffects &&
           showInputPartitions == other.showInputPartitions &&
@@ -262,11 +482,17 @@ class SimaiGameplaySettings {
     judgementOffsetMs,
     musicVolume,
     hitSoundVolume,
+    answerSoundEnabled,
     hitSoundEnabled,
+    contactRadiusScale,
+    chartScale,
+    backgroundOpacity,
     mirrorMode,
     backgroundMode,
     judgementDisplayMode,
     centerDisplayMode,
+    topRightDisplayMode,
+    noteStyle,
     showApproachLine,
     showHitEffects,
     showInputPartitions,
@@ -582,26 +808,57 @@ class SimaiGameplaySlideData {
   final List<int> fanRightGroupIds;
 }
 
+/// 将平台触控事件时间戳映射到本地单调时钟。
+///
+/// 采用最近 64 次校准样本的滑动窗口最小值，并在 `allowCalibration == false`
+/// （如 Android `ACTION_MOVE` 重采样事件）时跳过窗口更新，避免重采样污染锚点。
 class SimaiGameplayEventClockMapper {
+  static const int _windowSize = 64;
+
+  final List<int> _offsetWindow = List<int>.filled(_windowSize, 0);
+  int _windowCount = 0;
+  int _windowCursor = 0;
   int? _minimumOffsetUs;
 
   Duration map({
     required Duration eventTimestamp,
     required Duration receiptTimestamp,
+    bool allowCalibration = true,
   }) {
     final receiptUs = receiptTimestamp.inMicroseconds;
     final eventUs = eventTimestamp.inMicroseconds;
     if (eventUs <= 0) return receiptTimestamp;
     final observedOffset = receiptUs - eventUs;
-    final previous = _minimumOffsetUs;
-    if (previous == null || observedOffset < previous) {
-      _minimumOffsetUs = observedOffset;
+    if (allowCalibration) {
+      final replaced = _windowCount == _windowSize
+          ? _offsetWindow[_windowCursor]
+          : null;
+      _offsetWindow[_windowCursor] = observedOffset;
+      _windowCursor = (_windowCursor + 1) % _windowSize;
+      if (_windowCount < _windowSize) {
+        _windowCount++;
+      }
+      final previousMin = _minimumOffsetUs;
+      if (previousMin == null || observedOffset <= previousMin) {
+        _minimumOffsetUs = observedOffset;
+      } else if (replaced != null && replaced == previousMin) {
+        var recomputed = _offsetWindow[0];
+        for (var i = 1; i < _windowCount; i++) {
+          final sample = _offsetWindow[i];
+          if (sample < recomputed) recomputed = sample;
+        }
+        _minimumOffsetUs = recomputed;
+      }
     }
     final mappedUs = eventUs + (_minimumOffsetUs ?? observedOffset);
     return Duration(microseconds: mappedUs.clamp(0, receiptUs));
   }
 
-  void reset() => _minimumOffsetUs = null;
+  void reset() {
+    _windowCount = 0;
+    _windowCursor = 0;
+    _minimumOffsetUs = null;
+  }
 }
 
 class SimaiGameplayLaneMapper {
@@ -688,39 +945,112 @@ class _NormalizedGameplayInputRegion {
   }
 }
 
+class _FastSensorPolygon {
+  _FastSensorPolygon({
+    required this.visualBit,
+    required this.bonusRadius,
+    required this.polygon,
+  }) : left = _minX(polygon),
+       top = _minY(polygon),
+       right = _maxX(polygon),
+       bottom = _maxY(polygon);
+
+  final int visualBit;
+  final double bonusRadius;
+  final List<Offset> polygon;
+  final double left;
+  final double top;
+  final double right;
+  final double bottom;
+
+  static double _minX(List<Offset> poly) {
+    var value = double.infinity;
+    for (final p in poly) {
+      if (p.dx < value) value = p.dx;
+    }
+    return value;
+  }
+
+  static double _minY(List<Offset> poly) {
+    var value = double.infinity;
+    for (final p in poly) {
+      if (p.dy < value) value = p.dy;
+    }
+    return value;
+  }
+
+  static double _maxX(List<Offset> poly) {
+    var value = double.negativeInfinity;
+    for (final p in poly) {
+      if (p.dx > value) value = p.dx;
+    }
+    return value;
+  }
+
+  static double _maxY(List<Offset> poly) {
+    var value = double.negativeInfinity;
+    for (final p in poly) {
+      if (p.dy > value) value = p.dy;
+    }
+    return value;
+  }
+}
+
+class _SensorRadialLayer {
+  const _SensorRadialLayer({
+    required this.minRadius,
+    required this.maxRadius,
+    required this.maxBonus,
+    required this.polygons,
+  });
+
+  final double minRadius;
+  final double maxRadius;
+  final double maxBonus;
+  final List<_FastSensorPolygon> polygons;
+}
+
 class SimaiGameplayInputMapper {
   static const double _radiusEpsilon = 1e-12;
 
-  /// MajdataPlay's default simulated finger radius is 0.5 units against a
-  /// 4.8-unit judge-line radius.
+  /// MajdataPlay 默认模拟触点半径（相对 4.8 单位判定圈）。
   static const double defaultContactRadiusRatio = 0.5 / 4.8;
 
-  /// MajdataPlay enlarges the simulated mobile contact for the compact inner
-  /// sensor groups. A/B keep the base finger radius.
+  /// 移动端内圈传感器接触半径加成；B 区增加柔和宽容以改善手机窄内环 q/p 转圈断星。
+  static const double bSensorContactRadiusBonusRatio = 0.12 / 4.8;
   static const double cSensorContactRadiusBonusRatio = 0.25 / 4.8;
   static const double dSensorContactRadiusBonusRatio = 0.20 / 4.8;
   static const double eSensorContactRadiusBonusRatio = 0.10 / 4.8;
 
-  /// MajdataPlay uses a 4.8-unit judge line and starts its simulated outer
-  /// button ring past 5.4 units.
+  /// 内屏触摸面板外沿半径比例（5.4 / 4.8）。
   static const double touchPanelOuterRadiusRatio = 5.4 / 4.8;
 
-  /// Kept for source compatibility with the first gameplay input API.
+  /// 兼容旧版输入 API 的内屏半径别名。
   static const double innerPlayfieldRadiusRatio = touchPanelOuterRadiusRatio;
 
-  /// A/D touch-panel sectors extend beyond the illustrated mesh to keep the
-  /// enlarged playfield comfortable to touch.
+  /// A/D 传感器外延区域的外沿半径比例。
   static const double sensorExtensionOuterRadiusRatio = 1.20;
 
-  /// Kept for compatibility with the earlier D-only extension name.
+  /// 兼容旧版 D 外延命名。
   static const double dExtensionOuterRadiusRatio =
       sensorExtensionOuterRadiusRatio;
 
-  /// Physical button sectors extend farther towards the display edge so they
-  /// remain comfortable to hit with the enlarged gameplay circle.
+  /// 外圈物理按键最外沿半径比例。
   static const double maximumRadiusRatio = 1.35;
 
   static const int sensorCount = 33;
+
+  /// 41-bit 输入位掩码布局：低 33 位（0..32）为内屏传感器，高 8 位（33..40）为外圈按键。
+  static const int sensorBitCount = 33;
+  static const int outerLaneBitOffset = 33;
+
+  static const double _dExtensionHalfAngle = 8.0 * pi / 180;
+  static const double _aAndOuterHalfAngle = 14.5 * pi / 180;
+
+  static final List<Offset> _sensorCenters = _buildSensorCenters();
+  static final List<List<int>> _mirroredBitMasks = _buildMirroredBitMasks();
+  static final List<_SensorRadialLayer> _innerRadialLayers =
+      _buildInnerRadialLayers();
   static final List<_NormalizedGameplayInputRegion> _contactRegions =
       _buildContactRegions();
 
@@ -828,6 +1158,247 @@ class SimaiGameplayInputMapper {
     return SimaiGameplaySensorTarget(mirrorLocation(sensor, mirrorMode));
   }
 
+  /// 将单个内屏传感器索引（0..32）编码为位掩码。
+  static int sensorBit(int sensorIndex) =>
+      sensorIndex >= 0 && sensorIndex < sensorBitCount ? 1 << sensorIndex : 0;
+
+  /// 将单个外圈按键轨道（0..7）编码为位掩码。
+  static int outerLaneBit(int lane) =>
+      lane >= 0 && lane < 8 ? 1 << (outerLaneBitOffset + lane) : 0;
+
+  /// 将单个 [SimaiGameplayInputTarget] 编码为 41-bit 位掩码。
+  static int maskForTarget(SimaiGameplayInputTarget target) => switch (target) {
+    SimaiGameplayOuterButtonTarget(:final lane) => outerLaneBit(lane),
+    SimaiGameplaySensorTarget(:final location) => sensorBit(
+      sensorIndex(location),
+    ),
+  };
+
+  /// 将目标集合编码为 41-bit 位掩码。
+  static int maskForTargets(Iterable<SimaiGameplayInputTarget> targets) {
+    var mask = 0;
+    for (final target in targets) {
+      mask |= maskForTarget(target);
+    }
+    return mask;
+  }
+
+  /// 零堆分配热路径：返回接触圆覆盖的全部输入分区的 41-bit 位掩码。
+  ///
+  /// 低 33 位（0..32）表示内屏 A/B/C/D/E 传感器，高 8 位（33..40）表示外圈 8 个物理按键。
+  /// 外圈 24 个扩展与按键扇区采用 `(r, theta)` 极坐标 O(1) 解析求交，内屏 33 个多边形
+  /// 按半径分为 C / B / E / A+D 四层剪枝检测。
+  static int maskForContactCircle({
+    required Offset position,
+    required Offset center,
+    required double radius,
+    required double contactRadius,
+    SimaiMirrorMode mirrorMode = SimaiMirrorMode.none,
+  }) {
+    if (!radius.isFinite || radius <= 0 || !contactRadius.isFinite) {
+      return 0;
+    }
+    final safeContactRadius = max(0.0, contactRadius);
+    if (safeContactRadius <= _radiusEpsilon) {
+      final target = targetAt(
+        position: position,
+        center: center,
+        radius: radius,
+        mirrorMode: mirrorMode,
+      );
+      return target == null ? 0 : maskForTarget(target);
+    }
+
+    final normalizedCenter = (position - center) / radius;
+    final cx = normalizedCenter.dx;
+    final cy = normalizedCenter.dy;
+    final radialDist = sqrt(cx * cx + cy * cy);
+    final normalizedRadius = safeContactRadius / radius;
+    final mirrorBits = _mirroredBitMasks[mirrorMode.index];
+    var mask = 0;
+
+    // 1. 外圈 24 个扩展/外键环形扇区：极坐标 (r, theta) O(1) 解析求交。
+    final maxOuterBonus = dSensorContactRadiusBonusRatio;
+    if (radialDist + normalizedRadius + maxOuterBonus >=
+            touchPanelOuterRadiusRatio - _radiusEpsilon &&
+        radialDist - normalizedRadius - maxOuterBonus <=
+            maximumRadiusRatio + _radiusEpsilon) {
+      final angle = atan2(cy, cx);
+
+      // D 外延环（1.125R ~ 1.20R，半角 8°）
+      final dRadius = normalizedRadius + dSensorContactRadiusBonusRatio;
+      if (radialDist + dRadius >= touchPanelOuterRadiusRatio - _radiusEpsilon &&
+          radialDist - dRadius <=
+              sensorExtensionOuterRadiusRatio + _radiusEpsilon) {
+        final nearestD = _nearestIndex(angle, firstAngleDegrees: -90.0);
+        if (dRadius >= touchPanelOuterRadiusRatio) {
+          for (var i = 0; i < 8; i++) {
+            final dCenter = (-90.0 + i * 45.0) * pi / 180;
+            if (_circleIntersectsAnnularSector(
+              radialDist,
+              angle,
+              dRadius,
+              touchPanelOuterRadiusRatio,
+              sensorExtensionOuterRadiusRatio,
+              dCenter,
+              _dExtensionHalfAngle,
+            )) {
+              mask |= mirrorBits[17 + i];
+            }
+          }
+        } else {
+          for (var offset = -1; offset <= 1; offset++) {
+            final i = (nearestD + offset) & 7;
+            final dCenter = (-90.0 + i * 45.0) * pi / 180;
+            if (_circleIntersectsAnnularSector(
+              radialDist,
+              angle,
+              dRadius,
+              touchPanelOuterRadiusRatio,
+              sensorExtensionOuterRadiusRatio,
+              dCenter,
+              _dExtensionHalfAngle,
+            )) {
+              mask |= mirrorBits[17 + i];
+            }
+          }
+        }
+      }
+
+      // A 外延环（1.125R ~ 1.20R）与外圈物理按键环（1.20R ~ 1.35R），半角 14.5°
+      final checkAExt =
+          radialDist + normalizedRadius >=
+              touchPanelOuterRadiusRatio - _radiusEpsilon &&
+          radialDist - normalizedRadius <=
+              sensorExtensionOuterRadiusRatio + _radiusEpsilon;
+      final checkOuterBtn =
+          radialDist + normalizedRadius >=
+              sensorExtensionOuterRadiusRatio - _radiusEpsilon &&
+          radialDist - normalizedRadius <= maximumRadiusRatio + _radiusEpsilon;
+      if (checkAExt || checkOuterBtn) {
+        final nearestA = _nearestIndex(angle, firstAngleDegrees: -67.5);
+        if (normalizedRadius >= touchPanelOuterRadiusRatio) {
+          for (var i = 0; i < 8; i++) {
+            final aCenter = (-67.5 + i * 45.0) * pi / 180;
+            if (checkAExt &&
+                _circleIntersectsAnnularSector(
+                  radialDist,
+                  angle,
+                  normalizedRadius,
+                  touchPanelOuterRadiusRatio,
+                  sensorExtensionOuterRadiusRatio,
+                  aCenter,
+                  _aAndOuterHalfAngle,
+                )) {
+              mask |= mirrorBits[i];
+            }
+            if (checkOuterBtn &&
+                _circleIntersectsAnnularSector(
+                  radialDist,
+                  angle,
+                  normalizedRadius,
+                  sensorExtensionOuterRadiusRatio,
+                  maximumRadiusRatio,
+                  aCenter,
+                  _aAndOuterHalfAngle,
+                )) {
+              mask |= mirrorBits[outerLaneBitOffset + i];
+            }
+          }
+        } else {
+          for (var offset = -1; offset <= 1; offset++) {
+            final i = (nearestA + offset) & 7;
+            final aCenter = (-67.5 + i * 45.0) * pi / 180;
+            if (checkAExt &&
+                _circleIntersectsAnnularSector(
+                  radialDist,
+                  angle,
+                  normalizedRadius,
+                  touchPanelOuterRadiusRatio,
+                  sensorExtensionOuterRadiusRatio,
+                  aCenter,
+                  _aAndOuterHalfAngle,
+                )) {
+              mask |= mirrorBits[i];
+            }
+            if (checkOuterBtn &&
+                _circleIntersectsAnnularSector(
+                  radialDist,
+                  angle,
+                  normalizedRadius,
+                  sensorExtensionOuterRadiusRatio,
+                  maximumRadiusRatio,
+                  aCenter,
+                  _aAndOuterHalfAngle,
+                )) {
+              mask |= mirrorBits[outerLaneBitOffset + i];
+            }
+          }
+        }
+      }
+    }
+
+    // 2. 内屏 33 个多边形：按 C / B / E / A+D 四层半径范围剪枝。
+    for (var layerIndex = 0; layerIndex < _innerRadialLayers.length; layerIndex++) {
+      final layer = _innerRadialLayers[layerIndex];
+      final maxReach = normalizedRadius + layer.maxBonus;
+      if (radialDist + maxReach < layer.minRadius - _radiusEpsilon ||
+          radialDist - maxReach > layer.maxRadius + _radiusEpsilon) {
+        continue;
+      }
+      final polygons = layer.polygons;
+      for (var i = 0; i < polygons.length; i++) {
+        final region = polygons[i];
+        final mappedBit = mirrorBits[region.visualBit];
+        if ((mask & mappedBit) != 0) continue;
+        final regionRadius = normalizedRadius + region.bonusRadius;
+        if (cx + regionRadius < region.left ||
+            cx - regionRadius > region.right ||
+            cy + regionRadius < region.top ||
+            cy - regionRadius > region.bottom) {
+          continue;
+        }
+        if (_circleIntersectsPolygon(
+          normalizedCenter,
+          regionRadius,
+          region.polygon,
+        )) {
+          mask |= mappedBit;
+        }
+      }
+    }
+
+    return mask;
+  }
+
+  /// 圆与环形扇区（极坐标解析）的精确相交判定。
+  static bool _circleIntersectsAnnularSector(
+    double r,
+    double theta,
+    double circleRadius,
+    double innerRadius,
+    double outerRadius,
+    double centerAngle,
+    double halfAngle,
+  ) {
+    if (r + circleRadius < innerRadius - _radiusEpsilon ||
+        r - circleRadius > outerRadius + _radiusEpsilon) {
+      return false;
+    }
+    final angularDiff = _angularDistance(theta, centerAngle);
+    if (angularDiff <= halfAngle + _radiusEpsilon) {
+      return true;
+    }
+    final phi = angularDiff - halfAngle;
+    final u = r * cos(phi);
+    final v = r * sin(phi);
+    final clampedX = u < innerRadius
+        ? innerRadius
+        : (u > outerRadius ? outerRadius : u);
+    final dx = u - clampedX;
+    return dx * dx + v * v <= circleRadius * circleRadius + _radiusEpsilon;
+  }
+
   /// Returns every input partition intersected by a circular touch contact.
   /// The returned set is deterministic and preserves visual partition order.
   static Set<SimaiGameplayInputTarget> targetsForContactCircle({
@@ -880,14 +1451,118 @@ class SimaiGameplayInputMapper {
 
   static double _contactRadiusBonusRatio(SimaiGameplayInputTarget target) =>
       switch (target) {
-        SimaiGameplaySensorTarget(:final location) => switch (location.group) {
-          NoteGroup.cSensor => cSensorContactRadiusBonusRatio,
-          NoteGroup.dSensor => dSensorContactRadiusBonusRatio,
-          NoteGroup.eSensor => eSensorContactRadiusBonusRatio,
-          NoteGroup.aSensor || NoteGroup.bSensor || NoteGroup.tap => 0.0,
-        },
+        SimaiGameplaySensorTarget(:final location) => _sensorBonusForGroup(
+          location.group,
+        ),
         SimaiGameplayOuterButtonTarget() => 0.0,
       };
+
+  static double _sensorBonusForGroup(NoteGroup group) => switch (group) {
+    NoteGroup.bSensor => bSensorContactRadiusBonusRatio,
+    NoteGroup.cSensor => cSensorContactRadiusBonusRatio,
+    NoteGroup.dSensor => dSensorContactRadiusBonusRatio,
+    NoteGroup.eSensor => eSensorContactRadiusBonusRatio,
+    NoteGroup.aSensor || NoteGroup.tap => 0.0,
+  };
+
+  static List<Offset> _buildSensorCenters() {
+    final centers = List<Offset>.filled(sensorCount, Offset.zero);
+    for (var i = 0; i < sensorCount; i++) {
+      final location = sensorForIndex(i);
+      if (location.group == NoteGroup.cSensor) {
+        centers[i] = Offset.zero;
+        continue;
+      }
+      final shifted =
+          location.group == NoteGroup.aSensor ||
+          location.group == NoteGroup.bSensor;
+      final radialRatio = switch (location.group) {
+        NoteGroup.aSensor => 4.0 / 4.8,
+        NoteGroup.bSensor => 2.2 / 4.8,
+        NoteGroup.dSensor => 4.1 / 4.8,
+        NoteGroup.eSensor => 3.1 / 4.8,
+        NoteGroup.cSensor => 0.0,
+        NoteGroup.tap => 1.0,
+      };
+      final angleDegrees = (shifted ? -67.5 : -90.0) + location.index * 45.0;
+      final angle = angleDegrees * pi / 180;
+      centers[i] = Offset(radialRatio * cos(angle), radialRatio * sin(angle));
+    }
+    return List<Offset>.unmodifiable(centers);
+  }
+
+  static List<List<int>> _buildMirroredBitMasks() {
+    return List<List<int>>.unmodifiable(
+      SimaiMirrorMode.values.map((mode) {
+        final table = List<int>.filled(outerLaneBitOffset + 8, 0);
+        for (var i = 0; i < sensorBitCount; i++) {
+          final logical = mirrorLocation(sensorForIndex(i), mode);
+          table[i] = 1 << sensorIndex(logical);
+        }
+        for (var lane = 0; lane < 8; lane++) {
+          final logicalLane = SimaiMirrorUtils.mirrorTapLane(lane, mode);
+          table[outerLaneBitOffset + lane] =
+              1 << (outerLaneBitOffset + logicalLane);
+        }
+        return List<int>.unmodifiable(table);
+      }),
+    );
+  }
+
+  static List<_SensorRadialLayer> _buildInnerRadialLayers() {
+    _SensorRadialLayer buildLayer(List<NoteGroup> groups) {
+      final polygons = <_FastSensorPolygon>[];
+      var minRadius = double.infinity;
+      var maxRadius = 0.0;
+      var maxBonus = 0.0;
+      for (final group in groups) {
+        final bonus = _sensorBonusForGroup(group);
+        if (bonus > maxBonus) maxBonus = bonus;
+        final count = group == NoteGroup.cSensor ? 1 : 8;
+        for (var index = 0; index < count; index++) {
+          final location = Location(index, group);
+          final bit = sensorIndex(location);
+          for (final polygon in normalizedSensorPolygons(location)) {
+            polygons.add(
+              _FastSensorPolygon(
+                visualBit: bit,
+                bonusRadius: bonus,
+                polygon: polygon,
+              ),
+            );
+            if (_containsPolygon(polygon, Offset.zero)) {
+              minRadius = 0.0;
+            }
+            for (var pIndex = 0; pIndex < polygon.length; pIndex++) {
+              final start = polygon[pIndex];
+              final end = polygon[(pIndex + 1) % polygon.length];
+              final vertexDist = start.distance;
+              if (vertexDist > maxRadius) maxRadius = vertexDist;
+              if (minRadius > 0.0) {
+                final edgeDist = sqrt(
+                  _distanceSquaredToSegment(Offset.zero, start, end),
+                );
+                if (edgeDist < minRadius) minRadius = edgeDist;
+              }
+            }
+          }
+        }
+      }
+      return _SensorRadialLayer(
+        minRadius: minRadius.isFinite ? minRadius : 0.0,
+        maxRadius: maxRadius,
+        maxBonus: maxBonus,
+        polygons: List<_FastSensorPolygon>.unmodifiable(polygons),
+      );
+    }
+
+    return List<_SensorRadialLayer>.unmodifiable(<_SensorRadialLayer>[
+      buildLayer(const <NoteGroup>[NoteGroup.cSensor]),
+      buildLayer(const <NoteGroup>[NoteGroup.bSensor]),
+      buildLayer(const <NoteGroup>[NoteGroup.eSensor]),
+      buildLayer(const <NoteGroup>[NoteGroup.aSensor, NoteGroup.dSensor]),
+    ]);
+  }
 
   static SimaiGameplayInputTarget _outerRingTargetAt(Offset point) {
     final angle = atan2(point.dy, point.dx);
@@ -1081,21 +1756,10 @@ class SimaiGameplayInputMapper {
   }
 
   static Offset normalizedSensorCenter(Location location) {
-    if (location.group == NoteGroup.cSensor) return Offset.zero;
-    final shifted =
-        location.group == NoteGroup.aSensor ||
-        location.group == NoteGroup.bSensor;
-    final radialRatio = switch (location.group) {
-      NoteGroup.aSensor => 4.0 / 4.8,
-      NoteGroup.bSensor => 2.2 / 4.8,
-      NoteGroup.dSensor => 4.1 / 4.8,
-      NoteGroup.eSensor => 3.1 / 4.8,
-      NoteGroup.cSensor => 0.0,
-      NoteGroup.tap => 1.0,
-    };
-    final angleDegrees = (shifted ? -67.5 : -90.0) + location.index * 45.0;
-    final angle = angleDegrees * pi / 180;
-    return Offset(radialRatio * cos(angle), radialRatio * sin(angle));
+    final index = sensorIndex(location);
+    if (index >= 0) return _sensorCenters[index];
+    final angle = (-67.5 + location.index * 45.0) * pi / 180;
+    return Offset(cos(angle), sin(angle));
   }
 
   /// Returns the exact visual polygons used by [sensorForNormalizedPoint], in
@@ -1237,19 +1901,22 @@ class SimaiGameplayInputMapper {
   }
 
   static Location nearestSensorForNormalizedPoint(Offset point) {
-    Location? nearest;
+    var nearestIndex = 0;
     var nearestDistanceSquared = double.infinity;
-    for (final sensor in allSensors()) {
-      final center = normalizedSensorCenter(sensor);
-      final dx = point.dx - center.dx;
-      final dy = point.dy - center.dy;
+    final px = point.dx;
+    final py = point.dy;
+    // 直接查预计算常量表，消除预计算阶段十几万次 cos/sin 重复调用。
+    for (var i = 0; i < sensorCount; i++) {
+      final center = _sensorCenters[i];
+      final dx = px - center.dx;
+      final dy = py - center.dy;
       final distanceSquared = dx * dx + dy * dy;
       if (distanceSquared < nearestDistanceSquared - 1e-12) {
-        nearest = sensor;
+        nearestIndex = i;
         nearestDistanceSquared = distanceSquared;
       }
     }
-    return nearest!;
+    return sensorForIndex(nearestIndex);
   }
 
   static Location mirrorLocation(Location location, SimaiMirrorMode mode) {

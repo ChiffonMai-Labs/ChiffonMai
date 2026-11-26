@@ -1,48 +1,45 @@
 part of 'notes_batch_renderer.dart';
 
-void _drawTouch(
+// 预计算 Touch 四片花瓣方向角的余弦/正弦，避免每音符每帧反复三角函数计算。
+const List<double> _touchAngles = <double>[
+  -pi / 2,
+  0.0,
+  pi / 2,
+  -pi,
+];
+const List<double> _touchCos = <double>[0.0, 1.0, 0.0, -1.0];
+const List<double> _touchSin = <double>[-1.0, 0.0, 1.0, 0.0];
+
+// 图集不可用时的降级画笔。
+final Paint _touchFallbackFillPaint = Paint()
+  ..style = PaintingStyle.fill
+  ..isAntiAlias = true;
+
+final Paint _touchFallbackStrokePaint = Paint()
+  ..style = PaintingStyle.stroke
+  ..strokeJoin = StrokeJoin.round
+  ..isAntiAlias = true;
+
+/// Pass 2：单押与多押 Touch 全部通过图集精灵（touch_* / touch_multi / touch_center）合批绘制。
+void _drawTouchSpritePass(
   Canvas canvas, {
   required SimaiGame game,
   required Note note,
   required double noteTime,
-  required int collectionIndex,
-  required int noteIndex,
   required bool isEach,
-  required BaseNoteDrawState state,
+  required double approachTime,
 }) {
   final bool isBreak =
       note.type == NoteType.breakNote || (note.styles & NoteStyles.mine) != 0;
-
-  final bool isHold = note.isTouchHold;
-  final session = game.gameplaySession;
-  final headResolved =
-      session?.isHeadResolved(collectionIndex, noteIndex) ?? false;
-  if (session != null && !isHold && headResolved) return;
   final Offset h = NoteUtils.getTouchPosition(
     game.chartCenter,
     game.chartRadius,
     NoteUtils.mirrorLocation(note.location, game.mirrorMode),
   );
 
-  final double r = max(state.approachTime, 0.001);
+  final double r = approachTime;
   final double n = noteTime - game.chartTime;
   if (n > r) return;
-  if (session == null && !isHold && n <= 0) return;
-  if (isHold && game.chartTime > noteTime + (note.length ?? 0) + 0.05) return;
-
-  if (isHold) {
-    game.noteAssets.flush(canvas);
-    TouchHoldPainter.paint(
-      canvas,
-      center: h,
-      scale: game.noteScale,
-      timeUntilHead: n,
-      approachTime: r,
-      duration: note.length ?? 0,
-      isEach: isEach,
-    );
-    return;
-  }
 
   double a = 1.0;
   if (n > r * 0.95) {
@@ -57,17 +54,12 @@ void _drawTouch(
 
   final bool m = (note.parentCollection?.length ?? 0) >= 2;
   final double t = (a * c).clamp(0.0, 1.0);
-
-  final double cornerRadius = 8.0 * game.noteScale;
-  final double innerCornerRadius = cornerRadius * 0.4;
-  final double outlineWidth = 3.0 * game.noteScale;
-  final double dotRadius = 8.0 * game.noteScale;
+  final int petalAlpha = (255 * t).round().clamp(0, 255);
+  final int dotAlpha = (255 * a).round().clamp(0, 255);
 
   final double u = 40.0 * game.noteScale;
-  const double gapEnd = 0;
-  final double gapStart = gapEnd + 18.0 * game.noteScale;
-  final double fEnd = u + gapEnd;
-  final double fStart = u + gapStart;
+  final double fEnd = u;
+  final double fStart = u + 18.0 * game.noteScale;
 
   double f = fStart;
   if (n > 0 && n <= r) {
@@ -78,141 +70,192 @@ void _drawTouch(
     f = fEnd;
   }
 
-  final List<double> angles = [-pi / 4, pi / 4, 3 * pi / 4, -3 * pi / 4];
-  const double w = -pi / 4;
-
-  final List<Offset> petalTips = [];
-  final List<Offset> petalLefts = [];
-  final List<Offset> petalRights = [];
-
   final Color color = isBreak
       ? SimaiColors.touchBreak
       : (isEach ? SimaiColors.touchEach : SimaiColors.touchNormal);
 
-  for (int idx = 0; idx < 4; idx++) {
-    final double k = angles[idx] + w;
-    final Offset petal = Offset(h.dx + cos(k) * f, h.dy + sin(k) * f);
+  // 多押同样走预烘焙 'touch_multi' 图集精灵，消灭每音符 4×drawShadow + 12 Path + 4 Gradient.linear。
+  final String petalKey = m
+      ? 'touch_multi'
+      : (isBreak
+            ? 'touch_break'
+            : (isEach ? 'touch_each' : 'touch_normal'));
 
-    final double v = u;
+  final double petalSpriteSize = NoteAssetManager.cellExtent * game.noteScale;
+  bool allPetalsBatched = game.noteAssets.hasAsset(petalKey);
+  if (allPetalsBatched && petalAlpha > 0) {
+    for (int idx = 0; idx < 4; idx++) {
+      final double k = _touchAngles[idx];
+      final Offset petal = Offset(
+        h.dx + _touchCos[idx] * f,
+        h.dy + _touchSin[idx] * f,
+      );
+      if (!game.noteAssets.drawSprite(
+        canvas,
+        key: petalKey,
+        position: petal,
+        size: petalSpriteSize,
+        rotation: k + pi,
+        alpha: petalAlpha,
+      )) {
+        allPetalsBatched = false;
+        break;
+      }
+    }
+  }
+
+  if (!allPetalsBatched && petalAlpha > 0) {
+    _drawTouchPetalsVectorFallback(
+      canvas,
+      game: game,
+      center: h,
+      petalOffset: f,
+      petalSize: u,
+      isMulti: m,
+      color: color,
+      t: t,
+      petalAlpha: petalAlpha,
+    );
+  }
+
+  // 中心圆点同样通过 'touch_center' 白色精灵染色合批（街机风多一层外黑环，零额外 flush）。
+  final double dotRadius = 8.0 * game.noteScale;
+  final double outlineWidth =
+      (game.noteStyle == SimaiNoteStyle.arcade ? 2.0 : 3.0) * game.noteScale;
+  final Color dotColor = m
+      ? const Color(0xFFFFFF00)
+      : (game.noteStyle == SimaiNoteStyle.arcade
+            ? (isBreak ? SimaiColors.touchBreak : const Color(0xFF00BFFF))
+            : color);
+
+  if (dotAlpha > 0) {
+    if (game.noteAssets.hasAsset('touch_center')) {
+      final double outerDotRadius = dotRadius + outlineWidth * 0.5;
+      final double innerDotRadius = max(1.0, dotRadius - outlineWidth * 0.5);
+      if (game.noteStyle == SimaiNoteStyle.arcade) {
+        game.noteAssets.drawSprite(
+          canvas,
+          key: 'touch_center',
+          position: h,
+          size: NoteAssetManager.touchCenterSpriteSize(
+            outerDotRadius + outlineWidth * 0.9,
+          ),
+          alpha: dotAlpha,
+          color: Colors.black,
+        );
+      }
+      game.noteAssets.drawSprite(
+        canvas,
+        key: 'touch_center',
+        position: h,
+        size: NoteAssetManager.touchCenterSpriteSize(outerDotRadius),
+        alpha: dotAlpha,
+        color: Colors.white,
+      );
+      game.noteAssets.drawSprite(
+        canvas,
+        key: 'touch_center',
+        position: h,
+        size: NoteAssetManager.touchCenterSpriteSize(innerDotRadius),
+        alpha: dotAlpha,
+        color: dotColor,
+      );
+    } else {
+      game.noteAssets.flush(canvas);
+      if (game.noteStyle == SimaiNoteStyle.arcade) {
+        _touchFallbackStrokePaint
+          ..strokeWidth = outlineWidth * 3.0
+          ..color = Colors.black.withAlpha(dotAlpha);
+        canvas.drawCircle(h, dotRadius, _touchFallbackStrokePaint);
+      }
+      _touchFallbackFillPaint
+        ..shader = null
+        ..color = dotColor.withAlpha(dotAlpha);
+      canvas.drawCircle(h, dotRadius, _touchFallbackFillPaint);
+
+      _touchFallbackStrokePaint
+        ..strokeWidth = outlineWidth
+        ..color = Colors.white.withAlpha(dotAlpha);
+      canvas.drawCircle(h, dotRadius, _touchFallbackStrokePaint);
+    }
+  }
+}
+
+void _drawTouchPetalsVectorFallback(
+  Canvas canvas, {
+  required SimaiGame game,
+  required Offset center,
+  required double petalOffset,
+  required double petalSize,
+  required bool isMulti,
+  required Color color,
+  required double t,
+  required int petalAlpha,
+}) {
+  game.noteAssets.flush(canvas);
+  final double cornerRadius = 8.0 * game.noteScale;
+  final double innerCornerRadius = cornerRadius * 0.4;
+  final double outlineWidth = 3.0 * game.noteScale;
+  final Color g0 = isMulti ? const Color(0xFFFFFF00) : color;
+  final Color g1 = isMulti
+      ? const Color(0xFFFFD700)
+      : Color.lerp(color, Colors.black, 0.35)!;
+
+  _touchFallbackStrokePaint
+    ..strokeWidth = outlineWidth
+    ..color = Colors.white.withAlpha(petalAlpha);
+
+  for (int idx = 0; idx < 4; idx++) {
+    final double k = _touchAngles[idx];
+    final Offset petal = Offset(
+      center.dx + _touchCos[idx] * petalOffset,
+      center.dy + _touchSin[idx] * petalOffset,
+    );
     final Offset tip = Offset(
-      petal.dx + cos(k + pi) * v,
-      petal.dy + sin(k + pi) * v,
+      petal.dx + cos(k + pi) * petalSize,
+      petal.dy + sin(k + pi) * petalSize,
     );
     final Offset left = Offset(
-      petal.dx + cos(k + pi / 2) * v,
-      petal.dy + sin(k + pi / 2) * v,
+      petal.dx + cos(k + pi / 2) * petalSize,
+      petal.dy + sin(k + pi / 2) * petalSize,
     );
     final Offset right = Offset(
-      petal.dx + cos(k - pi / 2) * v,
-      petal.dy + sin(k - pi / 2) * v,
+      petal.dx + cos(k - pi / 2) * petalSize,
+      petal.dy + sin(k - pi / 2) * petalSize,
     );
+    final Path outer = NoteUtils.roundedTrianglePath(
+      tip,
+      left,
+      right,
+      cornerRadius,
+    );
+    final Offset centroid = Offset(
+      (tip.dx + left.dx + right.dx) / 3,
+      (tip.dy + left.dy + right.dy) / 3,
+    );
+    final Path inner = NoteUtils.roundedTrianglePath(
+      centroid + (tip - centroid) * 0.4,
+      centroid + (left - centroid) * 0.4,
+      centroid + (right - centroid) * 0.4,
+      innerCornerRadius,
+    );
+    final Path fillPath = Path()
+      ..fillType = PathFillType.evenOdd
+      ..addPath(outer, Offset.zero)
+      ..addPath(inner, Offset.zero);
 
-    if (!m) {
-      String key = 'touch_normal';
-      if (isBreak) {
-        key = 'touch_break';
-      } else if (isEach) {
-        key = 'touch_each';
-      }
-
-      if (game.noteAssets.drawSprite(
-        canvas,
-        key: key,
-        position: petal,
-        size: 110.0 * game.noteScale,
-        rotation: k + pi,
-        alpha: (255 * t).round(),
-      )) {
-        continue;
-      }
-    }
-
-    petalTips.add(tip);
-    petalLefts.add(left);
-    petalRights.add(right);
-  }
-
-  final bool hasPetals =
-      petalTips.length == 4 &&
-      petalLefts.length == 4 &&
-      petalRights.length == 4;
-
-  game.noteAssets.flush(canvas);
-
-  if (hasPetals) {
-    for (int idx = 0; idx < 4; idx++) {
-      final double k = angles[idx] + w;
-      final Offset petal = Offset(h.dx + cos(k) * f, h.dy + sin(k) * f);
-
-      final Offset tip = petalTips[idx];
-      final Offset left = petalLefts[idx];
-      final Offset right = petalRights[idx];
-      final Path outer = NoteUtils.roundedTrianglePath(
-        tip,
-        left,
-        right,
-        cornerRadius,
-      );
-      final Offset centroid = Offset(
-        (tip.dx + left.dx + right.dx) / 3,
-        (tip.dy + left.dy + right.dy) / 3,
-      );
-      final Path inner = NoteUtils.roundedTrianglePath(
-        centroid + (tip - centroid) * 0.4,
-        centroid + (left - centroid) * 0.4,
-        centroid + (right - centroid) * 0.4,
-        innerCornerRadius,
-      );
-      final Path fillPath = Path()
-        ..fillType = PathFillType.evenOdd
-        ..addPath(outer, Offset.zero)
-        ..addPath(inner, Offset.zero);
-
-      canvas.drawShadow(
-        outer,
-        Color.fromARGB((128 * t).round(), 0, 0, 0),
-        8.0 * game.noteScale,
-        true,
-      );
-
-      final Paint fillPaint = Paint()..style = PaintingStyle.fill;
-
-      final Color g0 = m ? const Color(0xFFFFFF00) : color;
-      final Color g1 = m
-          ? const Color(0xFFFFD700)
-          : Color.lerp(color, Colors.black, 0.35)!;
-      fillPaint.shader = ui.Gradient.linear(petal, tip, [
-        g0.withAlpha((255 * t).round()),
-        g1.withAlpha((255 * t).round()),
+    _touchFallbackFillPaint
+      ..color = Colors.white.withAlpha(petalAlpha)
+      ..shader = ui.Gradient.linear(petal, tip, [
+        g0.withAlpha(petalAlpha),
+        g1.withAlpha(petalAlpha),
       ]);
-      fillPaint.color = Colors.white.withAlpha((255 * t).round());
+    canvas.drawPath(fillPath, _touchFallbackFillPaint);
+    _touchFallbackFillPaint.shader = null;
 
-      canvas.drawPath(fillPath, fillPaint);
-
-      final Paint strokePaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = outlineWidth
-        ..strokeJoin = StrokeJoin.round
-        ..color = Colors.white.withAlpha((255 * t).round());
-
-      canvas.drawPath(outer, strokePaint);
-
-      canvas.drawPath(inner, strokePaint);
-    }
+    canvas.drawPath(outer, _touchFallbackStrokePaint);
+    canvas.drawPath(inner, _touchFallbackStrokePaint);
   }
-
-  final Paint dotPaint = Paint()
-    ..style = PaintingStyle.fill
-    ..color = (m ? const Color(0xFFFFFF00) : color).withAlpha(
-      (255 * a).round(),
-    );
-  canvas.drawCircle(h, dotRadius, dotPaint);
-
-  final Paint dotStroke = Paint()
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = outlineWidth
-    ..color = Colors.white.withAlpha((255 * a).round());
-  canvas.drawCircle(h, dotRadius, dotStroke);
 }
 
 double _touchHoldRevealSweep(double progress) {

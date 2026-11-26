@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:typed_data';
 
 import '../structures/location.dart';
 import '../structures/mai_chart.dart';
@@ -6,10 +7,8 @@ import '../structures/note.dart';
 import '../structures/note_group.dart';
 import '../structures/note_styles.dart';
 import '../structures/note_type.dart';
+import '../ui/center_display_mode.dart';
 import 'gameplay_models.dart';
-
-typedef _NoteKey = ({int collectionIndex, int noteIndex});
-typedef _SlideKey = ({int collectionIndex, int noteIndex, int slidePathIndex});
 
 class SimaiGameplaySession {
   SimaiGameplaySession({
@@ -18,6 +17,11 @@ class SimaiGameplaySession {
   }) : settings = settings.normalized() {
     _buildIndex();
   }
+
+  static const int _allSensorsMask =
+      (1 << SimaiGameplayInputMapper.sensorBitCount) - 1;
+  static const int _validInputMask =
+      (1 << (SimaiGameplayInputMapper.outerLaneBitOffset + 8)) - 1;
 
   final MaiChart chart;
   final SimaiGameplaySettings settings;
@@ -35,25 +39,33 @@ class SimaiGameplaySession {
   final List<_SlideRuntime> _slides = <_SlideRuntime>[];
   final List<_SlideRuntime> _slidesByStart = <_SlideRuntime>[];
   final List<_SlideRuntime> _slidesByTimeout = <_SlideRuntime>[];
-  final List<List<_SlideRuntime>> _slidesBySensor = List.generate(
+
+  /// 按内屏 33 个传感器索引当前活跃中的滑星，将触控推进复杂度从 O(S_total) 降至 O(S_active)。
+  final List<List<_SlideRuntime>> _activeSlidesBySensor = List.generate(
     SimaiGameplayInputMapper.sensorCount,
     (_) => <_SlideRuntime>[],
   );
+  final List<_SlideRuntime> _slideCheckScratch = <_SlideRuntime>[];
+  int _slideVisitStamp = 0;
+
   final List<_ScoreSlot> _scoreSlots = <_ScoreSlot>[];
-  final Map<_NoteKey, _ManualHead> _manualHeads = <_NoteKey, _ManualHead>{};
-  final Map<_SlideKey, _SlideRuntime> _slideRuntimes =
-      <_SlideKey, _SlideRuntime>{};
-  final Map<_NoteKey, SimaiJudgementRecord> _headFeedback =
-      <_NoteKey, SimaiJudgementRecord>{};
-  final Map<_SlideKey, SimaiJudgementRecord> _slideFeedback =
-      <_SlideKey, SimaiJudgementRecord>{};
+  final Map<int, _ManualHead> _manualHeads = <int, _ManualHead>{};
+  final Map<int, _SlideRuntime> _slideRuntimes = <int, _SlideRuntime>{};
+  final Map<int, SimaiJudgementRecord> _headFeedback =
+      <int, SimaiJudgementRecord>{};
+  final Map<int, SimaiJudgementRecord> _slideFeedback =
+      <int, SimaiJudgementRecord>{};
   final List<SimaiJudgementRecord> _feedback = <SimaiJudgementRecord>[];
 
-  final List<Set<int>> _outerPointers = List.generate(8, (_) => <int>{});
-  final List<Set<int>> _sensorPointers = List.generate(
+  // 以 41-bit 位掩码与计数数组维护指针及按键/传感器按压状态，触控热路径零集合分配。
+  final Map<int, int> _pointerMasks = <int, int>{};
+  final Int32List _outerPointerCounts = Int32List(8);
+  final Int32List _sensorPointerCounts = Int32List(
     SimaiGameplayInputMapper.sensorCount,
-    (_) => <int>{},
   );
+  int _pressedOuterMask = 0;
+  int _pressedSensorMask = 0;
+
   final List<List<_PressInterval>> _laneIntervals = List.generate(
     8,
     (_) => <_PressInterval>[],
@@ -102,12 +114,15 @@ class SimaiGameplaySession {
   int _excludedCount = 0;
 
   int revision = 0;
+  int _scoreRevision = 0;
   int debugCandidateChecks = 0;
   int debugSlideChecks = 0;
 
   static const double resultFeedbackTailSeconds = 0.8;
   static const double inputDeliveryGraceSeconds = 0.05;
 
+  /// 仅在达成率 / Combo / DX 分数实际提交变更时递增，避免触控微移引发 HUD 重排。
+  int get scoreRevision => _scoreRevision;
   double get currentTime => _currentTime.isFinite ? _currentTime : 0.0;
   double get judgementOffsetSeconds => settings.judgementOffsetMs / 1000.0;
   double get contentEndTime => _contentEndTime;
@@ -118,6 +133,20 @@ class SimaiGameplaySession {
   bool get hasPendingScores => _scoreCommitCursor < _scoreSlots.length;
   bool get isPrepared => _slideDataInstalled;
 
+  static int _packNoteKey(int collectionIndex, int noteIndex) =>
+      (collectionIndex << 20) | noteIndex;
+
+  static int _packSlideKey(
+    int collectionIndex,
+    int noteIndex,
+    int slideIndex,
+  ) => (collectionIndex << 20) | (noteIndex << 8) | slideIndex;
+
+  /// 本谱面理论满分达成率（含绝赞为 101%，无绝赞为 100%，空谱为 0%）。
+  double get maxAchievement =>
+      _totalWeightedPoints == 0 ? 0.0 : (_breakCount > 0 ? 101.0 : 100.0);
+
+  /// 0%+ 模式达成率：基础得分百分比加已获得的绝赞奖励百分比。
   double get achievement {
     final base = _totalWeightedPoints == 0
         ? 0.0
@@ -130,18 +159,41 @@ class SimaiGameplaySession {
   int get totalDxScore => _scoreSlots.length * 3;
   int get remainingDxScore => max(0, totalDxScore - _lostDxScore);
 
-  double get achievement100Remaining {
+  /// 100%+ 模式达成率：从 100% 起步扣除基础失分，并随绝赞判定累加奖励分。
+  double get achievement100Plus {
     if (_totalWeightedPoints == 0) return 100.0;
-    final loss = _lostWeightedPoints * 100.0 / _totalWeightedPoints;
-    return (100.0 - loss).clamp(0.0, 100.0).toDouble();
-  }
-
-  double get achievement101Remaining {
-    final breakLoss = _breakCount == 0 ? 0.0 : _lostBreakExtras / _breakCount;
-    return (achievement100Remaining + 1.0 - breakLoss)
-        .clamp(0.0, 101.0)
+    final lostBase = _lostWeightedPoints * 100.0 / _totalWeightedPoints;
+    final earnedExtra = _breakCount == 0 ? 0.0 : _breakExtras / _breakCount;
+    return (100.0 - lostBase + earnedExtra)
+        .clamp(0.0, maxAchievement)
         .toDouble();
   }
+
+  /// 兼容历史命名，等价于 [achievement100Plus]。
+  double get achievement100Remaining => achievement100Plus;
+
+  /// 101%- 模式达成率：从理论满分起步，实时扣除基础失分与绝赞奖励失分。
+  double get achievement101Remaining {
+    if (_totalWeightedPoints == 0) return 101.0;
+    final lostBase = _lostWeightedPoints * 100.0 / _totalWeightedPoints;
+    final lostExtra = _breakCount == 0 ? 0.0 : _lostBreakExtras / _breakCount;
+    return (maxAchievement - lostBase - lostExtra)
+        .clamp(0.0, maxAchievement)
+        .toDouble();
+  }
+
+  /// 距离 S 级（97%）的剩余容错达成率（101% 满分谱面从 4.0000% 起减）。
+  double get achievementOverS => achievement101Remaining - 97.0;
+
+  /// 距离 SS 级（99%）的剩余容错达成率（101% 满分谱面从 2.0000% 起减）。
+  double get achievementOverSS => achievement101Remaining - 99.0;
+
+  /// 距离 SSS 级（100%）的剩余容错达成率（101% 满分谱面从 1.0000% 起减）。
+  double get achievementOverSSS => achievement101Remaining - 100.0;
+
+  /// 按剩余可得 DX 分数计算的星级与门槛差值文案。
+  String get dxStarBonusText =>
+      formatSimaiDxStarBonus(remainingDxScore, totalDxScore);
 
   SimaiGameplayChartSummary get summary => SimaiGameplayChartSummary(
     totalScoringNotes: _scoreSlots.length,
@@ -165,19 +217,6 @@ class SimaiGameplaySession {
       runtime.install(data);
       runtime.slot.targetTime = runtime.targetTime;
       _contentEndTime = max(_contentEndTime, runtime.logicalDeadline);
-      final watched = <int>{};
-      for (final stage in runtime.stages) {
-        for (final branch in stage.branches) {
-          for (final group in branch.groups) {
-            for (final sensor in group.sensors) {
-              final sensorIndex = SimaiGameplayInputMapper.sensorIndex(sensor);
-              if (sensorIndex >= 0 && watched.add(sensorIndex)) {
-                _slidesBySensor[sensorIndex].add(runtime);
-              }
-            }
-          }
-        }
-      }
     }
     _slideDataInstalled = true;
     _sortRuntimeIndexes();
@@ -185,50 +224,59 @@ class SimaiGameplaySession {
 
   bool isLanePressed(int lane) {
     if (lane < 0 || lane >= 8) return false;
-    final aIndex = SimaiGameplayInputMapper.sensorIndex(
-      Location(lane, NoteGroup.aSensor),
-    );
-    return _outerPointers[lane].isNotEmpty ||
-        _sensorPointers[aIndex].isNotEmpty;
+    final bit = 1 << lane;
+    return ((_pressedOuterMask | _pressedSensorMask) & bit) != 0;
   }
 
   bool isInputPressed(int lane, SimaiGameplayInputSource source) {
     if (lane < 0 || lane >= 8) return false;
+    final bit = 1 << lane;
     return switch (source) {
-      SimaiGameplayInputSource.outerButton => _outerPointers[lane].isNotEmpty,
-      SimaiGameplayInputSource.innerA => isSensorPressed(
-        Location(lane, NoteGroup.aSensor),
-      ),
+      SimaiGameplayInputSource.outerButton => (_pressedOuterMask & bit) != 0,
+      SimaiGameplayInputSource.innerA => (_pressedSensorMask & bit) != 0,
     };
   }
 
   bool isSensorPressed(Location location) {
     final sensorIndex = SimaiGameplayInputMapper.sensorIndex(location);
-    return sensorIndex >= 0 && _sensorPointers[sensorIndex].isNotEmpty;
+    return sensorIndex >= 0 && (_pressedSensorMask & (1 << sensorIndex)) != 0;
   }
 
   bool isHeadResolved(int collectionIndex, int noteIndex) {
-    final manual =
-        _manualHeads[(collectionIndex: collectionIndex, noteIndex: noteIndex)];
+    final key = _packNoteKey(collectionIndex, noteIndex);
+    final manual = _manualHeads[key];
     if (manual != null) return manual.headJudgement != null;
-    return _headFeedback.containsKey((
-      collectionIndex: collectionIndex,
-      noteIndex: noteIndex,
-    ));
+    return _headFeedback.containsKey(key);
   }
 
   SimaiJudgementRecord? headFeedbackFor(int collectionIndex, int noteIndex) {
-    return _headFeedback[(
-      collectionIndex: collectionIndex,
-      noteIndex: noteIndex,
+    return _headFeedback[_packNoteKey(collectionIndex, noteIndex)];
+  }
+
+  /// 按打包整型键 O(1) 查询滑星运行时句柄，供渲染层避免在箭头循环中反复查表。
+  Object? findSlideRuntime(
+    int collectionIndex,
+    int noteIndex,
+    int slideIndex,
+  ) {
+    return _slideRuntimes[_packSlideKey(
+      collectionIndex,
+      noteIndex,
+      slideIndex,
     )];
   }
 
+  /// 直接基于 [findSlideRuntime] 返回的运行时句柄判断指定视觉分组是否已消除。
+  bool isSlideGroupClearedForRuntime(Object? runtime, int visualGroupId) {
+    if (runtime is! _SlideRuntime) return false;
+    return runtime.isGroupCleared(visualGroupId);
+  }
+
   bool isSlideResolved(int collectionIndex, int noteIndex, int slidePathIndex) {
-    return _slideRuntimes[(
-              collectionIndex: collectionIndex,
-              noteIndex: noteIndex,
-              slidePathIndex: slidePathIndex,
+    return _slideRuntimes[_packSlideKey(
+              collectionIndex,
+              noteIndex,
+              slidePathIndex,
             )]
             ?.resolved ??
         false;
@@ -240,14 +288,10 @@ class SimaiGameplaySession {
     int slidePathIndex,
     int visualGroupId,
   ) {
-    final runtime =
-        _slideRuntimes[(
-          collectionIndex: collectionIndex,
-          noteIndex: noteIndex,
-          slidePathIndex: slidePathIndex,
-        )];
-    return runtime?.resolved == true ||
-        (runtime?.clearedGroupIds.contains(visualGroupId) ?? false);
+    return isSlideGroupClearedForRuntime(
+      findSlideRuntime(collectionIndex, noteIndex, slidePathIndex),
+      visualGroupId,
+    );
   }
 
   SimaiJudgementRecord? slideFeedbackFor(
@@ -255,16 +299,15 @@ class SimaiGameplaySession {
     int noteIndex,
     int slidePathIndex,
   ) {
-    return _slideFeedback[(
-      collectionIndex: collectionIndex,
-      noteIndex: noteIndex,
-      slidePathIndex: slidePathIndex,
+    return _slideFeedback[_packSlideKey(
+      collectionIndex,
+      noteIndex,
+      slidePathIndex,
     )];
   }
 
   bool isHoldPressed(int collectionIndex, int noteIndex, double chartTime) {
-    final head =
-        _manualHeads[(collectionIndex: collectionIndex, noteIndex: noteIndex)];
+    final head = _manualHeads[_packNoteKey(collectionIndex, noteIndex)];
     final hold = head?.hold;
     if (hold == null ||
         chartTime < hold.headTime ||
@@ -293,161 +336,249 @@ class SimaiGameplaySession {
     required SimaiGameplayInputTarget target,
     required int pointerId,
     required double chartTime,
+    double? displayTime,
     bool judgeHead = true,
-  }) => updatePointerTargets(
+    bool allowOuterButtonHeadJudge = true,
+  }) => updatePointerMask(
     pointerId: pointerId,
-    pressedTargets: <SimaiGameplayInputTarget>{target},
+    releasedMask: 0,
+    pressedMask: SimaiGameplayInputMapper.maskForTarget(target),
     chartTime: chartTime,
+    displayTime: displayTime,
     judgeHead: judgeHead,
+    allowOuterButtonHeadJudge: allowOuterButtonHeadJudge,
   );
 
   bool releaseTarget({
     required SimaiGameplayInputTarget target,
     required int pointerId,
     required double chartTime,
-  }) => updatePointerTargets(
+    double? displayTime,
+  }) => updatePointerMask(
     pointerId: pointerId,
-    releasedTargets: <SimaiGameplayInputTarget>{target},
+    releasedMask: SimaiGameplayInputMapper.maskForTarget(target),
+    pressedMask: 0,
     chartTime: chartTime,
+    displayTime: displayTime,
   );
 
-  /// Applies every partition transition produced by one pointer event against
-  /// a single sensor-state snapshot.
-  ///
-  /// Mobile contacts commonly cover several adjacent partitions. MajdataPlay
-  /// updates all of those states before checking Slide queues; doing the same
-  /// here keeps domino progression independent of set iteration order.
+  /// 应用单次触控事件带来的全部分区状态变化（兼容旧版集合签名）。
   bool updatePointerTargets({
     required int pointerId,
     required double chartTime,
     Set<SimaiGameplayInputTarget> pressedTargets = const {},
     Set<SimaiGameplayInputTarget> releasedTargets = const {},
     bool judgeHead = true,
+    double? displayTime,
+    bool allowOuterButtonHeadJudge = true,
+  }) {
+    return updatePointerMask(
+      pointerId: pointerId,
+      releasedMask: SimaiGameplayInputMapper.maskForTargets(releasedTargets),
+      pressedMask: SimaiGameplayInputMapper.maskForTargets(pressedTargets),
+      chartTime: chartTime,
+      displayTime: displayTime,
+      judgeHead: judgeHead,
+      allowOuterButtonHeadJudge: allowOuterButtonHeadJudge,
+    );
+  }
+
+  /// 零堆分配位掩码热路径：以 41-bit 位掩码更新单指按压状态并驱动判定与滑星推进。
+  ///
+  /// - [chartTime] 为判定时钟（已叠加判定偏移），用于窗口比对与超时推进；
+  /// - [displayTime] 为视觉时钟（缺省退回 [chartTime]），用于记录 `judgedTime` 供 HUD 与打击特效即刻呈现；
+  /// - [allowOuterButtonHeadJudge] 传 `false`（如 `PointerMove`）时禁止外键触发 Tap 判定，内屏 A 与 Touch 保留蹭键。
+  bool updatePointerMask({
+    required int pointerId,
+    required int releasedMask,
+    required int pressedMask,
+    required double chartTime,
+    double? displayTime,
+    bool judgeHead = true,
+    bool allowOuterButtonHeadJudge = true,
   }) {
     if (!chartTime.isFinite) return false;
     _ensurePrepared();
-    advanceTo(chartTime);
+    final visualTime = (displayTime != null && displayTime.isFinite)
+        ? displayTime
+        : chartTime;
+    advanceTo(chartTime, displayTime: visualTime);
 
-    final presses = Set<SimaiGameplayInputTarget>.of(pressedTargets);
-    final releases = Set<SimaiGameplayInputTarget>.of(releasedTargets);
-    final unchanged = presses.intersection(releases);
-    presses.removeAll(unchanged);
-    releases.removeAll(unchanged);
+    final maskedRelease = releasedMask & _validInputMask;
+    final maskedPress = pressedMask & _validInputMask;
+    final unchanged = maskedRelease & maskedPress;
+    final cleanRelease = maskedRelease & ~unchanged;
+    final cleanPress = maskedPress & ~unchanged;
 
-    final affectedLanes = <int>{};
-    final affectedSensors = <int>{};
-    final affectedOuterLanes = <int>{};
-    for (final target in <SimaiGameplayInputTarget>{...releases, ...presses}) {
-      switch (target) {
-        case SimaiGameplayOuterButtonTarget(:final lane):
-          if (lane < 0 || lane >= 8) continue;
-          affectedOuterLanes.add(lane);
-          affectedLanes.add(lane);
-        case SimaiGameplaySensorTarget(:final location):
-          final sensorIndex = SimaiGameplayInputMapper.sensorIndex(location);
-          if (sensorIndex < 0) continue;
-          affectedSensors.add(sensorIndex);
-          if (location.group == NoteGroup.aSensor) {
-            affectedLanes.add(location.index);
-          }
+    final oldPtrMask = _pointerMasks[pointerId] ?? 0;
+    final effectiveRelease = cleanRelease & oldPtrMask;
+    final effectivePress = cleanPress & ~oldPtrMask;
+    if (effectiveRelease == 0 && effectivePress == 0) return false;
+
+    final newPtrMask = (oldPtrMask & ~effectiveRelease) | effectivePress;
+    if (newPtrMask == 0) {
+      _pointerMasks.remove(pointerId);
+    } else {
+      _pointerMasks[pointerId] = newPtrMask;
+    }
+
+    final releaseSensorMask = effectiveRelease & _allSensorsMask;
+    final pressSensorMask = effectivePress & _allSensorsMask;
+    final releaseOuterMask =
+        (effectiveRelease >> SimaiGameplayInputMapper.outerLaneBitOffset) &
+        0xFF;
+    final pressOuterMask =
+        (effectivePress >> SimaiGameplayInputMapper.outerLaneBitOffset) & 0xFF;
+
+    final prevLaneMask = _pressedOuterMask | (_pressedSensorMask & 0xFF);
+
+    // 1. 更新外圈按键计数与全局掩码
+    var activatedOuterMask = 0;
+    var bits = releaseOuterMask;
+    while (bits != 0) {
+      final lowBit = bits & -bits;
+      final lane = lowBit.bitLength - 1;
+      bits ^= lowBit;
+      final nextCount = _outerPointerCounts[lane] - 1;
+      _outerPointerCounts[lane] = nextCount;
+      if (nextCount == 0) {
+        _pressedOuterMask &= ~lowBit;
+      }
+    }
+    bits = pressOuterMask;
+    while (bits != 0) {
+      final lowBit = bits & -bits;
+      final lane = lowBit.bitLength - 1;
+      bits ^= lowBit;
+      final prevCount = _outerPointerCounts[lane];
+      _outerPointerCounts[lane] = prevCount + 1;
+      if (prevCount == 0) {
+        _pressedOuterMask |= lowBit;
+        activatedOuterMask |= lowBit;
       }
     }
 
-    final laneWasPressed = <int, bool>{
-      for (final lane in affectedLanes) lane: isLanePressed(lane),
-    };
-    final outerWasPressed = <int, bool>{
-      for (final lane in affectedOuterLanes)
-        lane: _outerPointers[lane].isNotEmpty,
-    };
-    final sensorWasPressed = <int, bool>{
-      for (final sensorIndex in affectedSensors)
-        sensorIndex: _sensorPointers[sensorIndex].isNotEmpty,
-    };
-
-    var changed = false;
-    for (final target in releases) {
-      switch (target) {
-        case SimaiGameplayOuterButtonTarget(:final lane):
-          if (lane >= 0 && lane < 8) {
-            changed = _outerPointers[lane].remove(pointerId) || changed;
-          }
-        case SimaiGameplaySensorTarget(:final location):
-          final sensorIndex = SimaiGameplayInputMapper.sensorIndex(location);
-          if (sensorIndex >= 0) {
-            changed = _sensorPointers[sensorIndex].remove(pointerId) || changed;
-          }
-      }
-    }
-    for (final target in presses) {
-      switch (target) {
-        case SimaiGameplayOuterButtonTarget(:final lane):
-          if (lane >= 0 && lane < 8) {
-            changed = _outerPointers[lane].add(pointerId) || changed;
-          }
-        case SimaiGameplaySensorTarget(:final location):
-          final sensorIndex = SimaiGameplayInputMapper.sensorIndex(location);
-          if (sensorIndex >= 0) {
-            changed = _sensorPointers[sensorIndex].add(pointerId) || changed;
-          }
-      }
-    }
-    if (!changed) return false;
-
-    final activatedOuterLanes = <int>[];
-    for (final lane in affectedOuterLanes) {
-      if (outerWasPressed[lane] == false && _outerPointers[lane].isNotEmpty) {
-        activatedOuterLanes.add(lane);
-      }
-    }
-
-    final activatedSensors = <int>[];
-    final changedSensors = <int>[];
-    for (final sensorIndex in affectedSensors) {
-      final wasPressed = sensorWasPressed[sensorIndex] ?? false;
-      final isPressed = _sensorPointers[sensorIndex].isNotEmpty;
-      if (wasPressed == isPressed) continue;
-      changedSensors.add(sensorIndex);
-      if (isPressed) {
-        _sensorOpenStarts[sensorIndex] = chartTime;
-        activatedSensors.add(sensorIndex);
-      } else {
+    // 2. 更新内屏 33 个传感器计数、全局掩码与 Hold 区间
+    var activatedSensorMask = 0;
+    bits = releaseSensorMask;
+    while (bits != 0) {
+      final lowBit = bits & -bits;
+      final sensorIndex = lowBit.bitLength - 1;
+      bits ^= lowBit;
+      final nextCount = _sensorPointerCounts[sensorIndex] - 1;
+      _sensorPointerCounts[sensorIndex] = nextCount;
+      if (nextCount == 0) {
+        _pressedSensorMask &= ~lowBit;
         _closeSensorInterval(sensorIndex, chartTime);
       }
     }
+    bits = pressSensorMask;
+    while (bits != 0) {
+      final lowBit = bits & -bits;
+      final sensorIndex = lowBit.bitLength - 1;
+      bits ^= lowBit;
+      final prevCount = _sensorPointerCounts[sensorIndex];
+      _sensorPointerCounts[sensorIndex] = prevCount + 1;
+      if (prevCount == 0) {
+        _pressedSensorMask |= lowBit;
+        _sensorOpenStarts[sensorIndex] = chartTime;
+        activatedSensorMask |= lowBit;
+      }
+    }
 
-    for (final lane in affectedLanes) {
-      final wasPressed = laneWasPressed[lane] ?? false;
-      final isPressed = isLanePressed(lane);
-      if (wasPressed == isPressed) continue;
-      if (isPressed) {
+    // 3. 更新 8 轨合集（外键 OR 内屏 A）的 Hold 按压区间
+    final nextLaneMask = _pressedOuterMask | (_pressedSensorMask & 0xFF);
+    var changedLaneMask = prevLaneMask ^ nextLaneMask;
+    while (changedLaneMask != 0) {
+      final lowBit = changedLaneMask & -changedLaneMask;
+      final lane = lowBit.bitLength - 1;
+      changedLaneMask ^= lowBit;
+      if ((nextLaneMask & lowBit) != 0) {
         _laneOpenStarts[lane] = chartTime;
       } else {
         _closeLaneInterval(lane, chartTime);
       }
     }
 
+    // 4. 判定 Tap/星头与 Touch：
+    //    P1-1：内屏 A 传感器优先于外键判定星头，避免同时命中时跳过内屏滑星首区预激活；
+    //    P1-4：移动态可传 allowOuterButtonHeadJudge = false，防止外键滑擦误吃邻轨 Tap。
     var judged = false;
     if (judgeHead) {
-      activatedOuterLanes.sort();
-      for (final lane in activatedOuterLanes) {
-        judged = _judgeNearestTap(lane, chartTime) != null || judged;
-      }
-      activatedSensors.sort();
-      for (final sensorIndex in activatedSensors) {
-        final location = SimaiGameplayInputMapper.sensorForIndex(sensorIndex);
-        if (location.group == NoteGroup.aSensor) {
-          final head = _judgeNearestTap(location.index, chartTime);
+      var judgedTapLaneMask = 0;
+      bits = activatedSensorMask;
+      while (bits != 0) {
+        final lowBit = bits & -bits;
+        final sensorIndex = lowBit.bitLength - 1;
+        bits ^= lowBit;
+        if (sensorIndex < 8) {
+          final head = _judgeNearestTap(
+            sensorIndex,
+            chartTime,
+            displayTime: visualTime,
+          );
           if (head != null) {
-            _queueInnerSlideHeadActivation(head, sensorIndex);
+            judgedTapLaneMask |= lowBit;
+            _activateHeadSlides(
+              head,
+              chartTime,
+              displayTime: visualTime,
+              innerSensorIndex: sensorIndex,
+            );
             judged = true;
           }
         }
-        judged = _judgeNearestTouch(sensorIndex, chartTime) || judged;
+        if (_judgeNearestTouch(
+          sensorIndex,
+          chartTime,
+          displayTime: visualTime,
+        )) {
+          judged = true;
+        }
+      }
+
+      if (allowOuterButtonHeadJudge) {
+        bits = activatedOuterMask & ~judgedTapLaneMask;
+        while (bits != 0) {
+          final lowBit = bits & -bits;
+          final lane = lowBit.bitLength - 1;
+          bits ^= lowBit;
+          final head = _judgeNearestTap(
+            lane,
+            chartTime,
+            displayTime: visualTime,
+          );
+          if (head != null) {
+            final innerAlsoPressed = (_pressedSensorMask & lowBit) != 0;
+            _activateHeadSlides(
+              head,
+              chartTime,
+              displayTime: visualTime,
+              innerSensorIndex: innerAlsoPressed ? lane : null,
+            );
+            judged = true;
+          }
+        }
       }
     }
 
-    judged = _processSlidesForSensors(changedSensors, chartTime) || judged;
+    // 5. P1-2：记录本指针新进入/新离开的传感器掩码，即使已有其他手指按住
+    //    （Hold / 汇聚双星），也派发推进脉冲，防止互相劫持锁死。
+    final touchedSensorMask = pressSensorMask | releaseSensorMask;
+    if (touchedSensorMask != 0) {
+      final pointerCurrentSensorMask = newPtrMask & _allSensorsMask;
+      judged =
+          _processSlidesForSensorMask(
+            touchedSensorMask,
+            chartTime,
+            displayTime: visualTime,
+            pointerEnteredSensorMask: pressSensorMask,
+            pointerReleasedSensorMask: releaseSensorMask,
+            pointerCurrentSensorMask: pointerCurrentSensorMask,
+          ) ||
+          judged;
+    }
+
     if (judged) _flushResolvedScores();
     revision++;
     return judged;
@@ -459,6 +590,7 @@ class SimaiGameplaySession {
     required double chartTime,
     SimaiGameplayInputSource source = SimaiGameplayInputSource.outerButton,
     bool judgeHead = true,
+    double? displayTime,
   }) {
     if (lane < 0 || lane >= 8) return false;
     return pressTarget(
@@ -467,6 +599,7 @@ class SimaiGameplaySession {
           : SimaiGameplaySensorTarget(Location(lane, NoteGroup.aSensor)),
       pointerId: pointerId,
       chartTime: chartTime,
+      displayTime: displayTime,
       judgeHead: judgeHead,
     );
   }
@@ -476,6 +609,7 @@ class SimaiGameplaySession {
     required int pointerId,
     required double chartTime,
     SimaiGameplayInputSource source = SimaiGameplayInputSource.outerButton,
+    double? displayTime,
   }) {
     if (lane < 0 || lane >= 8) return false;
     return releaseTarget(
@@ -484,27 +618,34 @@ class SimaiGameplaySession {
           : SimaiGameplaySensorTarget(Location(lane, NoteGroup.aSensor)),
       pointerId: pointerId,
       chartTime: chartTime,
+      displayTime: displayTime,
     );
   }
 
-  void clearPointers(double chartTime) {
+  void clearPointers(double chartTime, {double? displayTime}) {
     if (!chartTime.isFinite) return;
     _ensurePrepared();
-    advanceTo(chartTime);
+    final visualTime = (displayTime != null && displayTime.isFinite)
+        ? displayTime
+        : chartTime;
+    advanceTo(chartTime, displayTime: visualTime);
     for (var lane = 0; lane < 8; lane++) {
       if (isLanePressed(lane)) _closeLaneInterval(lane, chartTime);
-      _outerPointers[lane].clear();
+      _outerPointerCounts[lane] = 0;
     }
     for (
       var sensorIndex = 0;
       sensorIndex < SimaiGameplayInputMapper.sensorCount;
       sensorIndex++
     ) {
-      if (_sensorPointers[sensorIndex].isNotEmpty) {
+      if (_sensorPointerCounts[sensorIndex] > 0) {
         _closeSensorInterval(sensorIndex, chartTime);
       }
-      _sensorPointers[sensorIndex].clear();
+      _sensorPointerCounts[sensorIndex] = 0;
     }
+    _pressedOuterMask = 0;
+    _pressedSensorMask = 0;
+    _pointerMasks.clear();
     for (final slide in _slides) {
       if (!slide.active || slide.resolved) continue;
       slide.resetArmedState();
@@ -512,33 +653,46 @@ class SimaiGameplaySession {
     revision++;
   }
 
-  void advanceTo(double chartTime) {
+  /// 按判定时钟 [chartTime] 推进滑星激活、漏判截止与 Hold 结算；
+  /// 所有生成的判定记录均使用视觉时钟 [displayTime]（默认退回 [chartTime]）写入 `judgedTime`。
+  void advanceTo(double chartTime, {double? displayTime}) {
     if (!chartTime.isFinite) return;
     _ensurePrepared();
+    final visualTime = (displayTime != null && displayTime.isFinite)
+        ? displayTime
+        : chartTime;
     if (!_currentTime.isFinite || chartTime > _currentTime) {
       _currentTime = chartTime;
     }
 
     var changed = false;
     while (_slideStartCursor < _slidesByStart.length &&
-        _slidesByStart[_slideStartCursor].startTime <= chartTime) {
+        _slidesByStart[_slideStartCursor].activationTime <= chartTime) {
       final slide = _slidesByStart[_slideStartCursor++];
-      changed = _activateSlide(slide) || changed;
+      changed =
+          _activateSlide(
+            slide,
+            slide.activationTime,
+            displayTime: visualTime,
+          ) ||
+          changed;
     }
 
     while (_missCursor < _manualHeadsByDeadline.length &&
         chartTime > _manualHeadsByDeadline[_missCursor].deliveryDeadline) {
       final head = _manualHeadsByDeadline[_missCursor++];
       if (head.headJudgement != null) continue;
-      _resolveHeadAsMiss(head);
+      _resolveHeadAsMiss(head, judgedTime: visualTime);
       changed = true;
     }
 
     while (_holdCursor < _holdsByResolution.length &&
         _holdsByResolution[_holdCursor].resolutionTime <= chartTime) {
       final hold = _holdsByResolution[_holdCursor++];
-      if (hold.head.headJudgement == null) _resolveHeadAsMiss(hold.head);
-      _resolveHold(hold, max(chartTime, hold.endTime));
+      if (hold.head.headJudgement == null) {
+        _resolveHeadAsMiss(hold.head, judgedTime: visualTime);
+      }
+      _resolveHold(hold, visualTime);
       changed = true;
     }
 
@@ -546,7 +700,7 @@ class SimaiGameplaySession {
         _slidesByTimeout[_slideTimeoutCursor].deliveryDeadline < chartTime) {
       final slide = _slidesByTimeout[_slideTimeoutCursor++];
       if (slide.resolved) continue;
-      _resolveSlideTimeout(slide);
+      _resolveSlideTimeout(slide, judgedTime: visualTime);
       changed = true;
     }
 
@@ -554,8 +708,8 @@ class SimaiGameplaySession {
     if (changed) revision++;
   }
 
-  bool isReadyForResult(double chartTime) {
-    advanceTo(chartTime);
+  bool isReadyForResult(double chartTime, {double? displayTime}) {
+    advanceTo(chartTime, displayTime: displayTime);
     return !hasPendingScores &&
         chartTime >= _contentEndTime + resultFeedbackTailSeconds;
   }
@@ -603,75 +757,85 @@ class SimaiGameplaySession {
 
       for (var noteIndex = 0; noteIndex < collection.length; noteIndex++) {
         final note = collection[noteIndex];
-        final excluded =
-            note.type == NoteType.forceInvalidate ||
-            (note.styles & NoteStyles.mine) != 0;
-        if (excluded) {
+        final isMine = (note.styles & NoteStyles.mine) != 0;
+        if (isMine) {
           _excludedCount++;
           continue;
         }
 
-        final hasHold = (note.length ?? 0.0) > 0.0;
-        final holdLength = hasHold ? _nonNegative(note.length!) : 0.0;
-        final endTime = headTime + holdLength;
-        _contentEndTime = max(_contentEndTime, endTime);
-        final isBreak =
-            note.type == NoteType.breakNote ||
-            (note.styles & NoteStyles.breakHead) != 0;
-        final isTap = note.location.group == NoteGroup.tap;
-        final scoringType = isBreak
-            ? SimaiGameplayScoringType.breakNote
-            : hasHold
-            ? SimaiGameplayScoringType.hold
-            : isTap
-            ? SimaiGameplayScoringType.tap
-            : SimaiGameplayScoringType.touch;
-        final scoreTime = hasHold ? endTime : headTime;
-        final slot = _addScoreSlot(
-          targetTime: scoreTime,
-          scoringType: scoringType,
-        );
-        final logicalWindow = isTap
-            ? SimaiTapJudgementRules.maximumWindowSeconds
-            : SimaiTouchJudgementRules.maximumLateWindowSeconds;
-        final head = _ManualHead(
-          collectionIndex: collectionIndex,
-          noteIndex: noteIndex,
-          note: note,
-          kind: isTap ? _HeadKind.tap : _HeadKind.touch,
-          lane: isTap ? note.location.index : -1,
-          sensorIndex: isTap
-              ? -1
-              : SimaiGameplayInputMapper.sensorIndex(note.location),
-          headTime: headTime,
-          logicalDeadline: headTime + logicalWindow,
-          deliveryDeadline:
-              headTime + logicalWindow + inputDeliveryGraceSeconds,
-          scoringType: scoringType,
-          slot: slot,
-        );
-        _manualHeads[(collectionIndex: collectionIndex, noteIndex: noteIndex)] =
-            head;
-        _manualHeadsByDeadline.add(head);
-        if (isTap) {
-          _tapHeadsByLane[head.lane].add(head);
-        } else if (head.sensorIndex >= 0) {
-          _touchHeadsBySensor[head.sensorIndex].add(head);
-          if (!hasHold) touchGroupCandidates.add(head);
+        // P2-3：支持无头星（? / !）：forceInvalidate 且含滑星路径时跳过星头 Tap 计分，
+        // 仅保留 slidePaths 的游玩与计分。
+        final isHeadlessSlide =
+            note.type == NoteType.forceInvalidate && note.slidePaths.isNotEmpty;
+        if (note.type == NoteType.forceInvalidate && !isHeadlessSlide) {
+          _excludedCount++;
+          continue;
         }
 
-        if (hasHold) {
-          final hold = _HoldRuntime(
-            head: head,
+        _ManualHead? head;
+        if (!isHeadlessSlide) {
+          final hasHold = (note.length ?? 0.0) > 0.0;
+          final holdLength = hasHold ? _nonNegative(note.length!) : 0.0;
+          final endTime = headTime + holdLength;
+          _contentEndTime = max(_contentEndTime, endTime);
+          final isBreak =
+              note.type == NoteType.breakNote ||
+              (note.styles & NoteStyles.breakHead) != 0;
+          final isTap = note.location.group == NoteGroup.tap;
+          final scoringType = isBreak
+              ? SimaiGameplayScoringType.breakNote
+              : hasHold
+              ? SimaiGameplayScoringType.hold
+              : isTap
+              ? SimaiGameplayScoringType.tap
+              : SimaiGameplayScoringType.touch;
+          final scoreTime = hasHold ? endTime : headTime;
+          final slot = _addScoreSlot(
+            targetTime: scoreTime,
+            scoringType: scoringType,
+          );
+          final logicalWindow = isTap
+              ? SimaiTapJudgementRules.maximumWindowSeconds
+              : SimaiTouchJudgementRules.maximumLateWindowSeconds;
+          final createdHead = _ManualHead(
+            collectionIndex: collectionIndex,
+            noteIndex: noteIndex,
+            note: note,
+            kind: isTap ? _HeadKind.tap : _HeadKind.touch,
+            lane: isTap ? note.location.index : -1,
+            sensorIndex: isTap
+                ? -1
+                : SimaiGameplayInputMapper.sensorIndex(note.location),
             headTime: headTime,
-            endTime: endTime,
-            resolutionTime: max(endTime, head.deliveryDeadline),
-            length: holdLength,
-            source: isTap ? _HoldSource.lane : _HoldSource.sensor,
+            logicalDeadline: headTime + logicalWindow,
+            deliveryDeadline:
+                headTime + logicalWindow + inputDeliveryGraceSeconds,
+            scoringType: scoringType,
             slot: slot,
           );
-          head.hold = hold;
-          _holdsByResolution.add(hold);
+          head = createdHead;
+          _manualHeads[_packNoteKey(collectionIndex, noteIndex)] = createdHead;
+          _manualHeadsByDeadline.add(createdHead);
+          if (isTap) {
+            _tapHeadsByLane[createdHead.lane].add(createdHead);
+          } else if (createdHead.sensorIndex >= 0) {
+            _touchHeadsBySensor[createdHead.sensorIndex].add(createdHead);
+            if (!hasHold) touchGroupCandidates.add(createdHead);
+          }
+
+          if (hasHold) {
+            final hold = _HoldRuntime(
+              head: createdHead,
+              headTime: headTime,
+              endTime: endTime,
+              resolutionTime: max(endTime, createdHead.deliveryDeadline),
+              length: holdLength,
+              source: isTap ? _HoldSource.lane : _HoldSource.sensor,
+              slot: slot,
+            );
+            createdHead.hold = hold;
+            _holdsByResolution.add(hold);
+          }
         }
 
         for (
@@ -682,6 +846,9 @@ class SimaiGameplaySession {
           final path = note.slidePaths[slidePathIndex];
           final startTime = headTime + _nonNegative(path.delay);
           final pathEndTime = startTime + _nonNegative(path.duration);
+          // P0-2：将滑星传感器跟踪激活时机提前到星头早判起点，消除 1 拍等待期内提前滑过的箭头被吞。
+          final activationTime =
+              headTime - SimaiTapJudgementRules.maximumWindowSeconds;
           _contentEndTime = max(_contentEndTime, pathEndTime);
           final pathType = path.type == NoteType.breakNote
               ? SimaiGameplayScoringType.breakNote
@@ -694,18 +861,20 @@ class SimaiGameplaySession {
             collectionIndex: collectionIndex,
             noteIndex: noteIndex,
             slidePathIndex: slidePathIndex,
+            headTime: headTime,
+            activationTime: activationTime,
             startTime: startTime,
             pathEndTime: pathEndTime,
             duration: _nonNegative(path.duration),
             scoringType: pathType,
             slot: pathSlot,
           );
-          head.slides.add(runtime);
+          head?.slides.add(runtime);
           _slides.add(runtime);
-          _slideRuntimes[(
-                collectionIndex: collectionIndex,
-                noteIndex: noteIndex,
-                slidePathIndex: slidePathIndex,
+          _slideRuntimes[_packSlideKey(
+                collectionIndex,
+                noteIndex,
+                slidePathIndex,
               )] =
               runtime;
         }
@@ -742,7 +911,7 @@ class SimaiGameplaySession {
       _slidesByStart
         ..clear()
         ..addAll(_slides)
-        ..sort((a, b) => a.startTime.compareTo(b.startTime));
+        ..sort((a, b) => a.activationTime.compareTo(b.activationTime));
       _slidesByTimeout
         ..clear()
         ..addAll(_slides)
@@ -820,7 +989,11 @@ class SimaiGameplaySession {
     return slot;
   }
 
-  _ManualHead? _judgeNearestTap(int lane, double eventTime) {
+  _ManualHead? _judgeNearestTap(
+    int lane,
+    double eventTime, {
+    required double displayTime,
+  }) {
     final candidates = _tapHeadsByLane[lane];
     final best = _nearestHead(
       candidates,
@@ -834,18 +1007,36 @@ class SimaiGameplaySession {
       isEx: best.note.isEx,
     );
     if (judgement == null) return null;
-    _resolveHead(best, judgement, eventTime);
+    _resolveHead(best, judgement, displayTime);
     return best;
   }
 
-  void _queueInnerSlideHeadActivation(_ManualHead head, int sensorIndex) {
+  /// 星头命中后立即确保对应滑星处于激活态；若由内屏 A 触发且尚未激活则登记首区预激活。
+  void _activateHeadSlides(
+    _ManualHead head,
+    double eventTime, {
+    required double displayTime,
+    int? innerSensorIndex,
+  }) {
+    if (head.slides.isEmpty) return;
     for (final slide in head.slides) {
-      if (slide.active || slide.resolved) continue;
-      slide.pendingHeadActivationSensors.add(sensorIndex);
+      if (slide.resolved) continue;
+      if (!slide.active) {
+        if (innerSensorIndex != null &&
+            innerSensorIndex >= 0 &&
+            innerSensorIndex < SimaiGameplayInputMapper.sensorBitCount) {
+          slide.pendingHeadActivationMask |= 1 << innerSensorIndex;
+        }
+        _activateSlide(slide, eventTime, displayTime: displayTime);
+      }
     }
   }
 
-  bool _judgeNearestTouch(int sensorIndex, double eventTime) {
+  bool _judgeNearestTouch(
+    int sensorIndex,
+    double eventTime, {
+    required double displayTime,
+  }) {
     final candidates = _touchHeadsBySensor[sensorIndex];
     final best = _nearestHead(
       candidates,
@@ -856,7 +1047,7 @@ class SimaiGameplaySession {
     if (best == null) return false;
     final judgement = SimaiTouchJudgementRules.judge(eventTime - best.headTime);
     if (judgement == null) return false;
-    _resolveHead(best, judgement, eventTime);
+    _resolveHead(best, judgement, displayTime);
     return true;
   }
 
@@ -911,7 +1102,7 @@ class SimaiGameplaySession {
     if (!groupAssisted) _resolveTouchGroupIfReady(head, record);
   }
 
-  void _resolveHeadAsMiss(_ManualHead head) {
+  void _resolveHeadAsMiss(_ManualHead head, {required double judgedTime}) {
     if (head.headJudgement != null) return;
     final offset = head.kind == _HeadKind.tap
         ? SimaiTapJudgementRules.maximumWindowSeconds
@@ -921,7 +1112,7 @@ class SimaiGameplaySession {
       noteIndex: head.noteIndex,
       slidePathIndex: null,
       targetTime: head.headTime,
-      judgedTime: head.logicalDeadline,
+      judgedTime: judgedTime,
       offsetSeconds: offset,
       grade: SimaiJudgeGrade.miss,
       band: SimaiJudgeBand.miss,
@@ -935,11 +1126,7 @@ class SimaiGameplaySession {
 
   void _storeHeadRecord(_ManualHead head, SimaiJudgementRecord record) {
     head.headJudgement = record;
-    _headFeedback[(
-          collectionIndex: head.collectionIndex,
-          noteIndex: head.noteIndex,
-        )] =
-        record;
+    _headFeedback[_packNoteKey(head.collectionIndex, head.noteIndex)] = record;
     _addFeedback(record);
     if (head.hold == null) head.slot.record = record;
   }
@@ -1016,9 +1203,12 @@ class SimaiGameplaySession {
         ? _sensorOpenStarts[hold.head.sensorIndex]
         : _laneOpenStarts[hold.head.lane];
     var pressed = 0.0;
-    for (final interval in intervals) {
-      if (interval.end <= start) continue;
+    // 二分查找直接跳过 end <= start 的历史区间，避免长谱后期从下标 0 线性扫描。
+    var index = _lowerBoundIntervalEnd(intervals, start);
+    while (index < intervals.length) {
+      final interval = intervals[index++];
       if (interval.start >= end) break;
+      if (interval.end <= start) continue;
       pressed += max(0.0, min(interval.end, end) - max(interval.start, start));
     }
     if (openStart != null && openStart < end) {
@@ -1064,61 +1254,135 @@ class SimaiGameplaySession {
     };
   }
 
-  bool _processSlidesForSensors(Iterable<int> sensorIndexes, double eventTime) {
-    var judged = false;
-    final candidates = <_SlideRuntime>{};
-    final sortedIndexes = sensorIndexes.toSet().toList()..sort();
-    for (final sensorIndex in sortedIndexes) {
-      if (sensorIndex < 0 || sensorIndex >= _slidesBySensor.length) continue;
-      candidates.addAll(_slidesBySensor[sensorIndex]);
+  void _registerActiveSlide(_SlideRuntime slide) {
+    if (slide.inActiveIndex || slide.resolved) return;
+    slide.inActiveIndex = true;
+    var mask = slide.watchedSensorMask;
+    while (mask != 0) {
+      final lowBit = mask & -mask;
+      final sensorIndex = lowBit.bitLength - 1;
+      mask ^= lowBit;
+      _activeSlidesBySensor[sensorIndex].add(slide);
     }
-    for (final slide in candidates) {
-      if (!slide.active || slide.resolved) continue;
-      debugSlideChecks++;
-      if (eventTime > slide.logicalDeadline + 1e-9) {
-        _resolveSlideTimeout(slide);
-        judged = true;
-        continue;
+  }
+
+  void _unregisterActiveSlide(_SlideRuntime slide) {
+    if (!slide.inActiveIndex) return;
+    slide.inActiveIndex = false;
+    var mask = slide.watchedSensorMask;
+    while (mask != 0) {
+      final lowBit = mask & -mask;
+      final sensorIndex = lowBit.bitLength - 1;
+      mask ^= lowBit;
+      final bucket = _activeSlidesBySensor[sensorIndex];
+      for (var i = 0; i < bucket.length; i++) {
+        if (identical(bucket[i], slide)) {
+          final last = bucket.removeLast();
+          if (i < bucket.length) bucket[i] = last;
+          break;
+        }
       }
-      judged = _processSlide(slide, eventTime) || judged;
+    }
+  }
+
+  bool _processSlidesForSensorMask(
+    int sensorMask,
+    double eventTime, {
+    required double displayTime,
+    int pointerEnteredSensorMask = 0,
+    int pointerReleasedSensorMask = 0,
+    int pointerCurrentSensorMask = 0,
+  }) {
+    final scratch = _slideCheckScratch;
+    scratch.clear();
+    final stamp = ++_slideVisitStamp;
+
+    var bits = sensorMask;
+    while (bits != 0) {
+      final lowBit = bits & -bits;
+      final sensorIndex = lowBit.bitLength - 1;
+      bits ^= lowBit;
+      final bucket = _activeSlidesBySensor[sensorIndex];
+      for (var i = 0; i < bucket.length; i++) {
+        final slide = bucket[i];
+        if (slide.visitStamp == stamp) continue;
+        slide.visitStamp = stamp;
+        scratch.add(slide);
+      }
+    }
+
+    var judged = false;
+    try {
+      for (var i = 0; i < scratch.length; i++) {
+        final slide = scratch[i];
+        if (!slide.active || slide.resolved) continue;
+        debugSlideChecks++;
+        if (eventTime > slide.logicalDeadline + 1e-9) {
+          _resolveSlideTimeout(slide, judgedTime: displayTime);
+          judged = true;
+          continue;
+        }
+        judged =
+            _processSlide(
+              slide,
+              eventTime,
+              displayTime: displayTime,
+              virtualPressedMask: pointerEnteredSensorMask,
+              pointerReleasedSensorMask: pointerReleasedSensorMask,
+              pointerCurrentSensorMask: pointerCurrentSensorMask,
+            ) ||
+            judged;
+      }
+    } finally {
+      scratch.clear();
     }
     return judged;
   }
 
-  bool _activateSlide(_SlideRuntime slide) {
+  bool _activateSlide(
+    _SlideRuntime slide,
+    double eventTime, {
+    required double displayTime,
+  }) {
+    if (slide.active || slide.resolved) return false;
     slide.active = true;
-    final pending = slide.pendingHeadActivationSensors.toList()..sort();
-    slide.pendingHeadActivationSensors.clear();
-    var changed = pending.isNotEmpty;
+    _registerActiveSlide(slide);
+    final pendingMask = slide.pendingHeadActivationMask;
+    slide.pendingHeadActivationMask = 0;
+    var changed = pendingMask != 0;
 
-    // An inner-A hit on the Slide head is a real sensor activation. If that
-    // contact was released before the path became active, replay its pulse at
-    // activation time so the first matching trajectory group still receives
-    // the same ON -> OFF transition. A contact that is still held is handled
-    // by the real sensor snapshot below and remains armed until release.
-    for (final sensorIndex in pending) {
-      if (sensorIndex < 0 || sensorIndex >= _sensorPointers.length) continue;
-      if (_sensorPointers[sensorIndex].isNotEmpty) continue;
+    // 若星头内屏触发在激活前已抬手，回放一次首区脉冲确保轨迹首组正常推进。
+    var bits = pendingMask;
+    while (bits != 0) {
+      final lowBit = bits & -bits;
+      bits ^= lowBit;
+      if ((_pressedSensorMask & lowBit) != 0) continue;
       changed =
           _processSlide(
             slide,
-            slide.startTime,
-            virtualPressedSensors: <int>{sensorIndex},
+            eventTime,
+            displayTime: displayTime,
+            virtualPressedMask: lowBit,
           ) ||
           changed;
       if (slide.resolved) return true;
-      changed = _processSlide(slide, slide.startTime) || changed;
+      changed =
+          _processSlide(slide, eventTime, displayTime: displayTime) || changed;
       if (slide.resolved) return true;
     }
 
-    changed = _processSlide(slide, slide.startTime) || changed;
+    changed =
+        _processSlide(slide, eventTime, displayTime: displayTime) || changed;
     return changed;
   }
 
   bool _processSlide(
     _SlideRuntime slide,
     double eventTime, {
-    Set<int> virtualPressedSensors = const <int>{},
+    required double displayTime,
+    int virtualPressedMask = 0,
+    int pointerReleasedSensorMask = 0,
+    int pointerCurrentSensorMask = 0,
   }) {
     if (!slide.active || slide.resolved) return false;
     while (slide.stageIndex < slide.stages.length) {
@@ -1129,7 +1393,9 @@ class SimaiGameplaySession {
             _processSlideBranch(
               slide,
               branch,
-              virtualPressedSensors: virtualPressedSensors,
+              virtualPressedMask: virtualPressedMask,
+              pointerReleasedSensorMask: pointerReleasedSensorMask,
+              pointerCurrentSensorMask: pointerCurrentSensorMask,
             ) ||
             stageChanged;
       }
@@ -1142,7 +1408,7 @@ class SimaiGameplaySession {
       break;
     }
     if (slide.stageIndex >= slide.stages.length) {
-      _resolveSlide(slide, eventTime);
+      _resolveSlide(slide, eventTime, judgedTime: displayTime);
       return true;
     }
     return false;
@@ -1151,22 +1417,37 @@ class SimaiGameplaySession {
   bool _processSlideBranch(
     _SlideRuntime slide,
     _SlideBranchRuntime branch, {
-    Set<int> virtualPressedSensors = const <int>{},
+    int virtualPressedMask = 0,
+    int pointerReleasedSensorMask = 0,
+    int pointerCurrentSensorMask = 0,
   }) {
-    bool isOn(SimaiGameplaySlideInteractionGroup group) =>
-        group.sensors.any((sensor) {
-          final sensorIndex = SimaiGameplayInputMapper.sensorIndex(sensor);
-          return virtualPressedSensors.contains(sensorIndex) ||
-              isSensorPressed(sensor);
-        });
-
+    final activeSensorMask = _pressedSensorMask | virtualPressedMask;
     var changed = false;
     while (!branch.complete) {
-      final current = branch.groups[branch.cursor];
-      final currentOn = isOn(current);
+      final cursor = branch.cursor;
+      final current = branch.groups[cursor];
+      final currentMask = branch.groupSensorMasks[cursor];
+      final currentOn = (activeSensorMask & currentMask) != 0;
+
+      // P0-1：终点组进入即消除并推进完成，不再强制等待 ON -> OFF 抬手。
+      if (cursor == branch.groups.length - 1) {
+        if (currentOn) {
+          slide.markGroupCleared(current.visualGroupId);
+          branch.cursor++;
+          branch.armed = false;
+          changed = true;
+        }
+        break;
+      }
+
       if (branch.armed) {
-        if (!currentOn) {
-          slide.clearedGroupIds.add(current.visualGroupId);
+        // P1-2：若全局传感器已被其他手指（如 Hold）按住，只要当前指针刚离开本组传感器，
+        // 仍按 ON -> OFF 脉冲推进，避免跨 Hold / 汇聚双星死锁。
+        final pointerExitedGroup =
+            (pointerReleasedSensorMask & currentMask) != 0 &&
+            (pointerCurrentSensorMask & currentMask) == 0;
+        if (!currentOn || pointerExitedGroup) {
+          slide.markGroupCleared(current.visualGroupId);
           branch.cursor++;
           branch.armed = false;
           changed = true;
@@ -1177,10 +1458,10 @@ class SimaiGameplaySession {
         changed = true;
       }
 
-      if (!current.blocksSkip && branch.cursor + 1 < branch.groups.length) {
-        final next = branch.groups[branch.cursor + 1];
-        if (isOn(next)) {
-          slide.clearedGroupIds.add(current.visualGroupId);
+      if (!current.blocksSkip && cursor + 1 < branch.groups.length) {
+        final nextMask = branch.groupSensorMasks[cursor + 1];
+        if ((activeSensorMask & nextMask) != 0) {
+          slide.markGroupCleared(current.visualGroupId);
           branch.cursor++;
           branch.armed = true;
           changed = true;
@@ -1192,14 +1473,18 @@ class SimaiGameplaySession {
     return changed;
   }
 
-  void _resolveSlide(_SlideRuntime slide, double judgedTime) {
+  void _resolveSlide(
+    _SlideRuntime slide,
+    double eventTime, {
+    required double judgedTime,
+  }) {
     if (slide.resolved) return;
     final judgement = SimaiSlideJudgementRules.judge(
-      judgedTime - slide.targetTime,
+      eventTime - slide.targetTime,
       finalZoneDwellSeconds: slide.finalZoneDwellSeconds,
     );
     if (judgement == null) {
-      _resolveSlideTimeout(slide);
+      _resolveSlideTimeout(slide, judgedTime: judgedTime);
       return;
     }
     final record = SimaiJudgementRecord(
@@ -1218,7 +1503,7 @@ class SimaiGameplaySession {
     _storeSlideRecord(slide, record);
   }
 
-  void _resolveSlideTimeout(_SlideRuntime slide) {
+  void _resolveSlideTimeout(_SlideRuntime slide, {required double judgedTime}) {
     if (slide.resolved) return;
     final remaining = slide.remainingGroupCount;
     final grade = remaining <= 1 ? SimaiJudgeGrade.good : SimaiJudgeGrade.miss;
@@ -1227,7 +1512,7 @@ class SimaiGameplaySession {
       noteIndex: slide.noteIndex,
       slidePathIndex: slide.slidePathIndex,
       targetTime: slide.targetTime,
-      judgedTime: slide.logicalDeadline,
+      judgedTime: judgedTime,
       offsetSeconds: SimaiSlideJudgementRules.maximumWindowSeconds,
       grade: grade,
       band: grade == SimaiJudgeGrade.good
@@ -1246,10 +1531,11 @@ class SimaiGameplaySession {
     slide
       ..resolved = true
       ..slot.record = record;
-    _slideFeedback[(
-          collectionIndex: slide.collectionIndex,
-          noteIndex: slide.noteIndex,
-          slidePathIndex: slide.slidePathIndex,
+    _unregisterActiveSlide(slide);
+    _slideFeedback[_packSlideKey(
+          slide.collectionIndex,
+          slide.noteIndex,
+          slide.slidePathIndex,
         )] =
         record;
     _addFeedback(record);
@@ -1287,6 +1573,7 @@ class SimaiGameplaySession {
 
   void _commit(SimaiJudgementRecord record) {
     _committed.add(record);
+    _scoreRevision++;
     _gradeCounts[record.grade] = (_gradeCounts[record.grade] ?? 0) + 1;
     _typeCounts[record.scoringType] =
         (_typeCounts[record.scoringType] ?? 0) + 1;
@@ -1360,6 +1647,23 @@ class SimaiGameplaySession {
     while (low < high) {
       final mid = (low + high) >> 1;
       if (values[mid].headTime < target) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+    return low;
+  }
+
+  static int _lowerBoundIntervalEnd(
+    List<_PressInterval> intervals,
+    double target,
+  ) {
+    var low = 0;
+    var high = intervals.length;
+    while (low < high) {
+      final mid = (low + high) >> 1;
+      if (intervals[mid].end <= target) {
         low = mid + 1;
       } else {
         high = mid;
@@ -1476,6 +1780,8 @@ class _SlideRuntime {
     required this.collectionIndex,
     required this.noteIndex,
     required this.slidePathIndex,
+    required this.headTime,
+    required this.activationTime,
     required this.startTime,
     required this.pathEndTime,
     required this.duration,
@@ -1486,13 +1792,21 @@ class _SlideRuntime {
   final int collectionIndex;
   final int noteIndex;
   final int slidePathIndex;
+  final double headTime;
+  final double activationTime;
   final double startTime;
   final double pathEndTime;
   final double duration;
   final SimaiGameplayScoringType scoringType;
   final _ScoreSlot slot;
-  final Set<int> clearedGroupIds = <int>{};
-  final Set<int> pendingHeadActivationSensors = <int>{};
+
+  int clearedGroupMask = 0;
+  Set<int>? _overflowClearedGroupIds;
+  int pendingHeadActivationMask = 0;
+  int watchedSensorMask = 0;
+  int visitStamp = 0;
+  bool inActiveIndex = false;
+
   List<_SlideStageRuntime> stages = const <_SlideStageRuntime>[];
   double targetTime = 0.0;
   double finalZoneDwellSeconds = 0.0;
@@ -1504,6 +1818,22 @@ class _SlideRuntime {
 
   String get precalcKey => '${collectionIndex}_${noteIndex}_$slidePathIndex';
 
+  void markGroupCleared(int visualGroupId) {
+    if (visualGroupId >= 0 && visualGroupId < 62) {
+      clearedGroupMask |= 1 << visualGroupId;
+    } else {
+      (_overflowClearedGroupIds ??= <int>{}).add(visualGroupId);
+    }
+  }
+
+  bool isGroupCleared(int visualGroupId) {
+    if (resolved) return true;
+    if (visualGroupId >= 0 && visualGroupId < 62) {
+      return (clearedGroupMask & (1 << visualGroupId)) != 0;
+    }
+    return _overflowClearedGroupIds?.contains(visualGroupId) ?? false;
+  }
+
   void install(SimaiGameplaySlideData data) {
     final progress = data.judgementProgress.isFinite
         ? data.judgementProgress.clamp(0.0, 1.0).toDouble()
@@ -1514,18 +1844,39 @@ class _SlideRuntime {
         targetTime + SimaiSlideJudgementRules.maximumWindowSeconds;
     deliveryDeadline =
         logicalDeadline + SimaiGameplaySession.inputDeliveryGraceSeconds;
+    var watched = 0;
     stages = List.unmodifiable(
       data.stages.map(
         (stage) => _SlideStageRuntime(
           branches: List.unmodifiable(
-            stage.branches.map(
-              (branch) =>
-                  _SlideBranchRuntime(groups: List.unmodifiable(branch.groups)),
-            ),
+            stage.branches.map((branch) {
+              final groups = List<SimaiGameplaySlideInteractionGroup>.unmodifiable(
+                branch.groups,
+              );
+              final masks = List<int>.filled(groups.length, 0);
+              for (var i = 0; i < groups.length; i++) {
+                var groupMask = 0;
+                for (final sensor in groups[i].sensors) {
+                  final sensorIndex = SimaiGameplayInputMapper.sensorIndex(
+                    sensor,
+                  );
+                  if (sensorIndex >= 0) {
+                    groupMask |= 1 << sensorIndex;
+                  }
+                }
+                masks[i] = groupMask;
+                watched |= groupMask;
+              }
+              return _SlideBranchRuntime(
+                groups: groups,
+                groupSensorMasks: masks,
+              );
+            }),
           ),
         ),
       ),
     );
+    watchedSensorMask = watched;
   }
 
   int get remainingGroupCount {
@@ -1555,9 +1906,13 @@ class _SlideStageRuntime {
 }
 
 class _SlideBranchRuntime {
-  _SlideBranchRuntime({required this.groups});
+  _SlideBranchRuntime({
+    required this.groups,
+    required this.groupSensorMasks,
+  });
 
   final List<SimaiGameplaySlideInteractionGroup> groups;
+  final List<int> groupSensorMasks;
   int cursor = 0;
   bool armed = false;
 

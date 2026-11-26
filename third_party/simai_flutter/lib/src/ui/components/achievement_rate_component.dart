@@ -83,6 +83,47 @@ class CriticalAchievementIndex {
   final int totalWeightedPoints;
   final int totalBreakCount;
 
+  /// 总判定事件数（用于判断是否抵达终值）。
+  int get eventCount => _eventTimes.length;
+
+  /// 本谱面理论满分达成率（含绝赞为 101%，无绝赞为 100%，空谱为 0%）。
+  double get maxAchievement =>
+      totalWeightedPoints == 0 ? 0.0 : (totalBreakCount > 0 ? 101.0 : 100.0);
+
+  /// 指定已判定事件数对应的已过线绝赞数量。
+  int judgedBreakCountAt(int judgedCount) => _breakCountPrefix[judgedCount];
+
+  /// 查询指定谱面时间已过线的判定事件数。
+  int judgedCountAt(double chartTime) => _judgedCountAt(chartTime);
+
+  /// 根据已过线判定事件数计算 0%+ 模式达成率。
+  double achievementForJudgedCount(int judgedCount) =>
+      _achievementFor(judgedCount);
+
+  /// 根据已过线绝赞数计算 100%+ 模式达成率。
+  double achievement100PlusForBreakCount(int judgedBreakCount) {
+    if (totalWeightedPoints == 0) return 100.0;
+    final breakBonus =
+        totalBreakCount == 0 ? 0.0 : judgedBreakCount / totalBreakCount;
+    return 100.0 + breakBonus;
+  }
+
+  /// 判断模式是否属于百分比达成率类（用于受 `showAchievementRate` 开关控制）。
+  static bool isPercentageAchievementMode(SimaiCenterDisplayMode mode) =>
+      switch (mode) {
+        SimaiCenterDisplayMode.achievementAdd ||
+        SimaiCenterDisplayMode.achievement100Plus ||
+        SimaiCenterDisplayMode.achievement101Subtract ||
+        SimaiCenterDisplayMode.overS ||
+        SimaiCenterDisplayMode.overSS ||
+        SimaiCenterDisplayMode.overSSS => true,
+        SimaiCenterDisplayMode.dxScoreAdd ||
+        SimaiCenterDisplayMode.dxScoreSubtract ||
+        SimaiCenterDisplayMode.dxStars ||
+        SimaiCenterDisplayMode.combo ||
+        SimaiCenterDisplayMode.none => false,
+      };
+
   const CriticalAchievementIndex._({
     required List<double> eventTimes,
     required List<int> weightedPointPrefix,
@@ -226,11 +267,25 @@ class AchievementRateComponent extends PositionComponent
   TextPainter? _autoplayLabelFillPainter;
   TextPainter? _metricLabelOutlinePainter;
   TextPainter? _metricLabelFillPainter;
+
+  // 淡入淡出阶段改用颜色 alpha 调制的缓存画笔，彻底消除 canvas.saveLayer 离屏切换。
+  TextStyle? _cachedLabelStyle;
+  double _cachedOutlineStrokeWidth = 2.0;
+  String _cachedMetricLabel = 'ACHIEVEMENT';
+  int _lastAutoplayFadeAlpha = -1;
+  TextPainter? _autoplayFadeOutlinePainter;
+  TextPainter? _autoplayFadeFillPainter;
+  int _lastMetricFadeAlpha = -1;
+  TextPainter? _metricFadeOutlinePainter;
+  TextPainter? _metricFadeFillPainter;
+
   int _lastMetricKey = -1;
   double _lastFontSize = -1;
+  double _lastLabelFontSize = -1;
   SimaiCenterDisplayMode? _lastMode;
   bool _wasVisible = false;
   double _labelElapsed = 0;
+  double _valueRefreshElapsed = 0.05;
 
   @override
   void onGameResize(Vector2 size) {
@@ -240,14 +295,65 @@ class AchievementRateComponent extends PositionComponent
   }
 
   @override
+  void onRemove() {
+    _disposeAllPainters();
+    super.onRemove();
+  }
+
+  void _disposeFadePainters() {
+    _autoplayFadeOutlinePainter?.dispose();
+    _autoplayFadeFillPainter?.dispose();
+    _metricFadeOutlinePainter?.dispose();
+    _metricFadeFillPainter?.dispose();
+    _autoplayFadeOutlinePainter = null;
+    _autoplayFadeFillPainter = null;
+    _metricFadeOutlinePainter = null;
+    _metricFadeFillPainter = null;
+    _lastAutoplayFadeAlpha = -1;
+    _lastMetricFadeAlpha = -1;
+  }
+
+  void _disposeAllPainters() {
+    _valueOutlinePainter?.dispose();
+    _valueFillPainter?.dispose();
+    _autoplayLabelOutlinePainter?.dispose();
+    _autoplayLabelFillPainter?.dispose();
+    _metricLabelOutlinePainter?.dispose();
+    _metricLabelFillPainter?.dispose();
+    _valueOutlinePainter = null;
+    _valueFillPainter = null;
+    _autoplayLabelOutlinePainter = null;
+    _autoplayLabelFillPainter = null;
+    _metricLabelOutlinePainter = null;
+    _metricLabelFillPainter = null;
+    _disposeFadePainters();
+  }
+
+  /// 判断模式是否属于百分比达成率类，用于受 `showAchievementRate` 开关控制。
+  static bool _isPercentageAchievementMode(SimaiCenterDisplayMode mode) =>
+      CriticalAchievementIndex.isPercentageAchievementMode(mode);
+
+  bool _isHidden(SimaiCenterDisplayMode mode) =>
+      mode == SimaiCenterDisplayMode.none ||
+      (!game.showAchievementRate && _isPercentageAchievementMode(mode));
+
+  @override
   void update(double dt) {
     super.update(dt);
     if (dt.isFinite && dt > 0) {
       _labelElapsed = (_labelElapsed + dt) % _centerLabelCycleDuration;
+      _valueRefreshElapsed += dt;
     }
     final mode = game.centerDisplayMode;
-    if (mode == SimaiCenterDisplayMode.achievement &&
-        !game.showAchievementRate) {
+    if (mode == SimaiCenterDisplayMode.none) {
+      if (_wasVisible || _valueFillPainter != null) {
+        _disposeAllPainters();
+      }
+      _wasVisible = false;
+      _lastMode = mode;
+      return;
+    }
+    if (!game.showAchievementRate && _isPercentageAchievementMode(mode)) {
       _wasVisible = false;
       return;
     }
@@ -255,9 +361,29 @@ class AchievementRateComponent extends PositionComponent
     if (_lastMode != null && mode != _lastMode) {
       _labelElapsed = 0;
     }
-    final metricKey = mode == SimaiCenterDisplayMode.achievement
-        ? index._judgedCountAt(game.chartTime)
-        : comboAt(game.chartTime);
+    final int metricKey = switch (mode) {
+      SimaiCenterDisplayMode.achievementAdd ||
+      SimaiCenterDisplayMode.dxScoreAdd => index._judgedCountAt(game.chartTime),
+      SimaiCenterDisplayMode.achievement100Plus => index.judgedBreakCountAt(
+        index._judgedCountAt(game.chartTime),
+      ),
+      SimaiCenterDisplayMode.combo => comboAt(game.chartTime),
+      SimaiCenterDisplayMode.achievement101Subtract ||
+      SimaiCenterDisplayMode.dxScoreSubtract ||
+      SimaiCenterDisplayMode.dxStars ||
+      SimaiCenterDisplayMode.overS ||
+      SimaiCenterDisplayMode.overSS ||
+      SimaiCenterDisplayMode.overSSS ||
+      SimaiCenterDisplayMode.none => 0,
+    };
+    final bool reachedTerminal = switch (mode) {
+      SimaiCenterDisplayMode.achievementAdd ||
+      SimaiCenterDisplayMode.dxScoreAdd ||
+      SimaiCenterDisplayMode.combo => metricKey >= index.eventCount,
+      SimaiCenterDisplayMode.achievement100Plus =>
+        metricKey >= index.totalBreakCount,
+      _ => true,
+    };
     final fontSize = (min(size.x, size.y) * 0.055).clamp(18.0, 34.0);
     if (_wasVisible &&
         mode == _lastMode &&
@@ -266,26 +392,115 @@ class AchievementRateComponent extends PositionComponent
       return;
     }
 
+    // 实时播放态下将高密音符引发的中心数字重排限频至 20Hz，暂停/跳转/离线导出/到达曲末终值保持即时更新。
+    if (_wasVisible &&
+        mode == _lastMode &&
+        fontSize == _lastFontSize &&
+        metricKey != _lastMetricKey &&
+        game.isPlaying &&
+        !game.headlessExport &&
+        _valueRefreshElapsed < 0.05 &&
+        (metricKey - _lastMetricKey).abs() < 15 &&
+        !reachedTerminal) {
+      return;
+    }
+
+    final bool needsLabelRebuild =
+        !_wasVisible ||
+        mode != _lastMode ||
+        fontSize != _lastLabelFontSize ||
+        _autoplayLabelFillPainter == null ||
+        _metricLabelFillPainter == null;
+
+    _valueRefreshElapsed = 0.0;
     _wasVisible = true;
     _lastMode = mode;
     _lastMetricKey = metricKey;
     _lastFontSize = fontSize;
-    if (mode == SimaiCenterDisplayMode.achievement) {
-      _rebuildAchievementPainters(index._achievementFor(metricKey), fontSize);
-    } else {
-      _rebuildPainters(
-        integerText: metricKey.toString(),
-        decimalText: '',
-        metricLabel: 'COMBO',
-        fontSize: fontSize,
-      );
+    switch (mode) {
+      case SimaiCenterDisplayMode.achievementAdd:
+        _rebuildPercentagePainters(
+          index._achievementFor(metricKey),
+          metricLabel: 'ACHIEVEMENT',
+          fontSize: fontSize,
+          rebuildLabels: needsLabelRebuild,
+        );
+      case SimaiCenterDisplayMode.achievement100Plus:
+        _rebuildPercentagePainters(
+          index.achievement100PlusForBreakCount(metricKey),
+          metricLabel: 'ACHIEVEMENT',
+          fontSize: fontSize,
+          rebuildLabels: needsLabelRebuild,
+        );
+      case SimaiCenterDisplayMode.achievement101Subtract:
+        _rebuildPercentagePainters(
+          index.maxAchievement,
+          metricLabel: 'ACHIEVEMENT',
+          fontSize: fontSize,
+          rebuildLabels: needsLabelRebuild,
+        );
+      case SimaiCenterDisplayMode.dxScoreAdd:
+        _rebuildPainters(
+          integerText: (metricKey * 3).toString(),
+          decimalText: '',
+          metricLabel: 'DX SCORE',
+          fontSize: fontSize,
+          rebuildLabels: needsLabelRebuild,
+        );
+      case SimaiCenterDisplayMode.dxScoreSubtract:
+        _rebuildPainters(
+          integerText: (index.eventCount * 3).toString(),
+          decimalText: '',
+          metricLabel: 'DX SCORE',
+          fontSize: fontSize,
+          rebuildLabels: needsLabelRebuild,
+        );
+      case SimaiCenterDisplayMode.dxStars:
+        final maxDxScore = index.eventCount * 3;
+        _rebuildPainters(
+          integerText: formatSimaiDxStarBonus(maxDxScore, maxDxScore),
+          decimalText: '',
+          metricLabel: 'DX STAR',
+          fontSize: fontSize,
+          rebuildLabels: needsLabelRebuild,
+        );
+      case SimaiCenterDisplayMode.combo:
+        _rebuildPainters(
+          integerText: metricKey.toString(),
+          decimalText: '',
+          metricLabel: 'COMBO',
+          fontSize: fontSize,
+          rebuildLabels: needsLabelRebuild,
+        );
+      case SimaiCenterDisplayMode.overS:
+        _rebuildPercentagePainters(
+          index.maxAchievement - 97.0,
+          metricLabel: 'S BORDER',
+          fontSize: fontSize,
+          rebuildLabels: needsLabelRebuild,
+        );
+      case SimaiCenterDisplayMode.overSS:
+        _rebuildPercentagePainters(
+          index.maxAchievement - 99.0,
+          metricLabel: 'SS BORDER',
+          fontSize: fontSize,
+          rebuildLabels: needsLabelRebuild,
+        );
+      case SimaiCenterDisplayMode.overSSS:
+        _rebuildPercentagePainters(
+          index.maxAchievement - 100.0,
+          metricLabel: 'SSS BORDER',
+          fontSize: fontSize,
+          rebuildLabels: needsLabelRebuild,
+        );
+      case SimaiCenterDisplayMode.none:
+        break;
     }
   }
 
   @override
   void render(Canvas canvas) {
-    if (game.centerDisplayMode == SimaiCenterDisplayMode.achievement &&
-        !game.showAchievementRate) {
+    if (_isHidden(game.centerDisplayMode)) {
       return;
     }
     final valueFill = _valueFillPainter;
@@ -319,6 +534,8 @@ class AchievementRateComponent extends PositionComponent
     final opacity = centerLabelOpacityAt(_labelElapsed);
     _paintLabel(
       canvas,
+      isAutoplay: true,
+      text: 'AUTOPLAY',
       outline: autoplayLabelOutline,
       fill: autoplayLabelFill,
       offset: autoplayOffset,
@@ -326,6 +543,8 @@ class AchievementRateComponent extends PositionComponent
     );
     _paintLabel(
       canvas,
+      isAutoplay: false,
+      text: _cachedMetricLabel,
       outline: metricLabelOutline,
       fill: metricLabelFill,
       offset: metricOffset,
@@ -335,37 +554,126 @@ class AchievementRateComponent extends PositionComponent
     valueFill.paint(canvas, valueOffset);
   }
 
+  /// 用颜色 alpha 调制替代 canvas.saveLayer，避免淡入淡出过渡期触发离屏渲染目标切换。
   void _paintLabel(
     Canvas canvas, {
+    required bool isAutoplay,
+    required String text,
     required TextPainter outline,
     required TextPainter fill,
     required Offset offset,
     required double opacity,
   }) {
-    if (opacity <= 0.001) return;
+    if (opacity <= 0.001) {
+      _clearFadeSlot(isAutoplay: isAutoplay);
+      return;
+    }
     if (opacity >= 0.999) {
+      _clearFadeSlot(isAutoplay: isAutoplay);
       outline.paint(canvas, offset);
       fill.paint(canvas, offset);
       return;
     }
 
-    final bounds = Rect.fromLTWH(
-      offset.dx - 4,
-      offset.dy - 4,
-      max(outline.width, fill.width) + 8,
-      max(outline.height, fill.height) + 8,
-    );
-    canvas.saveLayer(
-      bounds,
-      Paint()..color = Colors.white.withAlpha((opacity * 255).round()),
-    );
-    outline.paint(canvas, offset);
-    fill.paint(canvas, offset);
-    canvas.restore();
+    final labelStyle = _cachedLabelStyle;
+    if (labelStyle == null) return;
+    final int alphaStep = (opacity * 255).round().clamp(1, 254);
+
+    if (isAutoplay) {
+      if (_lastAutoplayFadeAlpha != alphaStep ||
+          _autoplayFadeOutlinePainter == null ||
+          _autoplayFadeFillPainter == null) {
+        _autoplayFadeOutlinePainter?.dispose();
+        _autoplayFadeFillPainter?.dispose();
+        final (nextOutline, nextFill) = _buildAlphaModulatedLabelPainters(
+          text: text,
+          labelStyle: labelStyle,
+          opacity: opacity,
+        );
+        _autoplayFadeOutlinePainter = nextOutline;
+        _autoplayFadeFillPainter = nextFill;
+        _lastAutoplayFadeAlpha = alphaStep;
+      }
+      _autoplayFadeOutlinePainter!.paint(canvas, offset);
+      _autoplayFadeFillPainter!.paint(canvas, offset);
+    } else {
+      if (_lastMetricFadeAlpha != alphaStep ||
+          _metricFadeOutlinePainter == null ||
+          _metricFadeFillPainter == null) {
+        _metricFadeOutlinePainter?.dispose();
+        _metricFadeFillPainter?.dispose();
+        final (nextOutline, nextFill) = _buildAlphaModulatedLabelPainters(
+          text: text,
+          labelStyle: labelStyle,
+          opacity: opacity,
+        );
+        _metricFadeOutlinePainter = nextOutline;
+        _metricFadeFillPainter = nextFill;
+        _lastMetricFadeAlpha = alphaStep;
+      }
+      _metricFadeOutlinePainter!.paint(canvas, offset);
+      _metricFadeFillPainter!.paint(canvas, offset);
+    }
   }
 
-  void _rebuildAchievementPainters(double achievement, double fontSize) {
-    final fixed = achievement.toStringAsFixed(4);
+  void _clearFadeSlot({required bool isAutoplay}) {
+    if (isAutoplay) {
+      if (_autoplayFadeOutlinePainter != null ||
+          _autoplayFadeFillPainter != null) {
+        _autoplayFadeOutlinePainter?.dispose();
+        _autoplayFadeFillPainter?.dispose();
+        _autoplayFadeOutlinePainter = null;
+        _autoplayFadeFillPainter = null;
+        _lastAutoplayFadeAlpha = -1;
+      }
+    } else {
+      if (_metricFadeOutlinePainter != null || _metricFadeFillPainter != null) {
+        _metricFadeOutlinePainter?.dispose();
+        _metricFadeFillPainter?.dispose();
+        _metricFadeOutlinePainter = null;
+        _metricFadeFillPainter = null;
+        _lastMetricFadeAlpha = -1;
+      }
+    }
+  }
+
+  (TextPainter, TextPainter) _buildAlphaModulatedLabelPainters({
+    required String text,
+    required TextStyle labelStyle,
+    required double opacity,
+  }) {
+    final outlinePaint = Paint()
+      ..color = Colors.black.withAlpha((150 * opacity).round().clamp(0, 255))
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = _cachedOutlineStrokeWidth
+      ..strokeJoin = StrokeJoin.round;
+    final outline = TextPainter(
+      textDirection: TextDirection.ltr,
+      text: TextSpan(
+        text: text,
+        style: labelStyle.copyWith(foreground: outlinePaint),
+      ),
+    )..layout();
+    final fill = TextPainter(
+      textDirection: TextDirection.ltr,
+      text: TextSpan(
+        text: text,
+        style: labelStyle.copyWith(
+          color: Colors.white.withAlpha((180 * opacity).round().clamp(0, 255)),
+        ),
+      ),
+    )..layout();
+    return (outline, fill);
+  }
+
+  void _rebuildPercentagePainters(
+    double value, {
+    required String metricLabel,
+    required double fontSize,
+    required bool rebuildLabels,
+  }) {
+    final normalized = value.abs() < 0.00005 ? 0.0 : value;
+    final fixed = normalized.toStringAsFixed(4);
     final decimalIndex = fixed.indexOf('.');
     final integerText = decimalIndex == -1
         ? fixed
@@ -376,8 +684,9 @@ class AchievementRateComponent extends PositionComponent
     _rebuildPainters(
       integerText: integerText,
       decimalText: decimalText,
-      metricLabel: 'ACHIEVEMENT',
+      metricLabel: metricLabel,
       fontSize: fontSize,
+      rebuildLabels: rebuildLabels,
     );
   }
 
@@ -386,13 +695,15 @@ class AchievementRateComponent extends PositionComponent
     required String decimalText,
     required String metricLabel,
     required double fontSize,
+    required bool rebuildLabels,
   }) {
     final decimalFontSize = fontSize * 0.82;
     final labelFontSize = (fontSize * 0.38).clamp(9.0, 13.0);
+    final strokeWidth = max(2.0, fontSize * 0.08);
     final outlinePaint = Paint()
       ..color = Colors.black.withAlpha(150)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = max(2.0, fontSize * 0.08)
+      ..strokeWidth = strokeWidth
       ..strokeJoin = StrokeJoin.round;
     final integerStyle = game.withDisplayFont(
       TextStyle(
@@ -406,15 +717,8 @@ class AchievementRateComponent extends PositionComponent
       fontSize: decimalFontSize,
       fontWeight: FontWeight.w700,
     );
-    final labelStyle = game.withDisplayFont(
-      TextStyle(
-        fontSize: labelFontSize,
-        height: 1,
-        fontWeight: FontWeight.w700,
-        letterSpacing: 1.2,
-      ),
-    );
 
+    _valueOutlinePainter?.dispose();
     _valueOutlinePainter = TextPainter(
       textDirection: TextDirection.ltr,
       text: TextSpan(
@@ -431,6 +735,8 @@ class AchievementRateComponent extends PositionComponent
         ],
       ),
     )..layout();
+
+    _valueFillPainter?.dispose();
     _valueFillPainter = TextPainter(
       textDirection: TextDirection.ltr,
       text: TextSpan(
@@ -447,6 +753,24 @@ class AchievementRateComponent extends PositionComponent
         ],
       ),
     )..layout();
+
+    if (!rebuildLabels) return;
+
+    final labelStyle = game.withDisplayFont(
+      TextStyle(
+        fontSize: labelFontSize,
+        height: 1,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 1.2,
+      ),
+    );
+    _cachedLabelStyle = labelStyle;
+    _cachedOutlineStrokeWidth = strokeWidth;
+    _cachedMetricLabel = metricLabel;
+    _lastLabelFontSize = fontSize;
+    _disposeFadePainters();
+
+    _autoplayLabelOutlinePainter?.dispose();
     _autoplayLabelOutlinePainter = TextPainter(
       textDirection: TextDirection.ltr,
       text: TextSpan(
@@ -454,6 +778,8 @@ class AchievementRateComponent extends PositionComponent
         style: labelStyle.copyWith(foreground: outlinePaint),
       ),
     )..layout();
+
+    _autoplayLabelFillPainter?.dispose();
     _autoplayLabelFillPainter = TextPainter(
       textDirection: TextDirection.ltr,
       text: TextSpan(
@@ -461,6 +787,8 @@ class AchievementRateComponent extends PositionComponent
         style: labelStyle.copyWith(color: Colors.white.withAlpha(180)),
       ),
     )..layout();
+
+    _metricLabelOutlinePainter?.dispose();
     _metricLabelOutlinePainter = TextPainter(
       textDirection: TextDirection.ltr,
       text: TextSpan(
@@ -468,6 +796,8 @@ class AchievementRateComponent extends PositionComponent
         style: labelStyle.copyWith(foreground: outlinePaint),
       ),
     )..layout();
+
+    _metricLabelFillPainter?.dispose();
     _metricLabelFillPainter = TextPainter(
       textDirection: TextDirection.ltr,
       text: TextSpan(

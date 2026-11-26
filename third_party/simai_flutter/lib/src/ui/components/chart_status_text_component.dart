@@ -62,6 +62,18 @@ class ChartStatusTextComponent extends PositionComponent
   TextPainter? _painter;
   double? _displayedBpm;
   double _refreshElapsed = 0.25;
+  double _pulseRefreshElapsed = 0.0;
+
+  // 记录上次排版输入，内容与宽度未变时跳过无谓的 TextPainter 重建与探测布局。
+  bool? _lastShowCornerInfo;
+  String? _lastBpmText;
+  String? _lastDetailText;
+  String? _lastPerformanceText;
+  int? _lastBpmColorValue;
+  double? _lastMaxLeftWidth;
+  double? _lastExportScale;
+  (int, int, int, double)? _lastProbeKey;
+  bool _lastOverflowSingleLine = false;
 
   double get _exportScale {
     final minEdge = math.min(game.size.x, game.size.y);
@@ -95,7 +107,8 @@ class ChartStatusTextComponent extends PositionComponent
     super.onGameResize(size);
     final padding = _cornerPadding;
     position = Vector2(padding.dx, padding.dy);
-    if (_displayedBpm != null) {
+    if (_displayedBpm != null &&
+        (game.showCornerInfo || game.showDetailedPerformanceInfo)) {
       _rebuildPainter();
     }
   }
@@ -103,14 +116,21 @@ class ChartStatusTextComponent extends PositionComponent
   @override
   void update(double dt) {
     super.update(dt);
+    if (!game.showCornerInfo && !game.showDetailedPerformanceInfo) return;
     _bpmColor.update(dt);
-    _refreshElapsed += dt;
+    if (dt.isFinite && dt > 0) {
+      _refreshElapsed += dt;
+      _pulseRefreshElapsed += dt;
+    }
 
-    // Refresh promptly enough that the pulse starts at the timing boundary.
-    if (_refreshElapsed >= 1 / 30 || _painter == null) {
+    // 常规信息按 15Hz 刷新，BPM 变色脉冲期按 20Hz 刷新，避免每帧无谓重排文本。
+    if (_refreshElapsed >= 1 / 15 || _painter == null) {
       _refreshElapsed = 0.0;
+      _pulseRefreshElapsed = 0.0;
       _refreshText();
-    } else if (_bpmColor.color != BpmIndicatorColorTransition.idleColor) {
+    } else if (_bpmColor.color != BpmIndicatorColorTransition.idleColor &&
+        _pulseRefreshElapsed >= 1 / 20) {
+      _pulseRefreshElapsed = 0.0;
       _rebuildPainter();
     }
   }
@@ -125,22 +145,28 @@ class ChartStatusTextComponent extends PositionComponent
 
   void _refreshText() {
     final timing = ChartTimingMapper.timingAtTime(game.chart, game.chartTime);
-    final bpm = timing.tempo;
+    final rawBpm = timing.tempo;
+    // 无头导出固定按 1.0x 计算；预览播放按当前倍速同步展示实时 BPM。
+    final effectiveBpm =
+        rawBpm * (game.headlessExport ? 1.0 : game.playbackRate);
     final previousBpm = _displayedBpm;
-    if (previousBpm != null && (bpm - previousBpm).abs() > 0.0001) {
-      _bpmColor.trigger(increased: bpm > previousBpm);
+    if (previousBpm != null && (effectiveBpm - previousBpm).abs() > 0.0001) {
+      _bpmColor.trigger(increased: effectiveBpm > previousBpm);
     }
-    _displayedBpm = bpm;
-    _rebuildPainter();
+    _displayedBpm = effectiveBpm;
+    _rebuildPainter(precomputedSubdivisions: timing.subdivisions);
   }
 
-  void _rebuildPainter() {
+  void _rebuildPainter({double? precomputedSubdivisions}) {
     final bpm = _displayedBpm;
     if (bpm == null) return;
-    final timing = ChartTimingMapper.timingAtTime(game.chart, game.chartTime);
-    final denom = timing.subdivisions.round().clamp(1, 1024);
-    final measure = _measureNumberAt(game.chartTime);
-    final progress = _quarterProgressCodeAt(game.chartTime);
+    final subdivisions =
+        precomputedSubdivisions ??
+        ChartTimingMapper.timingAtTime(game.chart, game.chartTime).subdivisions;
+    final denom = subdivisions.round().clamp(1, 1024);
+    final beats = _beatsAt(game.chartTime);
+    final measure = (beats / 4.0).floor() + 1;
+    final progress = _quarterProgressCodeForBeats(beats);
     final performanceText = buildChartPerformanceText(
       showFps: game.showFps,
       showDetailedPerformanceInfo: game.showDetailedPerformanceInfo,
@@ -149,7 +175,6 @@ class ChartStatusTextComponent extends PositionComponent
       motionStepP95Ms: game.motionStepP95Ms,
       frozenFrameRatio: game.frozenFrameRatio,
     );
-    final baseStyle = _resolvedBaseStyle();
     final padding = _cornerPadding;
     final maxLeftWidth = game.size.x > 0
         ? math.max(
@@ -158,26 +183,59 @@ class ChartStatusTextComponent extends PositionComponent
                 (game.headlessExport ? 0.60 : 0.56),
           )
         : double.infinity;
+    final double currentExportScale = game.headlessExport ? _exportScale : 1.0;
 
     if (!game.showCornerInfo) {
       if (performanceText == null) {
         _painter?.dispose();
         _painter = null;
+        _resetLastBuildState();
         size = Vector2.zero();
         return;
       }
+      if (_painter != null &&
+          _lastShowCornerInfo == false &&
+          _lastPerformanceText == performanceText &&
+          _lastMaxLeftWidth == maxLeftWidth &&
+          _lastExportScale == currentExportScale) {
+        return;
+      }
+      final baseStyle = _resolvedBaseStyle();
       final painter = TextPainter(
         textDirection: TextDirection.ltr,
         text: TextSpan(style: baseStyle, text: performanceText),
       )..layout(maxWidth: maxLeftWidth);
       _painter?.dispose();
       _painter = painter;
+      _lastShowCornerInfo = false;
+      _lastBpmText = null;
+      _lastDetailText = null;
+      _lastPerformanceText = performanceText;
+      _lastBpmColorValue = null;
+      _lastMaxLeftWidth = maxLeftWidth;
+      _lastExportScale = currentExportScale;
       size = Vector2(_painter!.width, _painter!.height);
       return;
     }
 
     final bpmText = 'BPM ${bpm.toStringAsFixed(1)}';
     final detailText = 'M$measure  $progress  [1/$denom]';
+    final bpmColor = _bpmColor.color;
+    final bpmColorValue = bpmColor.toARGB32();
+
+    // 内容、配色与排版宽度完全未变时直接复用现有 TextPainter，避免高频重复 layout。
+    if (_painter != null &&
+        _lastShowCornerInfo == true &&
+        _lastBpmText == bpmText &&
+        _lastDetailText == detailText &&
+        _lastPerformanceText == performanceText &&
+        _lastBpmColorValue == bpmColorValue &&
+        _lastMaxLeftWidth == maxLeftWidth &&
+        _lastExportScale == currentExportScale) {
+      return;
+    }
+
+    final baseStyle = _resolvedBaseStyle();
 
     TextPainter buildPainter({required bool splitDetailLine}) {
       final secondPart = StringBuffer()
@@ -195,7 +253,7 @@ class ChartStatusTextComponent extends PositionComponent
           children: [
             TextSpan(
               text: bpmText,
-              style: baseStyle.copyWith(color: _bpmColor.color),
+              style: baseStyle.copyWith(color: bpmColor),
             ),
             TextSpan(text: secondPart.toString()),
           ],
@@ -203,40 +261,68 @@ class ChartStatusTextComponent extends PositionComponent
       )..layout(maxWidth: maxLeftWidth);
     }
 
-    var painter = buildPainter(splitDetailLine: false);
+    bool splitDetailLine = false;
     if (maxLeftWidth.isFinite) {
-      final singleLineProbe = TextPainter(
-        textDirection: TextDirection.ltr,
-        maxLines: 1,
-        text: TextSpan(style: baseStyle, text: '$bpmText  $detailText'),
-      )..layout(maxWidth: maxLeftWidth);
-      final overflowsSingleLine = singleLineProbe.didExceedMaxLines;
-      singleLineProbe.dispose();
-      if (overflowsSingleLine) {
-        painter.dispose();
-        painter = buildPainter(splitDetailLine: true);
+      final probeKey = (
+        bpmText.length,
+        detailText.length,
+        maxLeftWidth.round(),
+        currentExportScale,
+      );
+      if (_lastProbeKey != probeKey) {
+        final singleLineProbe = TextPainter(
+          textDirection: TextDirection.ltr,
+          maxLines: 1,
+          text: TextSpan(style: baseStyle, text: '$bpmText  $detailText'),
+        )..layout(maxWidth: maxLeftWidth);
+        _lastOverflowSingleLine = singleLineProbe.didExceedMaxLines;
+        singleLineProbe.dispose();
+        _lastProbeKey = probeKey;
       }
+      splitDetailLine = _lastOverflowSingleLine;
+    } else {
+      _lastProbeKey = null;
+      _lastOverflowSingleLine = false;
     }
+
+    final painter = buildPainter(splitDetailLine: splitDetailLine);
 
     _painter?.dispose();
     _painter = painter;
+    _lastShowCornerInfo = true;
+    _lastBpmText = bpmText;
+    _lastDetailText = detailText;
+    _lastPerformanceText = performanceText;
+    _lastBpmColorValue = bpmColorValue;
+    _lastMaxLeftWidth = maxLeftWidth;
+    _lastExportScale = currentExportScale;
     size = Vector2(_painter!.width, _painter!.height);
+  }
+
+  void _resetLastBuildState() {
+    _lastShowCornerInfo = null;
+    _lastBpmText = null;
+    _lastDetailText = null;
+    _lastPerformanceText = null;
+    _lastBpmColorValue = null;
+    _lastMaxLeftWidth = null;
+    _lastExportScale = null;
+    _lastProbeKey = null;
+    _lastOverflowSingleLine = false;
   }
 
   @override
   void onRemove() {
     _painter?.dispose();
     _painter = null;
+    _resetLastBuildState();
     super.onRemove();
   }
 
   double _beatsAt(double time) =>
       ChartTimingMapper.beatsAtTime(game.chart, time);
 
-  int _measureNumberAt(double time) => (_beatsAt(time) / 4.0).floor() + 1;
-
-  String _quarterProgressCodeAt(double time) {
-    final beats = _beatsAt(time);
+  String _quarterProgressCodeForBeats(double beats) {
     final beatInMeasure = (beats - (beats / 4.0).floorToDouble() * 4.0).clamp(
       0.0,
       3.999999,

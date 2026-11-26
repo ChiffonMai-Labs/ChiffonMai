@@ -22,8 +22,9 @@ class SimaiMirrorUtils {
   const SimaiMirrorUtils._();
 
   static Location mirrorLocation(Location location, SimaiMirrorMode mode) {
+    // 无镜像或中心 C 传感器位置不变，直接返回原对象，消除每帧每音符的无谓构造开销。
     if (mode == SimaiMirrorMode.none || location.group == NoteGroup.cSensor) {
-      return Location(location.index, location.group);
+      return location;
     }
 
     var index = location.index;
@@ -32,8 +33,7 @@ class SimaiMirrorUtils {
         location.group == NoteGroup.aSensor ||
         location.group == NoteGroup.bSensor;
 
-    // A/B/Tap use the eight button axes. D/E are half a sector shifted and
-    // therefore use Majdata's special mirror maps.
+    // A/B/Tap 与 8 个外键同轴，D/E 错开半个扇区，分别使用 Majdata 对应镜像表。
     if (mode == SimaiMirrorMode.horizontal || mode == SimaiMirrorMode.full) {
       index = shifted ? 7 - index : (8 - index) % 8;
     }
@@ -45,8 +45,17 @@ class SimaiMirrorUtils {
     return Location(index, location.group);
   }
 
-  static int mirrorTapLane(int lane, SimaiMirrorMode mode) =>
-      mirrorLocation(Location(lane, NoteGroup.tap), mode).index;
+  static int mirrorTapLane(int lane, SimaiMirrorMode mode) {
+    if (mode == SimaiMirrorMode.none) return lane;
+    var index = lane;
+    if (mode == SimaiMirrorMode.horizontal || mode == SimaiMirrorMode.full) {
+      index = 7 - index;
+    }
+    if (mode == SimaiMirrorMode.vertical || mode == SimaiMirrorMode.full) {
+      index = const <int>[3, 2, 1, 0, 7, 6, 5, 4][index];
+    }
+    return index;
+  }
 
   static SlideType mirrorSlideType(SlideType type, SimaiMirrorMode mode) {
     // Two axis reflections preserve handedness; one axis reflection reverses

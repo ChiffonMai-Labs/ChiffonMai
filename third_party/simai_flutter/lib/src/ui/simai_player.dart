@@ -43,6 +43,9 @@ enum SimaiBackgroundMode {
 }
 
 class SimaiPlayerController extends ChangeNotifier {
+  static const double defaultBackgroundOpacity =
+      SimaiGame.defaultBackgroundOpacity;
+
   final MaiChart chart;
   String? audioAsset;
   String? audioFilePath;
@@ -66,6 +69,7 @@ class SimaiPlayerController extends ChangeNotifier {
   bool _hitSoundEnabled = false;
   bool _isFullScreen = false;
   SimaiBackgroundMode _backgroundMode = SimaiBackgroundMode.judgeLine;
+  double _backgroundOpacity = SimaiGame.defaultBackgroundOpacity;
   SimaiMirrorMode _mirrorMode = SimaiMirrorMode.none;
   bool _rotateSlideStar = true;
   bool _pinkSlideStar = false;
@@ -75,7 +79,9 @@ class SimaiPlayerController extends ChangeNotifier {
   bool _showHitEffects = true;
   bool _showAchievementRate = true;
   SimaiCenterDisplayMode _centerDisplayMode =
-      SimaiCenterDisplayMode.achievement;
+      SimaiCenterDisplayMode.achievementAdd;
+  SimaiCenterDisplayMode _topRightDisplayMode = SimaiCenterDisplayMode.combo;
+  SimaiNoteStyle _noteStyle = SimaiNoteStyle.arcade;
   bool _showCornerInfo = true;
   bool _showDetailedPerformanceInfo = false;
 
@@ -85,6 +91,7 @@ class SimaiPlayerController extends ChangeNotifier {
   late final int _noteCountSnapshot;
   late final List<double> _noteTimes = _buildNoteTimes(chart);
   bool _isDisposed = false;
+  bool _gameplaySuspended = false;
 
   final ValueNotifier<double> timeNotifier = ValueNotifier<double>(0.0);
 
@@ -117,6 +124,7 @@ class SimaiPlayerController extends ChangeNotifier {
   bool get hitSoundEnabled => _hitSoundEnabled;
   bool get isFullScreen => _isFullScreen;
   SimaiBackgroundMode get backgroundMode => _backgroundMode;
+  double get backgroundOpacity => _backgroundOpacity;
   SimaiMirrorMode get mirrorMode => _mirrorMode;
   bool get rotateSlideStar => _rotateSlideStar;
   bool get pinkSlideStar => _pinkSlideStar;
@@ -126,6 +134,8 @@ class SimaiPlayerController extends ChangeNotifier {
   bool get showHitEffects => _showHitEffects;
   bool get showAchievementRate => _showAchievementRate;
   SimaiCenterDisplayMode get centerDisplayMode => _centerDisplayMode;
+  SimaiCenterDisplayMode get topRightDisplayMode => _topRightDisplayMode;
+  SimaiNoteStyle get noteStyle => _noteStyle;
   bool get showCornerInfo => _showCornerInfo;
   bool get showDetailedPerformanceInfo => _showDetailedPerformanceInfo;
 
@@ -189,7 +199,7 @@ class SimaiPlayerController extends ChangeNotifier {
 
   set hitSoundVolume(double value) {
     final safeValue = value.isFinite ? value : 0.72;
-    final clamped = safeValue.clamp(0.0, 1.0).toDouble();
+    final clamped = safeValue.clamp(0.0, simaiMaxHitSoundVolume).toDouble();
     if (_hitSoundVolume == clamped) return;
     _hitSoundVolume = clamped;
     _applyToGame();
@@ -235,6 +245,18 @@ class SimaiPlayerController extends ChangeNotifier {
   set backgroundMode(SimaiBackgroundMode value) {
     if (_backgroundMode == value) return;
     _backgroundMode = value;
+    _applyToGame();
+    notifyListeners();
+  }
+
+  set backgroundOpacity(double value) {
+    final safeValue = value.isFinite
+        ? value
+        : SimaiGame.defaultBackgroundOpacity;
+    final clamped = safeValue.clamp(0.0, 1.0).toDouble();
+    final quantized = (clamped * 100).round() / 100.0;
+    if (_backgroundOpacity == quantized) return;
+    _backgroundOpacity = quantized;
     _applyToGame();
     notifyListeners();
   }
@@ -302,6 +324,20 @@ class SimaiPlayerController extends ChangeNotifier {
     notifyListeners();
   }
 
+  set topRightDisplayMode(SimaiCenterDisplayMode value) {
+    if (_topRightDisplayMode == value) return;
+    _topRightDisplayMode = value;
+    _applyToGame();
+    notifyListeners();
+  }
+
+  set noteStyle(SimaiNoteStyle value) {
+    if (_noteStyle == value) return;
+    _noteStyle = value;
+    _applyToGame();
+    notifyListeners();
+  }
+
   set showCornerInfo(bool value) {
     if (_showCornerInfo == value) return;
     _showCornerInfo = value;
@@ -350,18 +386,23 @@ class SimaiPlayerController extends ChangeNotifier {
     final clamped = time.isFinite
         ? time.clamp(0.0, total > 0 ? total : double.infinity).toDouble()
         : 0.0;
-    _chartTimeSnapshot = clamped;
-    timeNotifier.value = clamped;
     final game = _game;
     if (game == null) {
+      _chartTimeSnapshot = clamped;
+      timeNotifier.value = clamped;
       notifyListeners();
       return;
     }
-    await game.seek(clamped, syncAudio: syncAudio);
+    // 先启动 game.seek 同步写入 game.chartTime，再通知 timeNotifier，
+    // 确保监听器在回调内读到最新的 chartTime。
+    final seekFuture = game.seek(clamped, syncAudio: syncAudio);
+    _chartTimeSnapshot = clamped;
+    timeNotifier.value = clamped;
+    await seekFuture;
     if (generation != _seekGeneration) return;
     _chartTimeSnapshot = game.chartTime;
     timeNotifier.value = game.chartTime;
-    // Don't notifyListeners here as it's just a time change
+    // 仅时间变化不触发 notifyListeners，避免引起整页重建。
   }
 
   Future<void> previousMeasure() async {
@@ -458,26 +499,47 @@ class SimaiPlayerController extends ChangeNotifier {
     return _noteTimes[lo];
   }
 
-  void _attachGame(SimaiGame game) {
-    if (identical(_game, game)) return;
-    _pollTimer?.cancel();
-    _game = game;
-    game.onPlaybackCompleted = _handlePlaybackCompleted;
-    _applyToGame();
-    _totalDurationSnapshot = game.totalDuration;
-    _chartTimeSnapshot = game.chartTime;
-    timeNotifier.value = game.chartTime;
-    _pollTimer = Timer.periodic(const Duration(milliseconds: 32), (_) {
+  /// 挂起或恢复预览轮询定时器，避免游玩期间底层预览页持续 32ms 空转。
+  void setGameplaySuspended(bool suspended) {
+    if (_gameplaySuspended == suspended) return;
+    _gameplaySuspended = suspended;
+    if (suspended) {
+      _pollTimer?.cancel();
+      _pollTimer = null;
+    } else if (!_isDisposed && _game != null) {
+      final t = _game!.chartTime;
+      if ((_chartTimeSnapshot - t).abs() >= 0.0001) {
+        _chartTimeSnapshot = t;
+        timeNotifier.value = t;
+      }
+      _startPollTimer();
+    }
+  }
+
+  void _startPollTimer() {
+    if (_isDisposed || _gameplaySuspended || _game == null) return;
+    _pollTimer ??= Timer.periodic(const Duration(milliseconds: 32), (_) {
       final g = _game;
       if (g == null) return;
       final t = g.chartTime;
       if ((_chartTimeSnapshot - t).abs() < 0.0001) return;
       _chartTimeSnapshot = t;
       timeNotifier.value = t;
-      // notifyListeners(); // REMOVED to prevent full UI rebuilds
     });
-    // Use a microtask to notify listeners to avoid "setState during build" errors
-    // when called from initState or didUpdateWidget of a child widget.
+  }
+
+  void _attachGame(SimaiGame game) {
+    if (identical(_game, game)) return;
+    _pollTimer?.cancel();
+    _pollTimer = null;
+    _game = game;
+    game.onPlaybackCompleted = _handlePlaybackCompleted;
+    _applyToGame();
+    _totalDurationSnapshot = game.totalDuration;
+    _chartTimeSnapshot = game.chartTime;
+    timeNotifier.value = game.chartTime;
+    _startPollTimer();
+    // 使用微任务通知监听者，避免在子组件 initState 或 didUpdateWidget 中触发 setState during build。
     Future.microtask(() => notifyListeners());
   }
 
@@ -517,6 +579,7 @@ class SimaiPlayerController extends ChangeNotifier {
     game.setMusicVolume(_musicVolume);
     game.setHitSoundVolume(_hitSoundVolume);
     game.setBackgroundMode(_backgroundMode);
+    game.setBackgroundOpacity(_backgroundOpacity);
     game.setMirrorMode(_mirrorMode);
     game.rotateSlideStar = _rotateSlideStar;
     game.pinkSlideStar = _pinkSlideStar;
@@ -526,6 +589,8 @@ class SimaiPlayerController extends ChangeNotifier {
     game.showHitEffects = _showHitEffects;
     game.showAchievementRate = _showAchievementRate;
     game.centerDisplayMode = _centerDisplayMode;
+    game.topRightDisplayMode = _topRightDisplayMode;
+    game.setNoteStyle(_noteStyle);
     game.showCornerInfo = _showCornerInfo;
     game.showDetailedPerformanceInfo = _showDetailedPerformanceInfo;
     game.invalidateNotes();
@@ -604,6 +669,11 @@ class SimaiPlayer extends StatefulWidget {
 }
 
 class _SimaiPlayerState extends State<SimaiPlayer> {
+  // 禁止 GameWidget 抢占焦点，避免 Flame 1.37.0 吞掉系统音量键与返回键。
+  late final FocusNode _gameFocusNode = FocusNode(
+    canRequestFocus: false,
+    skipTraversal: true,
+  );
   late SimaiGame _game;
   bool _showSourceOverlay = false;
   bool _loadErrorReported = false;
@@ -634,6 +704,7 @@ class _SimaiPlayerState extends State<SimaiPlayer> {
       hitSoundOffset: controller.hitSoundOffsetMs / 1000.0,
       hitSoundEnabled: controller.hitSoundEnabled,
       backgroundMode: controller.backgroundMode,
+      backgroundOpacity: controller.backgroundOpacity,
       mirrorMode: controller.mirrorMode,
       rotateSlideStar: controller.rotateSlideStar,
       pinkSlideStar: controller.pinkSlideStar,
@@ -643,6 +714,8 @@ class _SimaiPlayerState extends State<SimaiPlayer> {
       showHitEffects: controller.showHitEffects,
       showAchievementRate: controller.showAchievementRate,
       centerDisplayMode: controller.centerDisplayMode,
+      topRightDisplayMode: controller.topRightDisplayMode,
+      noteStyle: controller.noteStyle,
       showCornerInfo: controller.showCornerInfo,
       showDetailedPerformanceInfo: controller.showDetailedPerformanceInfo,
       hasVideoBackground: widget.backgroundVideo != null,
@@ -687,6 +760,7 @@ class _SimaiPlayerState extends State<SimaiPlayer> {
   @override
   void dispose() {
     widget.controller._detachGame(_game);
+    _gameFocusNode.dispose();
     super.dispose();
   }
 
@@ -706,13 +780,41 @@ class _SimaiPlayerState extends State<SimaiPlayer> {
               return Center(
                 child: SizedBox.square(
                   dimension: diameter,
-                  child: ClipOval(child: widget.backgroundVideo!),
+                  child: ClipOval(
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        widget.backgroundVideo!,
+                        // 用纯色遮罩调节视频背景亮度，避免 Opacity 触发离屏 saveLayer。
+                        ListenableBuilder(
+                          listenable: widget.controller,
+                          builder: (context, _) {
+                            final opacity = widget.controller.backgroundOpacity
+                                .clamp(0.0, 1.0)
+                                .toDouble();
+                            if (opacity >= 1.0) {
+                              return const SizedBox.shrink();
+                            }
+                            return ColoredBox(
+                              color: Colors.black.withValues(
+                                alpha: (1.0 - opacity)
+                                    .clamp(0.0, 1.0)
+                                    .toDouble(),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               );
             },
           ),
         GameWidget(
           game: _game,
+          focusNode: _gameFocusNode,
+          autofocus: false,
           errorBuilder: (context, error) {
             // Flame 的 loaded 只在成功时完成，失败必须从加载器入口上报。
             if (!_loadErrorReported) {
@@ -782,6 +884,7 @@ class _SimaiSourceOverlayState extends State<_SimaiSourceOverlay> {
   late final List<GlobalKey> _measureKeys;
   int _lastCurrentIndex = -1;
   bool _userControllingScroll = false;
+  int _jumpGeneration = 0;
 
   @override
   void initState() {
@@ -859,6 +962,121 @@ class _SimaiSourceOverlayState extends State<_SimaiSourceOverlay> {
     });
   }
 
+  /// 一键跳回当前正在播放的小节；若目标小节已滚出 ListView 视口，
+  /// 先按比例估算跳入附近区域，再在帧后最多收敛 3 次直到精准对齐。
+  void _jumpToCurrentMeasure() {
+    if (!mounted || _measures.isEmpty || !_scrollController.hasClients) return;
+    final currentIndex = _currentMeasureIndex(
+      widget.controller.timeNotifier.value,
+    );
+    _userControllingScroll = false;
+    _lastCurrentIndex = currentIndex;
+    final int generation = ++_jumpGeneration;
+
+    final targetContext = _measureKeys[currentIndex].currentContext;
+    if (targetContext != null) {
+      unawaited(
+        Scrollable.ensureVisible(
+          targetContext,
+          alignment: 0.45,
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
+        ),
+      );
+      return;
+    }
+
+    final position = _scrollController.position;
+    if (!position.hasContentDimensions) return;
+    final totalExtent = position.maxScrollExtent + position.viewportDimension;
+    final estimatedOffset =
+        (((currentIndex + 0.5) / _measures.length) * totalExtent -
+                position.viewportDimension * 0.45)
+            .clamp(position.minScrollExtent, position.maxScrollExtent)
+            .toDouble();
+    _scrollController.jumpTo(estimatedOffset);
+    _convergeJumpToMeasure(generation, 3);
+  }
+
+  void _convergeJumpToMeasure(int generation, int remainingAttempts) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          generation != _jumpGeneration ||
+          _userControllingScroll ||
+          !_scrollController.hasClients ||
+          _measures.isEmpty) {
+        return;
+      }
+      final targetIndex = _currentMeasureIndex(
+        widget.controller.timeNotifier.value,
+      );
+      _lastCurrentIndex = targetIndex;
+
+      final targetContext = _measureKeys[targetIndex].currentContext;
+      if (targetContext != null) {
+        unawaited(
+          Scrollable.ensureVisible(
+            targetContext,
+            alignment: 0.45,
+            duration: const Duration(milliseconds: 260),
+            curve: Curves.easeOutCubic,
+          ),
+        );
+        return;
+      }
+      if (remainingAttempts <= 0) return;
+
+      final position = _scrollController.position;
+      if (!position.hasContentDimensions) return;
+
+      // 扫描当前已挂载小节的下标区间与平均高度，沿目标方向步进逼近。
+      int? minMounted;
+      int? maxMounted;
+      double mountedHeightSum = 0.0;
+      int mountedCount = 0;
+      for (int i = 0; i < _measureKeys.length; i++) {
+        final box =
+            _measureKeys[i].currentContext?.findRenderObject() as RenderBox?;
+        if (box == null || !box.attached || !box.hasSize) continue;
+        minMounted ??= i;
+        maxMounted = i;
+        mountedHeightSum += box.size.height;
+        mountedCount++;
+      }
+
+      double nextOffset;
+      if (minMounted != null && maxMounted != null) {
+        if (targetIndex >= minMounted && targetIndex <= maxMounted) {
+          return;
+        }
+        final double avgItemHeight = mountedCount > 0
+            ? (mountedHeightSum / mountedCount).clamp(32.0, 600.0).toDouble()
+            : 80.0;
+        final double midMounted = (minMounted + maxMounted) / 2.0;
+        final double indexDelta = targetIndex - midMounted;
+        final double rawStep = indexDelta * avgItemHeight;
+        final double minStep = position.viewportDimension * 0.5;
+        final double step = rawStep.abs() < minStep
+            ? (indexDelta < 0 ? -minStep : minStep)
+            : rawStep;
+        nextOffset = position.pixels + step;
+      } else {
+        final totalExtent =
+            position.maxScrollExtent + position.viewportDimension;
+        nextOffset =
+            ((targetIndex + 0.5) / _measures.length) * totalExtent -
+            position.viewportDimension * 0.45;
+      }
+
+      final clampedOffset = nextOffset
+          .clamp(position.minScrollExtent, position.maxScrollExtent)
+          .toDouble();
+      if ((clampedOffset - position.pixels).abs() < 1.0) return;
+      _scrollController.jumpTo(clampedOffset);
+      _convergeJumpToMeasure(generation, remainingAttempts - 1);
+    });
+  }
+
   void _snapToNearestMeasure() {
     if (!mounted || _measures.isEmpty) return;
     final overlayBox = context.findRenderObject() as RenderBox?;
@@ -911,33 +1129,82 @@ class _SimaiSourceOverlayState extends State<_SimaiSourceOverlay> {
                   builder: (context, time, _) {
                     final currentIndex = _currentMeasureIndex(time);
                     _followCurrent(currentIndex);
-                    return NotificationListener<ScrollNotification>(
-                      onNotification: (notification) {
-                        if (notification is ScrollStartNotification &&
-                            notification.dragDetails != null) {
-                          _userControllingScroll = true;
-                        } else if (notification is ScrollEndNotification) {
-                          final wasUserControlled = _userControllingScroll;
-                          _userControllingScroll = false;
-                          if (wasUserControlled) _snapToNearestMeasure();
-                        }
-                        return false;
-                      },
-                      child: ListView.builder(
-                        controller: _scrollController,
-                        physics: const ClampingScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(vertical: 24),
-                        itemCount: _measures.length,
-                        itemBuilder: (context, index) => KeyedSubtree(
-                          key: _measureKeys[index],
-                          child: _buildMeasure(
-                            context,
-                            _measures[index],
-                            time,
-                            index == currentIndex,
+                    return Stack(
+                      children: [
+                        NotificationListener<ScrollNotification>(
+                          onNotification: (notification) {
+                            if (notification is ScrollStartNotification &&
+                                notification.dragDetails != null) {
+                              _userControllingScroll = true;
+                              _jumpGeneration++;
+                            } else if (notification is ScrollEndNotification) {
+                              final wasUserControlled = _userControllingScroll;
+                              _userControllingScroll = false;
+                              if (wasUserControlled) _snapToNearestMeasure();
+                            }
+                            return false;
+                          },
+                          child: ListView.builder(
+                            controller: _scrollController,
+                            physics: const ClampingScrollPhysics(),
+                            padding: const EdgeInsets.fromLTRB(0, 24, 0, 76),
+                            itemCount: _measures.length,
+                            itemBuilder: (context, index) => KeyedSubtree(
+                              key: _measureKeys[index],
+                              child: _buildMeasure(
+                                context,
+                                _measures[index],
+                                time,
+                                index == currentIndex,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+                        // 悬浮定位按钮：外层拦截点击避免冒泡触发背景关闭浮层。
+                        Positioned(
+                          right: 14,
+                          bottom: 14,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () {},
+                            child: FilledButton.tonalIcon(
+                              onPressed: _jumpToCurrentMeasure,
+                              style: FilledButton.styleFrom(
+                                backgroundColor: const Color(
+                                  0xFF1F2937,
+                                ).withValues(alpha: 0.94),
+                                foregroundColor: const Color(0xFFFFD54F),
+                                side: BorderSide(
+                                  color: const Color(
+                                    0xFFFFD54F,
+                                  ).withValues(alpha: 0.55),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 10,
+                                ),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                shape: const StadiumBorder(),
+                                elevation: 4,
+                                shadowColor: Colors.black87,
+                                splashFactory: NoSplash.splashFactory,
+                              ),
+                              icon: const Icon(
+                                Icons.my_location_rounded,
+                                size: 18,
+                              ),
+                              label: const Text(
+                                '跳转到当前',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     );
                   },
                 ),
@@ -1076,14 +1343,26 @@ class SimaiPlayerPage extends StatefulWidget {
   final SimaiVideoExportSettings? videoExportSettings;
   final ValueChanged<SimaiVideoExportSettings>? onVideoExportSettingsChanged;
   final Future<String?> Function()? resolveVideoExportAudio;
+  final Future<String?> Function()? checkCachedPvFilePath;
+  final Future<String?> Function(BuildContext context)? downloadPvFilePath;
+  final Widget Function(
+    BuildContext context,
+    String pvVideoPath,
+    ValueListenable<double> timeListenable,
+    bool isPlaying,
+  )?
+  pvPreviewBuilder;
   final ValueChanged<SimaiVideoExportResult>? onVideoExported;
   final Widget? beforeTimeline;
+  final Widget? extraDisplaySettings;
   final TextStyle? displayFont;
   final SimaiTextStyleResolver? textStyleResolver;
   final Future<void> Function()? prepareFonts;
   final SimaiSwitchBuilder? switchBuilder;
   final Widget? backgroundVideo;
   final bool hasPvBackground;
+  final Future<void> Function()? onEnterGameplay;
+  final Future<void> Function()? onExitGameplay;
 
   const SimaiPlayerPage({
     super.key,
@@ -1097,14 +1376,20 @@ class SimaiPlayerPage extends StatefulWidget {
     this.videoExportSettings,
     this.onVideoExportSettingsChanged,
     this.resolveVideoExportAudio,
+    this.checkCachedPvFilePath,
+    this.downloadPvFilePath,
+    this.pvPreviewBuilder,
     this.onVideoExported,
     this.beforeTimeline,
+    this.extraDisplaySettings,
     this.displayFont,
     this.textStyleResolver,
     this.prepareFonts,
     this.switchBuilder,
     this.backgroundVideo,
     this.hasPvBackground = false,
+    this.onEnterGameplay,
+    this.onExitGameplay,
   });
 
   @override
@@ -1194,10 +1479,11 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
         hitSoundVolume: widget.controller.hitSoundVolume,
         mirrorMode: widget.controller.mirrorMode,
         backgroundMode: widget.controller.backgroundMode,
-        centerDisplayMode:
-            widget.controller.centerDisplayMode == SimaiCenterDisplayMode.combo
-            ? SimaiGameplayCenterDisplayMode.combo
-            : SimaiGameplayCenterDisplayMode.achievementAdd,
+        backgroundOpacity: widget.controller.backgroundOpacity,
+        centerDisplayMode: SimaiGameplayCenterDisplayMode.fromNameOrLegacy(
+          widget.controller.centerDisplayMode.name,
+        ),
+        noteStyle: widget.controller.noteStyle,
         showApproachLine: widget.controller.showApproachLine,
         showHitEffects: widget.controller.showHitEffects,
       ),
@@ -1261,6 +1547,9 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
             initialSettings: widget.videoExportSettings,
             onSettingsChanged: widget.onVideoExportSettingsChanged,
             resolveAudioFilePath: widget.resolveVideoExportAudio,
+            checkCachedPvFilePath: widget.checkCachedPvFilePath,
+            downloadPvFilePath: widget.downloadPvFilePath,
+            pvPreviewBuilder: widget.pvPreviewBuilder,
             task:
                 SimaiVideoExporter.instance.activeTask ??
                 SimaiVideoExporter.instance.lastCompletedTask,
@@ -1296,14 +1585,22 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
     if (!mounted) return;
     await widget.controller.pause();
     if (!mounted) return;
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (context) => SimaiGameplayFlowPage(
-          controller: gameplayController,
-          disposeController: false,
+    // 进入游玩流程前挂起预览轮询，退出后在 finally 中恢复。
+    widget.controller.setGameplaySuspended(true);
+    try {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (context) => SimaiGameplayFlowPage(
+            controller: gameplayController,
+            disposeController: false,
+            onEnterGameplay: widget.onEnterGameplay,
+            onExitGameplay: widget.onExitGameplay,
+          ),
         ),
-      ),
-    );
+      );
+    } finally {
+      widget.controller.setGameplaySuspended(false);
+    }
   }
 
   void _startHideTimer() {
@@ -1493,6 +1790,21 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
                           onChanged: (v) => controller.mirrorMode = v,
                         ),
                         const SizedBox(height: 16),
+                        _buildSegmentedSetting<SimaiNoteStyle>(
+                          context,
+                          label: 'NOTE 样式',
+                          icon: Icons.style_outlined,
+                          value: controller.noteStyle,
+                          segments: [
+                            for (final style in SimaiNoteStyle.values)
+                              ButtonSegment<SimaiNoteStyle>(
+                                value: style,
+                                label: Text(style.label),
+                              ),
+                          ],
+                          onChanged: (v) => controller.noteStyle = v,
+                        ),
+                        const SizedBox(height: 16),
                         _buildSegmentedSetting<SimaiBackgroundMode>(
                           context,
                           label: '判定线',
@@ -1517,6 +1829,18 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
                             ),
                           ],
                           onChanged: (v) => controller.backgroundMode = v,
+                        ),
+                        _buildSliderSetting(
+                          context,
+                          label: '背景透明度',
+                          icon: Icons.opacity,
+                          value: controller.backgroundOpacity,
+                          min: 0.0,
+                          max: 1.0,
+                          divisions: 100,
+                          onChanged: (v) => controller.backgroundOpacity = v,
+                          valueSuffix:
+                              '${(controller.backgroundOpacity * 100).round()}%',
                         ),
                         _buildSliderSetting(
                           context,
@@ -1567,6 +1891,8 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
                             ],
                           ),
                         ),
+                        if (widget.extraDisplaySettings != null)
+                          widget.extraDisplaySettings!,
                         const SizedBox(height: 8),
                         _buildSwitchSetting(
                           context,
@@ -1604,22 +1930,33 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
                           onChanged: (v) => controller.showHitEffects = v,
                         ),
                         const SizedBox(height: 16),
-                        _buildSegmentedSetting<SimaiCenterDisplayMode>(
+                        _buildDropdownSetting<SimaiCenterDisplayMode>(
                           context,
                           label: '中央显示',
                           icon: Icons.swap_vert,
                           value: controller.centerDisplayMode,
-                          segments: const [
-                            ButtonSegment(
-                              value: SimaiCenterDisplayMode.achievement,
-                              label: Text('达成率'),
-                            ),
-                            ButtonSegment(
-                              value: SimaiCenterDisplayMode.combo,
-                              label: Text('Combo'),
-                            ),
+                          items: [
+                            for (final mode in SimaiCenterDisplayMode.values)
+                              DropdownMenuItem<SimaiCenterDisplayMode>(
+                                value: mode,
+                                child: Text(mode.label),
+                              ),
                           ],
                           onChanged: (v) => controller.centerDisplayMode = v,
+                        ),
+                        _buildDropdownSetting<SimaiCenterDisplayMode>(
+                          context,
+                          label: '右上角显示',
+                          icon: Icons.north_east_rounded,
+                          value: controller.topRightDisplayMode,
+                          items: [
+                            for (final mode in SimaiCenterDisplayMode.values)
+                              DropdownMenuItem<SimaiCenterDisplayMode>(
+                                value: mode,
+                                child: Text(mode.label),
+                              ),
+                          ],
+                          onChanged: (v) => controller.topRightDisplayMode = v,
                         ),
                         _buildSwitchSetting(
                           context,
@@ -1678,10 +2015,13 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
                           context,
                           label: '正解音音量',
                           icon: Icons.graphic_eq,
-                          value: controller.hitSoundVolume,
+                          value: controller.hitSoundVolume.clamp(
+                            0.0,
+                            simaiMaxHitSoundVolume,
+                          ),
                           min: 0.0,
-                          max: 1.0,
-                          divisions: 100,
+                          max: simaiMaxHitSoundVolume,
+                          divisions: 60,
                           onChanged: (v) => controller.hitSoundVolume = v,
                           valueSuffix:
                               '${(controller.hitSoundVolume * 100).round()}%',
@@ -1811,6 +2151,63 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
           ),
         ),
       ],
+    );
+  }
+
+  /// 构建侧边栏下拉选择项（用于选项较多的模式切换，避免分段按钮横向溢出）。
+  Widget _buildDropdownSetting<T>(
+    BuildContext context, {
+    required String label,
+    required IconData icon,
+    required T value,
+    required List<DropdownMenuItem<T>> items,
+    required ValueChanged<T> onChanged,
+  }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8.0),
+            child: Row(
+              children: [
+                Icon(icon, size: 20, color: colorScheme.onSurfaceVariant),
+                const SizedBox(width: 12),
+                Expanded(child: Text(label, style: theme.textTheme.bodyLarge)),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12.0),
+            decoration: BoxDecoration(
+              color: colorScheme.onSurface.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: colorScheme.outlineVariant),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<T>(
+                value: value,
+                isExpanded: true,
+                dropdownColor: colorScheme.surfaceContainerHigh,
+                borderRadius: BorderRadius.circular(12),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurface,
+                ),
+                items: items,
+                onChanged: (selected) {
+                  if (selected != null) {
+                    onChanged(selected);
+                  }
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1965,6 +2362,7 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isCurrentRoute = ModalRoute.of(context)?.isCurrent == true;
     final orientation = MediaQuery.of(context).orientation;
     final canRotate = !kIsWeb &&
         (defaultTargetPlatform == TargetPlatform.android ||
@@ -1974,10 +2372,18 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
         orientation == Orientation.landscape;
 
     // 手动进入全屏时，等系统完成旋转；同一竖屏尺寸的重建不能撤销这次切换。
-    if (!_isLoading && canRotate && _observedOrientation != orientation) {
+    // 仅当前页面位于路由栈顶时响应横竖屏切换，杜绝横屏游玩期间底层预览页误入全屏。
+    if (!_isLoading &&
+        isCurrentRoute &&
+        canRotate &&
+        _observedOrientation != orientation) {
       _observedOrientation = orientation;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || _observedOrientation != orientation) return;
+        if (!mounted ||
+            _observedOrientation != orientation ||
+            ModalRoute.of(context)?.isCurrent != true) {
+          return;
+        }
         if (orientation == Orientation.landscape &&
             !_isFullScreen &&
             !_isManualExit) {
@@ -2085,13 +2491,20 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
       body = Column(
         children: [
           Expanded(
-            child: Center(child: AspectRatio(aspectRatio: 1.0, child: player)),
+            child: Center(
+              child: AspectRatio(
+                aspectRatio: 1.0,
+                child: RepaintBoundary(child: player),
+              ),
+            ),
           ),
           SafeArea(
             top: false,
-            child: SimaiPlayerControls(
-              controller: widget.controller,
-              beforeTimeline: widget.beforeTimeline,
+            child: RepaintBoundary(
+              child: SimaiPlayerControls(
+                controller: widget.controller,
+                beforeTimeline: widget.beforeTimeline,
+              ),
             ),
           ),
         ],
@@ -2111,7 +2524,12 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
           onTap: _toggleControls,
           child: Stack(
             children: [
-              Center(child: AspectRatio(aspectRatio: 1.0, child: player)),
+              Center(
+                child: AspectRatio(
+                  aspectRatio: 1.0,
+                  child: RepaintBoundary(child: player),
+                ),
+              ),
               // Top Bar
               IgnorePointer(
                 ignoring: !_showControls || _isLocked,
@@ -2215,9 +2633,11 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
                         top: false,
                         child: Padding(
                           padding: const EdgeInsets.only(top: 16, bottom: 8),
-                          child: SimaiPlayerControls(
-                            controller: widget.controller,
-                            beforeTimeline: widget.beforeTimeline,
+                          child: RepaintBoundary(
+                            child: SimaiPlayerControls(
+                              controller: widget.controller,
+                              beforeTimeline: widget.beforeTimeline,
+                            ),
                           ),
                         ),
                       ),
@@ -2268,16 +2688,15 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
     }
 
     return CallbackShortcuts(
-      bindings: {
-        const SingleActivator(LogicalKeyboardKey.escape): () {
-          if (_isFullScreen) {
+      bindings: <ShortcutActivator, VoidCallback>{
+        if (_isFullScreen)
+          const SingleActivator(LogicalKeyboardKey.escape): () {
             _isManualExit = true;
             _exitFullScreen();
-          }
-        },
+          },
       },
       child: Focus(
-        autofocus: true,
+        autofocus: !canRotate,
         child: Scaffold(
           backgroundColor: Colors.black,
           appBar: appBar,

@@ -8,6 +8,7 @@ import '../../structures/note_styles.dart';
 import '../../structures/note_type.dart';
 import '../center_display_mode.dart';
 import '../simai_game.dart';
+import 'achievement_rate_component.dart';
 
 class ChartCounterSnapshot {
   final int combo;
@@ -107,10 +108,10 @@ class ChartCounterIndex {
 
 class ChartCounterOverlayComponent extends PositionComponent
     with HasGameReference<SimaiGame> {
-  ChartCounterOverlayComponent(this.index, {required this.achievementAt});
+  ChartCounterOverlayComponent(this.index, {required this.achievementIndex});
 
   final ChartCounterIndex index;
-  final double Function(double chartTime) achievementAt;
+  final CriticalAchievementIndex achievementIndex;
 
   double get _exportScale {
     final minEdge = math.min(size.x, size.y);
@@ -135,7 +136,12 @@ class ChartCounterOverlayComponent extends PositionComponent
       height: 1.15,
       fontWeight: FontWeight.bold,
       fontFeatures: const [FontFeature.tabularFigures()],
-      shadows: [Shadow(color: Colors.black87, blurRadius: isExport ? 5.0 * scale : 3.0)],
+      // 实时预览采用无模糊实色偏移阴影，避免高密刷新触发高频字形高斯模糊。
+      shadows: [
+        isExport
+            ? Shadow(color: Colors.black87, blurRadius: 5.0 * scale)
+            : const Shadow(color: Colors.black87, offset: Offset(0, 1)),
+      ],
     );
   }
 
@@ -148,70 +154,172 @@ class ChartCounterOverlayComponent extends PositionComponent
       height: 1.15,
       fontWeight: FontWeight.bold,
       fontFeatures: const [FontFeature.tabularFigures()],
-      shadows: [Shadow(color: Colors.black87, blurRadius: isExport ? 5.0 * scale : 3.0)],
+      shadows: [
+        isExport
+            ? Shadow(color: Colors.black87, blurRadius: 5.0 * scale)
+            : const Shadow(color: Colors.black87, offset: Offset(0, 1)),
+      ],
     );
   }
 
-  TextPainter? _comboPainter;
-  TextPainter? _achievementPainter;
+  TextPainter? _topRightPainter;
   TextPainter? _breakPainter;
   TextPainter? _timePainter;
   int _lastCombo = -1;
-  String? _lastAchievementText;
   int _lastBreak = -1;
   int _lastProtectedBreak = -1;
   int _lastCentisecond = -1;
+  double _lastExportScale = -1;
+  String? _lastTopRightText;
+  SimaiCenterDisplayMode? _lastTopRightMode;
+  bool? _lastShowAchievementRate;
+  double _counterRefreshElapsed = 0.05;
+  double _timeRefreshElapsed = 0.05;
 
   @override
   void onGameResize(Vector2 size) {
     super.onGameResize(size);
     this.size = size;
-    _lastCombo = -1;
-    _lastAchievementText = null;
-    _lastBreak = -1;
-    _lastProtectedBreak = -1;
-    _lastCentisecond = -1;
+    // 非离线导出模式下角标字号恒定为 14px，无需因尺寸微调清空所有 TextPainter。
+    if (game.headlessExport) {
+      final scale = _exportScale;
+      if ((scale - _lastExportScale).abs() > 1e-4) {
+        _lastExportScale = scale;
+        _lastCombo = -1;
+        _lastTopRightText = null;
+        _lastBreak = -1;
+        _lastProtectedBreak = -1;
+        _lastCentisecond = -1;
+      }
+    }
+  }
+
+  /// 格式化 4 位小数百分比，避免浮点接近 0 时出现 `-0.0000`。
+  static String _formatPercent(double value) {
+    final normalized = value.abs() < 0.00005 ? 0.0 : value;
+    return normalized.toStringAsFixed(4);
+  }
+
+  bool _shouldHideTopRight(SimaiCenterDisplayMode mode) =>
+      mode == SimaiCenterDisplayMode.none ||
+      (!game.showAchievementRate &&
+          CriticalAchievementIndex.isPercentageAchievementMode(mode));
+
+  String? _buildTopRightText(
+    SimaiCenterDisplayMode mode,
+    ChartCounterSnapshot snapshot,
+  ) {
+    if (_shouldHideTopRight(mode)) return null;
+    final chartTime = game.chartTime;
+    final maxDxScore = achievementIndex.eventCount * 3;
+    return switch (mode) {
+      SimaiCenterDisplayMode.achievementAdd =>
+        'ACHV ${_formatPercent(achievementIndex.achievementAt(chartTime))}%',
+      SimaiCenterDisplayMode.achievement100Plus =>
+        'ACHV ${_formatPercent(achievementIndex.achievement100PlusForBreakCount(achievementIndex.judgedBreakCountAt(achievementIndex.judgedCountAt(chartTime))))}%',
+      SimaiCenterDisplayMode.achievement101Subtract =>
+        'ACHV ${_formatPercent(achievementIndex.maxAchievement)}%',
+      SimaiCenterDisplayMode.dxScoreAdd =>
+        'DX ${achievementIndex.judgedCountAt(chartTime) * 3} / $maxDxScore',
+      SimaiCenterDisplayMode.dxScoreSubtract => 'DX $maxDxScore',
+      SimaiCenterDisplayMode.dxStars => formatSimaiDxStarBonus(
+        maxDxScore,
+        maxDxScore,
+      ),
+      SimaiCenterDisplayMode.combo =>
+        'COMBO ${snapshot.combo} / ${snapshot.totalCombo}',
+      SimaiCenterDisplayMode.overS =>
+        'S ${_formatPercent(achievementIndex.maxAchievement - 97.0)}%',
+      SimaiCenterDisplayMode.overSS =>
+        'SS ${_formatPercent(achievementIndex.maxAchievement - 99.0)}%',
+      SimaiCenterDisplayMode.overSSS =>
+        'SSS ${_formatPercent(achievementIndex.maxAchievement - 100.0)}%',
+      SimaiCenterDisplayMode.none => null,
+    };
   }
 
   @override
   void update(double dt) {
     super.update(dt);
+    // 隐藏角标时直接跳过所有索引查询与文本排版。
+    if (!game.showCornerInfo) return;
+
+    if (dt.isFinite && dt > 0) {
+      _counterRefreshElapsed += dt;
+      _timeRefreshElapsed += dt;
+    }
+
     final snapshot = index.at(game.chartTime);
     final centisecond = (game.chartTime.clamp(0.0, double.infinity) * 100)
         .floor();
 
-    if (snapshot.combo != _lastCombo) {
+    final topRightMode = game.topRightDisplayMode;
+    final bool topRightHidden = _shouldHideTopRight(topRightMode);
+    final bool modeChanged =
+        _lastTopRightMode != topRightMode ||
+        _lastShowAchievementRate != game.showAchievementRate;
+    final bool counterNeedsInit =
+        _breakPainter == null ||
+        modeChanged ||
+        (!topRightHidden && _topRightPainter == null);
+    final bool shouldRefreshCounters =
+        counterNeedsInit ||
+        game.headlessExport ||
+        !game.isPlaying ||
+        (snapshot.combo - _lastCombo).abs() > 15 ||
+        snapshot.combo == snapshot.totalCombo ||
+        _counterRefreshElapsed >= 0.05;
+
+    if (shouldRefreshCounters) {
+      _lastTopRightMode = topRightMode;
+      _lastShowAchievementRate = game.showAchievementRate;
       _lastCombo = snapshot.combo;
-      _comboPainter?.dispose();
-      _comboPainter = _textPainter(
-        'COMBO ${snapshot.combo} / ${snapshot.totalCombo}',
-        _primaryStyle,
-      );
-    }
-    if (game.centerDisplayMode == SimaiCenterDisplayMode.combo &&
-        game.showAchievementRate) {
-      final achievementText = achievementAt(game.chartTime).toStringAsFixed(4);
-      if (achievementText != _lastAchievementText) {
-        _lastAchievementText = achievementText;
-        _achievementPainter?.dispose();
-        _achievementPainter = _textPainter(
-          'ACHV $achievementText%',
-          _primaryStyle,
+      var counterUpdated = false;
+
+      final topRightText = _buildTopRightText(topRightMode, snapshot);
+      if (topRightText == null) {
+        if (_topRightPainter != null || _lastTopRightText != null) {
+          _topRightPainter?.dispose();
+          _topRightPainter = null;
+          _lastTopRightText = null;
+          counterUpdated = true;
+        }
+      } else if (topRightText != _lastTopRightText ||
+          _topRightPainter == null) {
+        _lastTopRightText = topRightText;
+        _topRightPainter?.dispose();
+        _topRightPainter = _textPainter(topRightText, _primaryStyle);
+        counterUpdated = true;
+      }
+
+      if (snapshot.breakCount != _lastBreak ||
+          snapshot.protectedBreakCount != _lastProtectedBreak ||
+          _breakPainter == null) {
+        _lastBreak = snapshot.breakCount;
+        _lastProtectedBreak = snapshot.protectedBreakCount;
+        _breakPainter?.dispose();
+        _breakPainter = _textPainter(
+          'BREAK ${snapshot.breakCount} '
+          '(+${snapshot.protectedBreakCount} EX) / ${snapshot.totalBreakCount}',
+          _breakStyle,
         );
+        counterUpdated = true;
+      }
+
+      if (counterUpdated) {
+        _counterRefreshElapsed = 0.0;
       }
     }
-    if (snapshot.breakCount != _lastBreak ||
-        snapshot.protectedBreakCount != _lastProtectedBreak) {
-      _lastBreak = snapshot.breakCount;
-      _lastProtectedBreak = snapshot.protectedBreakCount;
-      _breakPainter?.dispose();
-      _breakPainter = _textPainter(
-        'BREAK ${snapshot.breakCount} '
-        '(+${snapshot.protectedBreakCount} EX) / ${snapshot.totalBreakCount}',
-        _breakStyle,
-      );
-    }
-    if (centisecond != _lastCentisecond) {
+
+    // 实时播放时将右下角计时文本限频至约 20Hz，暂停、跳转或离线导出时立即精确更新。
+    final bool shouldRefreshTime =
+        _timePainter == null ||
+        game.headlessExport ||
+        !game.isPlaying ||
+        (centisecond - _lastCentisecond).abs() > 15 ||
+        _timeRefreshElapsed >= 0.05;
+    if (centisecond != _lastCentisecond && shouldRefreshTime) {
+      _timeRefreshElapsed = 0.0;
       _lastCentisecond = centisecond;
       _timePainter?.dispose();
       _timePainter = _textPainter(_formatTime(centisecond), _primaryStyle);
@@ -222,9 +330,9 @@ class ChartCounterOverlayComponent extends PositionComponent
   void render(Canvas canvas) {
     if (!game.showCornerInfo) return;
     final padding = _cornerPadding;
-    final topRight = game.centerDisplayMode == SimaiCenterDisplayMode.combo
-        ? (game.showAchievementRate ? _achievementPainter : null)
-        : _comboPainter;
+    final topRight = _shouldHideTopRight(game.topRightDisplayMode)
+        ? null
+        : _topRightPainter;
     if (topRight != null) {
       topRight.paint(
         canvas,
@@ -254,14 +362,13 @@ class ChartCounterOverlayComponent extends PositionComponent
 
   @override
   void onRemove() {
-    _comboPainter?.dispose();
-    _achievementPainter?.dispose();
+    _topRightPainter?.dispose();
     _breakPainter?.dispose();
     _timePainter?.dispose();
-    _comboPainter = null;
-    _achievementPainter = null;
+    _topRightPainter = null;
     _breakPainter = null;
     _timePainter = null;
+    _lastTopRightText = null;
     super.onRemove();
   }
 

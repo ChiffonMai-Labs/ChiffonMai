@@ -10,12 +10,28 @@ class SimaiSlideFeedbackGeometry {
     required this.points,
     required this.cumulativeDistances,
     required this.length,
+    required this.fadeStart,
+    required this.fadeEnd,
+    required this.textAnchor,
+    required this.centerAngle,
   });
 
   final Path arrowPath;
   final List<Offset> points;
   final List<double> cumulativeDistances;
   final double length;
+
+  /// 缓存箭尾淡入起点（距离 0），供 HUD 直接复用而无需每帧二分采样。
+  final Offset fadeStart;
+
+  /// 缓存箭尾淡入终点（距离 0.34 * length）。
+  final Offset fadeEnd;
+
+  /// 缓存判定文字缩放锚点（距离 0.34 * length）。
+  final Offset textAnchor;
+
+  /// 缓存锚点处切线角度。
+  final double centerAngle;
 
   Offset pointAt(double distance) {
     if (points.length == 1 || length <= 0) return points.first;
@@ -52,6 +68,28 @@ class SimaiSlideFeedbackGeometry {
     }
     return low.clamp(0, points.length - 2);
   }
+}
+
+/// WiFi 滑星判定圆弧几何缓存，避免每帧重复计算角度与重建 Path。
+@immutable
+class SimaiWifiFeedbackGeometry {
+  const SimaiWifiFeedbackGeometry({
+    required this.arcPath,
+    required this.centerAngle,
+    required this.arcStart,
+    required this.arcEnd,
+    required this.radius,
+    required this.textAnchor,
+    required this.clockwise,
+  });
+
+  final Path arcPath;
+  final double centerAngle;
+  final double arcStart;
+  final double arcEnd;
+  final double radius;
+  final Offset textAnchor;
+  final bool clockwise;
 }
 
 List<Offset> simaiSlideFeedbackTailPoints({
@@ -123,10 +161,12 @@ SimaiSlideFeedbackGeometry? buildSimaiSlideFeedbackGeometry({
     points: List.unmodifiable(points),
     cumulativeDistances: List.unmodifiable(cumulative),
     length: length,
+    fadeStart: Offset.zero,
+    fadeEnd: Offset.zero,
+    textAnchor: Offset.zero,
+    centerAngle: 0.0,
   );
-  // An elongated regular Slide chevron: the front and rear both use the same
-  // `>` polyline, then their corresponding side points are connected along
-  // the final path.
+  // 拉长版常规滑星箭头：前后均采用 `>` 折线，再沿尾段路径连接两侧边缘点。
   final safeChevronDepth = chevronDepth.clamp(1.0, length * 0.40);
   final frontBaseDistance = max(0.0, length - safeChevronDepth);
   final sideSamples = (frontBaseDistance / max(4.0, halfWidth * 0.6))
@@ -158,11 +198,20 @@ SimaiSlideFeedbackGeometry? buildSimaiSlideFeedbackGeometry({
     ..lineTo(rearTip.dx, rearTip.dy)
     ..close();
 
+  final fadeStart = measure.pointAt(0);
+  final anchorDistance = length * 0.34;
+  final anchorPoint = measure.pointAt(anchorDistance);
+  final centerAngle = measure.angleAt(anchorDistance);
+
   return SimaiSlideFeedbackGeometry._(
     arrowPath: path,
     points: measure.points,
     cumulativeDistances: measure.cumulativeDistances,
     length: length,
+    fadeStart: fadeStart,
+    fadeEnd: anchorPoint,
+    textAnchor: anchorPoint,
+    centerAngle: centerAngle,
   );
 }
 
@@ -199,4 +248,83 @@ Path buildSimaiWifiFeedbackArcPath({
       false,
     )
     ..close();
+}
+
+/// 构建可复用的 WiFi 滑星判定圆弧几何对象，避免逐帧三角计算与重建 Path。
+SimaiWifiFeedbackGeometry? buildSimaiWifiFeedbackGeometry({
+  required List<double> centerX,
+  required List<double> centerY,
+  required List<double> leftX,
+  required List<double> leftY,
+  required List<double> rightX,
+  required List<double> rightY,
+  required Offset chartCenter,
+  required double chartRadius,
+}) {
+  if (!chartRadius.isFinite ||
+      chartRadius <= 0 ||
+      centerX.isEmpty ||
+      centerY.isEmpty ||
+      leftX.isEmpty ||
+      leftY.isEmpty ||
+      rightX.isEmpty ||
+      rightY.isEmpty) {
+    return null;
+  }
+
+  final drawScale = chartRadius / 300.0;
+  final centerEnd = Offset(centerX.last, centerY.last) * drawScale + chartCenter;
+  final leftEnd = Offset(leftX.last, leftY.last) * drawScale + chartCenter;
+  final rightEnd = Offset(rightX.last, rightY.last) * drawScale + chartCenter;
+  final centerAngle = atan2(
+    centerEnd.dy - chartCenter.dy,
+    centerEnd.dx - chartCenter.dx,
+  );
+  final leftOffset = _normalizedWifiAngleOffset(
+    atan2(leftEnd.dy - chartCenter.dy, leftEnd.dx - chartCenter.dx) -
+        centerAngle,
+  );
+  final rightOffset = _normalizedWifiAngleOffset(
+    atan2(rightEnd.dy - chartCenter.dy, rightEnd.dx - chartCenter.dx) -
+        centerAngle,
+  );
+  final minimumOffset = min(leftOffset, rightOffset) - 0.055;
+  final maximumOffset = max(leftOffset, rightOffset) + 0.055;
+  final sweep = maximumOffset - minimumOffset;
+  if (sweep <= 0.05 || sweep > pi) return null;
+
+  final arcStart = centerAngle + minimumOffset;
+  final arcEnd = centerAngle + maximumOffset;
+  final radius = chartRadius * 0.875;
+  final thickness = chartRadius * 0.155;
+  final arcPath = buildSimaiWifiFeedbackArcPath(
+    center: chartCenter,
+    radius: radius,
+    thickness: thickness,
+    startAngle: arcStart,
+    sweepAngle: sweep,
+  );
+  final textAnchor =
+      chartCenter + Offset(cos(centerAngle), sin(centerAngle)) * radius;
+
+  return SimaiWifiFeedbackGeometry(
+    arcPath: arcPath,
+    centerAngle: centerAngle,
+    arcStart: arcStart,
+    arcEnd: arcEnd,
+    radius: radius,
+    textAnchor: textAnchor,
+    clockwise: sin(centerAngle) <= 0,
+  );
+}
+
+double _normalizedWifiAngleOffset(double angle) {
+  var result = angle;
+  while (result <= -pi) {
+    result += 2 * pi;
+  }
+  while (result > pi) {
+    result -= 2 * pi;
+  }
+  return result;
 }

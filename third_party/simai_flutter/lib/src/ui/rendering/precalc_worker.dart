@@ -13,6 +13,31 @@ class PrecalcRequest {
   PrecalcRequest({required this.chart, required this.mirrorMode});
 }
 
+/// 基于 [Expando] 的谱面预计算缓存，随 [MaiChart] 实例自动回收，
+/// 供预览页、游玩页与再次游玩之间零重复预计算共享结果。
+class PrecalcChartCache {
+  const PrecalcChartCache._();
+
+  static final Expando<Map<SimaiMirrorMode, PrecalcChartData>> _cache =
+      Expando<Map<SimaiMirrorMode, PrecalcChartData>>('simai_precalc_chart');
+
+  /// 读取指定谱面与镜像模式对应的缓存预计算结果。
+  static PrecalcChartData? getCached(
+    MaiChart chart,
+    SimaiMirrorMode mirrorMode,
+  ) => _cache[chart]?[mirrorMode];
+
+  /// 写入指定谱面与镜像模式对应的完整预计算结果。
+  static void putCached(
+    MaiChart chart,
+    SimaiMirrorMode mirrorMode,
+    PrecalcChartData data,
+  ) {
+    final byMirror = _cache[chart] ??= <SimaiMirrorMode, PrecalcChartData>{};
+    byMirror[mirrorMode] = data;
+  }
+}
+
 PrecalcSlideData calculateSingleSlideData(
   Note note,
   SlidePath slidePath,
@@ -277,14 +302,21 @@ SimaiGameplaySlideData _compileGameplaySlideData({
 }) {
   var nextGroupId = 0;
   if (isFan && metrics.length >= 3) {
-    final start = note.location.index;
+    // 组合星尾接 WiFi（w）时取 WiFi 段自身的起点轨道，而非整条星星起头的 note.location.index。
+    var fanStart = note.location.index;
+    for (final segment in slidePath.segments) {
+      if (segment.slideType == SlideType.fan) break;
+      if (segment.vertices.isNotEmpty) {
+        fanStart = segment.vertices.last.index;
+      }
+    }
     final specs = <PathMetric>[metrics[1], metrics[0], metrics[2]];
     final branches = <SimaiGameplaySlideInteractionBranch>[];
     final mutableBranches = <List<_MutableSlideGroup>>[];
     final entryProgresses = <double>[];
     for (var branchIndex = 0; branchIndex < specs.length; branchIndex++) {
       final metric = specs[branchIndex];
-      final groups = _majdataFanInteractionGroups(metric, start, mirrorMode);
+      final groups = _majdataFanInteractionGroups(metric, fanStart, mirrorMode);
       for (final group in groups) {
         group.visualGroupId = nextGroupId++;
       }
@@ -333,22 +365,18 @@ SimaiGameplaySlideData _compileGameplaySlideData({
     );
   }
 
-  final fixedGroups = _majdataInteractionGroups(note, slidePath);
-  final groups =
-      fixedGroups ?? _sampleInteractionGroups(metrics, totalLength, mirrorMode);
+  final groups = _buildGameplayInteractionGroups(
+    note: note,
+    slidePath: slidePath,
+    mirrorMode: mirrorMode,
+    metrics: metrics,
+    totalLength: totalLength,
+  );
   if (groups.isEmpty) {
     groups.add(
       _MutableSlideGroup(<Location>[
         Location(note.location.index, NoteGroup.aSensor),
       ]),
-    );
-  }
-  if (fixedGroups == null) {
-    _applySpecialSlideRules(
-      groups,
-      note,
-      slidePath,
-      blockSkip: slidePath.segments.length <= 1,
     );
   }
   for (final group in groups) {
@@ -379,9 +407,7 @@ SimaiGameplaySlideData _compileGameplaySlideData({
   );
 }
 
-/// MajdataPlay uses four fixed, skippable areas per Wifi branch instead of
-/// applying the generic 25px path sampler. This avoids narrow incidental
-/// sensor groups and makes a mobile swipe behave like the arcade queue.
+/// 生成 WiFi 扇形星单分支的固定传感器队列，避免移动端细小采样导致的漏检。
 List<_MutableSlideGroup> _majdataFanInteractionGroups(
   PathMetric metric,
   int start,
@@ -419,31 +445,49 @@ List<_MutableSlideGroup> _majdataFanInteractionGroups(
       ),
     ];
   }
+  final centerEnd = lane(4);
   return <_MutableSlideGroup>[
     group(Location(start, NoteGroup.aSensor)),
     group(Location(start, NoteGroup.bSensor)),
     group(Location(0, NoteGroup.cSensor)),
-    orGroup(
-      Location(lane(4), NoteGroup.aSensor),
-      Location(lane(4), NoteGroup.bSensor),
-    ),
+    // 放宽 WiFi 中支终点至相邻两侧 D 区，使手机双指扇形横扫可稳定完成三支。
+    _MutableSlideGroup(<Location>[
+      Location(centerEnd, NoteGroup.aSensor),
+      Location(centerEnd, NoteGroup.bSensor),
+      Location(centerEnd, NoteGroup.dSensor),
+      Location((centerEnd + 1) % 8, NoteGroup.dSensor),
+    ]),
   ];
 }
 
-/// Builds the same compact hardware-sensor queues used by MajdataPlay.
+/// 构建常规/组合滑星的交互传感器队列。
 ///
-/// Mobile tolerance comes primarily from these fixed queues (plus the touch
-/// contact radius), not from widening the Slide timing window. Geometry is
-/// still sampled for rendering, arrow ownership and final-zone timing.
-List<_MutableSlideGroup>? _majdataInteractionGroups(
-  Note note,
-  SlidePath slidePath,
-) {
+/// 各段优先采用 Majdata 紧凑队列；某一段无法匹配标准队列时，仅对该缺失段独立回退
+/// `_sampleInteractionGroups`，不连累整条组合星。组合星衔接点放行跨段连滑，
+/// 但对折返顶点 `X -> Y -> X` 保留 `blocksSkip = true` 防止单事件连跳。
+List<_MutableSlideGroup> _buildGameplayInteractionGroups({
+  required Note note,
+  required SlidePath slidePath,
+  required SimaiMirrorMode mirrorMode,
+  required List<PathMetric> metrics,
+  required double totalLength,
+}) {
   if (slidePath.segments.isEmpty) return <_MutableSlideGroup>[];
+  final isCompound = slidePath.segments.length > 1;
   final result = <_MutableSlideGroup>[];
   var start = note.location;
+
   for (final segment in slidePath.segments) {
-    if (segment.vertices.isEmpty) return null;
+    if (segment.vertices.isEmpty) {
+      return _sampleFallbackSlide(
+        note: note,
+        slidePath: slidePath,
+        mirrorMode: mirrorMode,
+        metrics: metrics,
+        totalLength: totalLength,
+        isCompound: isCompound,
+      );
+    }
     final end = segment.vertices.last;
     List<_MutableSlideGroup>? segmentGroups;
     if (segment.slideType == SlideType.straightLine &&
@@ -466,7 +510,17 @@ List<_MutableSlideGroup>? _majdataInteractionGroups(
         segment.vertices.every((vertex) => vertex.group == NoteGroup.tap)) {
       segmentGroups = _majdataSegmentInteractionGroups(start.index, segment);
     }
-    if (segmentGroups == null || segmentGroups.isEmpty) return null;
+
+    if (segmentGroups == null || segmentGroups.isEmpty) {
+      // 仅对缺失标准队列的当前段独立采样，不影响组合星其他段的紧凑队列。
+      segmentGroups = _sampleSingleSegmentGroups(
+        start: start,
+        segment: segment,
+        mirrorMode: mirrorMode,
+        blockSkip: !isCompound,
+      );
+    }
+
     for (var index = 0; index < segmentGroups.length; index++) {
       final group = segmentGroups[index];
       if (result.isNotEmpty && index == 0 && _sameSensors(result.last, group)) {
@@ -477,15 +531,113 @@ List<_MutableSlideGroup>? _majdataInteractionGroups(
     start = end;
   }
 
-  // Connection Slides allow crossing a segment boundary in one continuous
-  // swipe. Majdata's per-shape anti-skip gates must not make the connection
-  // point stricter than the standalone shapes.
-  if (slidePath.segments.length > 1) {
-    for (final group in result) {
-      group.blocksSkip = false;
+  if (isCompound) {
+    // 组合星整体允许跨段平滑连滑，但对折返顶点 X -> Y -> X 保留防连跳保护。
+    for (var i = 0; i < result.length; i++) {
+      final isReversalApex =
+          i > 0 &&
+          i < result.length - 1 &&
+          _groupsOverlap(result[i - 1], result[i + 1]);
+      result[i].blocksSkip = isReversalApex;
     }
   }
   return result;
+}
+
+List<_MutableSlideGroup> _sampleFallbackSlide({
+  required Note note,
+  required SlidePath slidePath,
+  required SimaiMirrorMode mirrorMode,
+  required List<PathMetric> metrics,
+  required double totalLength,
+  required bool isCompound,
+}) {
+  final groups = _sampleInteractionGroups(metrics, totalLength, mirrorMode);
+  _applySpecialSlideRules(groups, note, slidePath, blockSkip: !isCompound);
+  return groups;
+}
+
+List<_MutableSlideGroup> _sampleSingleSegmentGroups({
+  required Location start,
+  required SlideSegment segment,
+  required SimaiMirrorMode mirrorMode,
+  required bool blockSkip,
+}) {
+  final mirroredStart = NoteUtils.mirrorLocation(start, mirrorMode);
+  final mirroredVertices = segment.vertices
+      .map((v) => NoteUtils.mirrorLocation(v, mirrorMode))
+      .toList(growable: false);
+  final segmentPath = SlidePathGenerator.generatePath(
+    NoteUtils.mirrorSlideType(segment.slideType, mirrorMode),
+    mirroredStart,
+    mirroredVertices,
+    Offset.zero,
+    300.0,
+  );
+  final segmentMetrics = segmentPath.computeMetrics().toList();
+  final segmentLength = segmentMetrics.fold<double>(
+    0.0,
+    (sum, metric) => sum + metric.length,
+  );
+  final sampled = _sampleInteractionGroups(
+    segmentMetrics,
+    segmentLength,
+    mirrorMode,
+  );
+  _applySegmentSpecialRules(
+    sampled,
+    start.index,
+    segment,
+    blockSkip: blockSkip,
+  );
+  return sampled;
+}
+
+void _applySegmentSpecialRules(
+  List<_MutableSlideGroup> groups,
+  int segmentStart,
+  SlideSegment segment, {
+  required bool blockSkip,
+}) {
+  if (segment.vertices.isEmpty) return;
+  if (segment.slideType == SlideType.straightLine) {
+    _markThreeLaneMiddle(
+      groups,
+      segmentStart,
+      segment.vertices.last.index,
+      includeB: true,
+      blockSkip: blockSkip,
+      searchStart: 0,
+    );
+  } else if (segment.slideType == SlideType.ringCw ||
+      segment.slideType == SlideType.ringCcw) {
+    _markThreeLaneMiddle(
+      groups,
+      segmentStart,
+      segment.vertices.last.index,
+      includeB: false,
+      blockSkip: blockSkip,
+      searchStart: 0,
+    );
+  } else if (segment.slideType == SlideType.edgeFold &&
+      segment.vertices.length >= 2) {
+    final nextSearch = _markThreeLaneMiddle(
+      groups,
+      segmentStart,
+      segment.vertices[0].index,
+      includeB: true,
+      blockSkip: blockSkip,
+      searchStart: 0,
+    );
+    _markThreeLaneMiddle(
+      groups,
+      segment.vertices[0].index,
+      segment.vertices[1].index,
+      includeB: true,
+      blockSkip: blockSkip,
+      searchStart: nextSearch,
+    );
+  }
 }
 
 List<_MutableSlideGroup>? _majdataSegmentInteractionGroups(
@@ -523,6 +675,10 @@ List<_MutableSlideGroup>? _majdataSegmentInteractionGroups(
 List<_MutableSlideGroup>? _majdataStraightGroups(int start, int end) {
   final delta = _laneDelta(start, end);
   return switch (delta) {
+    1 => <_MutableSlideGroup>[
+      _relativeGroup(start, 1, [(0, NoteGroup.aSensor)], blocksSkip: true),
+      _relativeGroup(start, 1, [(1, NoteGroup.aSensor)]),
+    ],
     2 => <_MutableSlideGroup>[
       _relativeGroup(start, 1, [(0, NoteGroup.aSensor)]),
       _relativeGroup(start, 1, [
@@ -557,6 +713,10 @@ List<_MutableSlideGroup>? _majdataStraightGroups(int start, int end) {
         (-1, NoteGroup.bSensor),
       ], blocksSkip: true),
       _relativeGroup(start, 1, [(-2, NoteGroup.aSensor)]),
+    ],
+    7 => <_MutableSlideGroup>[
+      _relativeGroup(start, 1, [(0, NoteGroup.aSensor)], blocksSkip: true),
+      _relativeGroup(start, 1, [(-1, NoteGroup.aSensor)]),
     ],
     _ => null,
   };
@@ -781,6 +941,9 @@ bool _sameSensors(_MutableSlideGroup first, _MutableSlideGroup second) {
   if (first.sensors.length != second.sensors.length) return false;
   return first.sensors.every(second.contains);
 }
+
+bool _groupsOverlap(_MutableSlideGroup first, _MutableSlideGroup second) =>
+    first.sensors.any(second.contains);
 
 List<_MutableSlideGroup> _sampleInteractionGroups(
   List<PathMetric> metrics,
