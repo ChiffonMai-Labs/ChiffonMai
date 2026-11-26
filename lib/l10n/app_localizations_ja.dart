@@ -16015,4 +16015,78 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get chartPlayOptionsSection => '再生リソース';
+
+  @override
+  String get firstBindTitle => 'スコア連携クイック設定';
+
+  @override
+  String get firstBindSubtitle =>
+      'いずれかのスコアサイトを連携してデータを取得すると、Best50 や自己記録をすぐ確認できます。';
+
+  @override
+  String get firstBindRecommended => '最速';
+
+  @override
+  String get firstBindReady => '準備完了';
+
+  @override
+  String get firstBindNeedAuth => 'ログイン済・要認可';
+
+  @override
+  String get firstBindAwmcDesc => '連携済みの QQ 番号を入力するだけで成績を取得できます（パスワード不要）。';
+
+  @override
+  String get firstBindFishDesc => 'Diving-Fish にログインし、ブラウザで認可すると成績の取得と同期ができます。';
+
+  @override
+  String get firstBindLxnsDesc => 'ブラウザで OAuth 認可コードを取得します（以降は自動更新されます）。';
+
+  @override
+  String get firstBindActionLink => '連携する';
+
+  @override
+  String get firstBindActionEdit => '変更';
+
+  @override
+  String get firstBindActionSignIn => 'ログイン';
+
+  @override
+  String get firstBindActionAuthorize => '認可する';
+
+  @override
+  String get firstBindActionReauthorize => '再認可';
+
+  @override
+  String get firstBindActionAuthStatus => '認可状況';
+
+  @override
+  String get firstBindSelectedForPull => '初回データ取得元に選択中';
+
+  @override
+  String get firstBindTapToSelectSource => '準備済みのカードをタップして取得元を切替';
+
+  @override
+  String get firstBindNoAccountTitle => 'アカウントをお持ちでないですか？';
+
+  @override
+  String get firstBindNoAccountSubtitle =>
+      'Diving-Fish・LXNS・AWMC NET の登録ガイドを見る';
+
+  @override
+  String get firstBindLaterHint => '後から「マイページ → アカウント連携・認可管理」でいつでも設定できます。';
+
+  @override
+  String get firstBindFishAuthPrompt =>
+      'Diving-Fish にログイン済みです。上の「認可する」からブラウザ認可を完了してください。';
+
+  @override
+  String firstBindPullAndEnter(String source) {
+    return '$source のデータを取得して開始';
+  }
+
+  @override
+  String get firstBindSkipPullEnter => '取得をスキップしてホームへ';
+
+  @override
+  String get firstBindSkipForNow => '今はスキップして始める';
 }

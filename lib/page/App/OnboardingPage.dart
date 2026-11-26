@@ -404,40 +404,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
     );
   }
 
-  /// 戚风说的话。
-  Widget _speechBubble(String text) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppSurfaces.card(context),
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
-        boxShadow: [
-          BoxShadow(
-            color: scheme.shadow.withValues(alpha: 0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: 14,
-          height: 1.4,
-          fontWeight: FontWeight.w600,
-          color: scheme.onSurface,
-        ),
-      ),
-    );
-  }
-
-  /// 欢迎页和完成页：图标 + 大标题 + 戚风的一句话，整组垂直居中。
+  /// 欢迎页和完成页：图标 + 大标题 + 说明，整组垂直居中。
   Widget _buildCharacterStep(
     BuildContext context, {
     required Widget visual,
-    String? speech,
     required String title,
     required String description,
   }) {
@@ -482,14 +452,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
                   ),
                 ),
               ),
-              if (speech != null) ...[
-                const SizedBox(height: 24),
-                EntranceAnimation(
-                  baseDelay: const Duration(milliseconds: 220),
-                  scaleFrom: 0.96,
-                  child: _speechBubble(speech),
-                ),
-              ],
             ],
           ),
         ),
@@ -518,7 +480,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
             BoxDecoration(color: scheme.primary, shape: BoxShape.circle),
         child: Icon(Icons.check_rounded, size: 56, color: scheme.onPrimary),
       ),
-      speech: context.l10n.flowEverythingIsReadyRememberToRefreshData,
       title: context.l10n.flowAllSet,
       description: context.l10n.flowStartExploringWithASong,
     );

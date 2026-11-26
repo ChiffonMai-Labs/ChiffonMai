@@ -43,16 +43,6 @@ class FeatureRegistry {
   static const cabinetAppearanceTitle = '同步机台装扮';
   static const cabinetAppearanceSubtitle = '扫码读取机台当前选中的装扮';
 
-  /// 简洁模式首页在用户没有任何收藏时展示的默认常用入口。
-  static const List<String> simpleHomeDefaultTitles = [
-    'Best50',
-    '乐曲查询',
-    '成绩查询',
-    '拉取成绩并更新数据',
-    '收藏夹',
-    '同步成绩到水鱼',
-  ];
-
   static const Map<String, List<FeatureSection>> sections = {
     '曲库': [
       FeatureSection(

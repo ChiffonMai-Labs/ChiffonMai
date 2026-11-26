@@ -27477,6 +27477,144 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'播放资源'**
   String get chartPlayOptionsSection;
+
+  /// No description provided for @firstBindTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'快速绑定查分器账号'**
+  String get firstBindTitle;
+
+  /// No description provided for @firstBindSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'任选一个常用查分平台完成绑定，拉取数据后即可查看 Best50 与个人成绩。'**
+  String get firstBindSubtitle;
+
+  /// No description provided for @firstBindRecommended.
+  ///
+  /// In zh, this message translates to:
+  /// **'最快捷'**
+  String get firstBindRecommended;
+
+  /// No description provided for @firstBindReady.
+  ///
+  /// In zh, this message translates to:
+  /// **'已就绪'**
+  String get firstBindReady;
+
+  /// No description provided for @firstBindNeedAuth.
+  ///
+  /// In zh, this message translates to:
+  /// **'已登录 · 待授权'**
+  String get firstBindNeedAuth;
+
+  /// No description provided for @firstBindAwmcDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'输入已绑定的 QQ 号即可直接查询成绩，无需登录密码。'**
+  String get firstBindAwmcDesc;
+
+  /// No description provided for @firstBindFishDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录水鱼账号并完成浏览器授权，即可拉取与同步成绩。'**
+  String get firstBindFishDesc;
+
+  /// No description provided for @firstBindLxnsDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'通过浏览器 OAuth 获取授权码，授权后自动续期。'**
+  String get firstBindLxnsDesc;
+
+  /// No description provided for @firstBindActionLink.
+  ///
+  /// In zh, this message translates to:
+  /// **'去绑定'**
+  String get firstBindActionLink;
+
+  /// No description provided for @firstBindActionEdit.
+  ///
+  /// In zh, this message translates to:
+  /// **'修改'**
+  String get firstBindActionEdit;
+
+  /// No description provided for @firstBindActionSignIn.
+  ///
+  /// In zh, this message translates to:
+  /// **'去登录'**
+  String get firstBindActionSignIn;
+
+  /// No description provided for @firstBindActionAuthorize.
+  ///
+  /// In zh, this message translates to:
+  /// **'去授权'**
+  String get firstBindActionAuthorize;
+
+  /// No description provided for @firstBindActionReauthorize.
+  ///
+  /// In zh, this message translates to:
+  /// **'重新授权'**
+  String get firstBindActionReauthorize;
+
+  /// No description provided for @firstBindActionAuthStatus.
+  ///
+  /// In zh, this message translates to:
+  /// **'授权状态'**
+  String get firstBindActionAuthStatus;
+
+  /// No description provided for @firstBindSelectedForPull.
+  ///
+  /// In zh, this message translates to:
+  /// **'将从此平台拉取首次数据'**
+  String get firstBindSelectedForPull;
+
+  /// No description provided for @firstBindTapToSelectSource.
+  ///
+  /// In zh, this message translates to:
+  /// **'点击卡片可切换首次拉取的数据源'**
+  String get firstBindTapToSelectSource;
+
+  /// No description provided for @firstBindNoAccountTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'还没有查分器账号？'**
+  String get firstBindNoAccountTitle;
+
+  /// No description provided for @firstBindNoAccountSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'查看水鱼、落雪与 AWMC NET 的注册与配置引导'**
+  String get firstBindNoAccountSubtitle;
+
+  /// No description provided for @firstBindLaterHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'之后可随时在「我的 → 绑定与授权管理」管理更多账号或机台身份。'**
+  String get firstBindLaterHint;
+
+  /// No description provided for @firstBindFishAuthPrompt.
+  ///
+  /// In zh, this message translates to:
+  /// **'水鱼账号已登录，请点击上方「去授权」完成浏览器授权后再拉取数据。'**
+  String get firstBindFishAuthPrompt;
+
+  /// No description provided for @firstBindPullAndEnter.
+  ///
+  /// In zh, this message translates to:
+  /// **'拉取 {source} 数据并进入'**
+  String firstBindPullAndEnter(String source);
+
+  /// No description provided for @firstBindSkipPullEnter.
+  ///
+  /// In zh, this message translates to:
+  /// **'跳过拉取，直接进入首页'**
+  String get firstBindSkipPullEnter;
+
+  /// No description provided for @firstBindSkipForNow.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂不绑定，先逛逛'**
+  String get firstBindSkipForNow;
 }
 
 class _AppLocalizationsDelegate

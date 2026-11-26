@@ -16641,4 +16641,83 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chartPlayOptionsSection => 'Playback resources';
+
+  @override
+  String get firstBindTitle => 'Quick Account Setup';
+
+  @override
+  String get firstBindSubtitle =>
+      'Link any score tracker below to fetch your Best50 and personal records right away.';
+
+  @override
+  String get firstBindRecommended => 'Fastest';
+
+  @override
+  String get firstBindReady => 'Ready';
+
+  @override
+  String get firstBindNeedAuth => 'Signed in · Auth needed';
+
+  @override
+  String get firstBindAwmcDesc =>
+      'Enter your linked QQ number to fetch scores directly—no password required.';
+
+  @override
+  String get firstBindFishDesc =>
+      'Sign in to Diving-Fish and authorize in your browser to fetch and sync scores.';
+
+  @override
+  String get firstBindLxnsDesc =>
+      'Get an OAuth code via browser; renewals happen automatically afterward.';
+
+  @override
+  String get firstBindActionLink => 'Link';
+
+  @override
+  String get firstBindActionEdit => 'Edit';
+
+  @override
+  String get firstBindActionSignIn => 'Sign in';
+
+  @override
+  String get firstBindActionAuthorize => 'Authorize';
+
+  @override
+  String get firstBindActionReauthorize => 'Reauthorize';
+
+  @override
+  String get firstBindActionAuthStatus => 'Auth status';
+
+  @override
+  String get firstBindSelectedForPull => 'Will fetch initial data from here';
+
+  @override
+  String get firstBindTapToSelectSource =>
+      'Tap a ready card to choose which source to fetch';
+
+  @override
+  String get firstBindNoAccountTitle => 'Don\'t have an account yet?';
+
+  @override
+  String get firstBindNoAccountSubtitle =>
+      'View setup guides for Diving-Fish, LXNS, and AWMC NET';
+
+  @override
+  String get firstBindLaterHint =>
+      'You can manage more accounts or cabinet identity anytime in Me → Account & Auth.';
+
+  @override
+  String get firstBindFishAuthPrompt =>
+      'Diving-Fish is signed in. Tap \"Authorize\" above to complete browser authorization before fetching data.';
+
+  @override
+  String firstBindPullAndEnter(String source) {
+    return 'Fetch $source data & start';
+  }
+
+  @override
+  String get firstBindSkipPullEnter => 'Skip fetch & go to Home';
+
+  @override
+  String get firstBindSkipForNow => 'Skip for now';
 }

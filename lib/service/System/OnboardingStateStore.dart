@@ -15,6 +15,8 @@ class OnboardingStateStore {
   static const String _agreementVersionKey = 'onboarding_agreement_version';
   static const String _agreedAtKey = 'onboarding_agreed_at';
   static const String _guardianConsentKey = 'onboarding_guardian_consent';
+  static const String _accountBindingGuideCompletedKey =
+      'first_account_binding_guide_completed';
 
   Future<bool> shouldShow() async {
     try {
@@ -26,6 +28,25 @@ class OnboardingStateStore {
     } catch (_) {
       // 无法读取时宁可展示引导，也不要让用户错过关键入口说明。
       return true;
+    }
+  }
+
+  Future<bool> shouldShowAccountBindingGuide() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(_accountBindingGuideCompletedKey) != true;
+    } catch (_) {
+      // 读取失败时不阻塞启动流程。
+      return false;
+    }
+  }
+
+  Future<void> markAccountBindingGuideCompleted() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_accountBindingGuideCompletedKey, true);
+    } catch (_) {
+      // 写入失败不影响用户继续进入主界面。
     }
   }
 
@@ -53,5 +74,6 @@ class OnboardingStateStore {
     await prefs.remove(_agreementVersionKey);
     await prefs.remove(_agreedAtKey);
     await prefs.remove(_guardianConsentKey);
+    await prefs.remove(_accountBindingGuideCompletedKey);
   }
 }

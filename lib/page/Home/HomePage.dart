@@ -3063,25 +3063,16 @@ class HomePageState extends State<HomePage> {
       for (final item in _searchableCategories.expand((c) => c.items))
         item.title: item,
     };
-    final isSimple = AppModeScope.isSimpleOf(context);
     final items = [
       for (final title in titles)
         if (available.containsKey(title)) available[title]!,
     ];
-    // 简洁模式下若用户尚未收藏任何功能，展示默认高频入口（只读展示，不写盘）。
-    final usingDefaultShortcuts = items.isEmpty && isSimple;
-    final displayItems = usingDefaultShortcuts
-        ? [
-            for (final title in FeatureRegistry.simpleHomeDefaultTitles)
-              if (available.containsKey(title)) available[title]!,
-          ]
-        : items;
 
     final scheme = Theme.of(context).colorScheme;
     final task = _activeTask;
     final busyReason = task != null &&
             NavigationPreferences.instance.busyHintEnabled &&
-            displayItems.any((item) =>
+            items.any((item) =>
                 item.title != task.title &&
                 FeatureRegistry.taskRestrictedFeatures.contains(item.title))
         ? context.l10n.hubBusyTask(context.featureText(task.title))
@@ -3102,7 +3093,7 @@ class HomePageState extends State<HomePage> {
                           TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                 ),
               ),
-              if (displayItems.isEmpty || usingDefaultShortcuts)
+              if (items.isEmpty)
                 TextButton(
                   onPressed: _openFavoriteManager,
                   style: TextButton.styleFrom(
@@ -3130,16 +3121,8 @@ class HomePageState extends State<HomePage> {
             ],
           ),
         ),
-        if (usingDefaultShortcuts)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(4, 2, 4, 8),
-            child: Text(
-              context.l10n.simpleModeDefaultShortcutsHint,
-              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
-            ),
-          ),
         AnimatedReveal(
-          visible: _sortingFavorites && !usingDefaultShortcuts,
+          visible: _sortingFavorites,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
             child: Text(context.featureText('拖动图标调整顺序；点叉号或拖到删除区域可移除收藏'),
@@ -3147,8 +3130,7 @@ class HomePageState extends State<HomePage> {
           ),
         ),
         AnimatedReveal(
-          visible: (!_sortingFavorites || usingDefaultShortcuts) &&
-              busyReason != null,
+          visible: !_sortingFavorites && busyReason != null,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
             child: Semantics(
@@ -3159,7 +3141,7 @@ class HomePageState extends State<HomePage> {
             ),
           ),
         ),
-        if (displayItems.isEmpty)
+        if (items.isEmpty)
           AppCard(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
             onTap: _openFavoriteManager,
@@ -3176,9 +3158,9 @@ class HomePageState extends State<HomePage> {
             builder: (context, update, _) => ListenableBuilder(
               listenable: AccountAuthorizationStatus.changes,
               builder: (context, _) => FavoriteEditGrid(
-                editing: _sortingFavorites && !usingDefaultShortcuts,
+                editing: _sortingFavorites,
                 items: [
-                  for (final item in displayItems)
+                  for (final item in items)
                     () {
                       final isUpdate = UpdateNotifier.isUpdateEntry(item.title);
                       final effective =

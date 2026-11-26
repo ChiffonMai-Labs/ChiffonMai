@@ -4583,5 +4583,35 @@
   "chartPlayLoadPv": "PV背景を読み込む",
   "chartPlayLoadPvSubtitle": "PVがある場合は筐体風の円形背景としてトリミング再生します",
   "chartPlayDifficultySection": "譜面難易度を選択",
-  "chartPlayOptionsSection": "再生リソース"
+  "chartPlayOptionsSection": "再生リソース",
+  "firstBindTitle": "スコア連携クイック設定",
+  "firstBindSubtitle": "いずれかのスコアサイトを連携してデータを取得すると、Best50 や自己記録をすぐ確認できます。",
+  "firstBindRecommended": "最速",
+  "firstBindReady": "準備完了",
+  "firstBindNeedAuth": "ログイン済・要認可",
+  "firstBindAwmcDesc": "連携済みの QQ 番号を入力するだけで成績を取得できます（パスワード不要）。",
+  "firstBindFishDesc": "Diving-Fish にログインし、ブラウザで認可すると成績の取得と同期ができます。",
+  "firstBindLxnsDesc": "ブラウザで OAuth 認可コードを取得します（以降は自動更新されます）。",
+  "firstBindActionLink": "連携する",
+  "firstBindActionEdit": "変更",
+  "firstBindActionSignIn": "ログイン",
+  "firstBindActionAuthorize": "認可する",
+  "firstBindActionReauthorize": "再認可",
+  "firstBindActionAuthStatus": "認可状況",
+  "firstBindSelectedForPull": "初回データ取得元に選択中",
+  "firstBindTapToSelectSource": "準備済みのカードをタップして取得元を切替",
+  "firstBindNoAccountTitle": "アカウントをお持ちでないですか？",
+  "firstBindNoAccountSubtitle": "Diving-Fish・LXNS・AWMC NET の登録ガイドを見る",
+  "firstBindLaterHint": "後から「マイページ → アカウント連携・認可管理」でいつでも設定できます。",
+  "firstBindFishAuthPrompt": "Diving-Fish にログイン済みです。上の「認可する」からブラウザ認可を完了してください。",
+  "firstBindPullAndEnter": "{source} のデータを取得して開始",
+  "@firstBindPullAndEnter": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      }
+    }
+  },
+  "firstBindSkipPullEnter": "取得をスキップしてホームへ",
+  "firstBindSkipForNow": "今はスキップして始める"
 }

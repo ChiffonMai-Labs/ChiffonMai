@@ -15691,6 +15691,77 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get chartPlayOptionsSection => '播放资源';
+
+  @override
+  String get firstBindTitle => '快速绑定查分器账号';
+
+  @override
+  String get firstBindSubtitle => '任选一个常用查分平台完成绑定，拉取数据后即可查看 Best50 与个人成绩。';
+
+  @override
+  String get firstBindRecommended => '最快捷';
+
+  @override
+  String get firstBindReady => '已就绪';
+
+  @override
+  String get firstBindNeedAuth => '已登录 · 待授权';
+
+  @override
+  String get firstBindAwmcDesc => '输入已绑定的 QQ 号即可直接查询成绩，无需登录密码。';
+
+  @override
+  String get firstBindFishDesc => '登录水鱼账号并完成浏览器授权，即可拉取与同步成绩。';
+
+  @override
+  String get firstBindLxnsDesc => '通过浏览器 OAuth 获取授权码，授权后自动续期。';
+
+  @override
+  String get firstBindActionLink => '去绑定';
+
+  @override
+  String get firstBindActionEdit => '修改';
+
+  @override
+  String get firstBindActionSignIn => '去登录';
+
+  @override
+  String get firstBindActionAuthorize => '去授权';
+
+  @override
+  String get firstBindActionReauthorize => '重新授权';
+
+  @override
+  String get firstBindActionAuthStatus => '授权状态';
+
+  @override
+  String get firstBindSelectedForPull => '将从此平台拉取首次数据';
+
+  @override
+  String get firstBindTapToSelectSource => '点击卡片可切换首次拉取的数据源';
+
+  @override
+  String get firstBindNoAccountTitle => '还没有查分器账号？';
+
+  @override
+  String get firstBindNoAccountSubtitle => '查看水鱼、落雪与 AWMC NET 的注册与配置引导';
+
+  @override
+  String get firstBindLaterHint => '之后可随时在「我的 → 绑定与授权管理」管理更多账号或机台身份。';
+
+  @override
+  String get firstBindFishAuthPrompt => '水鱼账号已登录，请点击上方「去授权」完成浏览器授权后再拉取数据。';
+
+  @override
+  String firstBindPullAndEnter(String source) {
+    return '拉取 $source 数据并进入';
+  }
+
+  @override
+  String get firstBindSkipPullEnter => '跳过拉取，直接进入首页';
+
+  @override
+  String get firstBindSkipForNow => '暂不绑定，先逛逛';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -31382,4 +31453,75 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get chartPlayOptionsSection => '播放資源';
+
+  @override
+  String get firstBindTitle => '快速綁定查分器帳號';
+
+  @override
+  String get firstBindSubtitle => '任選一個常用查分平台完成綁定，拉取資料後即可查看 Best50 與個人成績。';
+
+  @override
+  String get firstBindRecommended => '最快速';
+
+  @override
+  String get firstBindReady => '已就緒';
+
+  @override
+  String get firstBindNeedAuth => '已登入 · 待授權';
+
+  @override
+  String get firstBindAwmcDesc => '輸入已綁定的 QQ 號即可直接查詢成績，無需登入密碼。';
+
+  @override
+  String get firstBindFishDesc => '登入水魚帳號並完成瀏覽器授權，即可拉取與同步成績。';
+
+  @override
+  String get firstBindLxnsDesc => '透過瀏覽器 OAuth 取得授權碼，授權後自動續期。';
+
+  @override
+  String get firstBindActionLink => '去綁定';
+
+  @override
+  String get firstBindActionEdit => '修改';
+
+  @override
+  String get firstBindActionSignIn => '去登入';
+
+  @override
+  String get firstBindActionAuthorize => '去授權';
+
+  @override
+  String get firstBindActionReauthorize => '重新授權';
+
+  @override
+  String get firstBindActionAuthStatus => '授權狀態';
+
+  @override
+  String get firstBindSelectedForPull => '將從此平台拉取首次資料';
+
+  @override
+  String get firstBindTapToSelectSource => '點擊卡片可切換首次拉取的資料來源';
+
+  @override
+  String get firstBindNoAccountTitle => '還沒有查分器帳號？';
+
+  @override
+  String get firstBindNoAccountSubtitle => '查看水魚、落雪與 AWMC NET 的註冊與設定引導';
+
+  @override
+  String get firstBindLaterHint => '之後可隨時在「我的 → 綁定與授權管理」管理更多帳號或機台身分。';
+
+  @override
+  String get firstBindFishAuthPrompt => '水魚帳號已登入，請點擊上方「去授權」完成瀏覽器授權後再拉取資料。';
+
+  @override
+  String firstBindPullAndEnter(String source) {
+    return '拉取 $source 資料並進入';
+  }
+
+  @override
+  String get firstBindSkipPullEnter => '跳過拉取，直接進入首頁';
+
+  @override
+  String get firstBindSkipForNow => '暫不綁定，先逛逛';
 }

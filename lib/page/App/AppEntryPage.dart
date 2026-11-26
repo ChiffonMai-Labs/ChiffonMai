@@ -2,15 +2,20 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../manager/LuoXue/LuoXueOAuthManager.dart';
+import '../../service/Account/AccountAuthorizationStore.dart';
+import '../../service/Account/AccountStore.dart';
 import '../../service/System/OnboardingStateStore.dart';
 import '../../service/About/AnnouncementService.dart';
+import '../../utils/LoginStateNotifier.dart';
 import '../../widgets/AnnouncementDialog.dart';
 import '../../manager/AppUpdate/LZYCheckUpdateManager.dart';
 import 'AppShell.dart';
+import 'FirstAccountBindingPage.dart';
 import 'OnboardingPage.dart';
 import 'SplashPage.dart';
 
-/// 先完成引导再创建主界面，首帧后依次展示公告和更新提示。
+/// 先完成引导再创建主界面，首帧后依次展示账号引导、公告和更新提示。
 class AppEntryPage extends StatefulWidget {
   final VoidCallback? onFirstFrameRendered;
   final bool Function()? canPresentStartup;
@@ -31,6 +36,7 @@ class AppEntryPage extends StatefulWidget {
 class _AppEntryPageState extends State<AppEntryPage> {
   bool _checked = false;
   bool _completedAppleWelcome = false;
+  bool _justCompletedOnboarding = false;
   bool? _needsOnboarding;
   bool _preparingMain = false;
 
@@ -77,11 +83,48 @@ class _AppEntryPageState extends State<AppEntryPage> {
     return false;
   }
 
+  Future<bool> _hasAnyBoundAccount() async {
+    if (LoginStateNotifier.instance.value) return true;
+    try {
+      final awmcQQ = (await AccountAuthorizationStore.awmcQQ()).trim();
+      if (RegExp(r'^\d{5,12}$').hasMatch(awmcQQ)) return true;
+    } catch (_) {}
+    try {
+      if (await LuoXueOAuthManager().isLoggedIn()) return true;
+    } catch (_) {}
+    try {
+      final all = await AccountStore.loadAll();
+      if (all.values.any((meta) => meta.id.isNotEmpty)) return true;
+    } catch (_) {}
+    return false;
+  }
+
   Future<void> _checkStartupNotices() async {
     if (_checked) return;
     _checked = true;
     widget.onFirstFrameRendered?.call();
     if (_completedAppleWelcome) return;
+    if (_justCompletedOnboarding) {
+      _justCompletedOnboarding = false;
+      final shouldShowBindingGuide =
+          await OnboardingStateStore.instance.shouldShowAccountBindingGuide();
+      if (!mounted) return;
+      if (shouldShowBindingGuide) {
+        if (await _hasAnyBoundAccount()) {
+          await OnboardingStateStore.instance
+              .markAccountBindingGuideCompleted();
+        } else if (await _waitForPresentation() && mounted) {
+          await Navigator.of(context).push<void>(
+            MaterialPageRoute<void>(
+              builder: (_) => const FirstAccountBindingPage(),
+            ),
+          );
+          await OnboardingStateStore.instance
+              .markAccountBindingGuideCompleted();
+        }
+      }
+      if (!mounted) return;
+    }
     final service = AnnouncementService();
     // 主界面就绪后再加载公告，不在引导期间触发额外请求和解析。
     final announcement = service.load().onError((error, stackTrace) => null);
@@ -120,6 +163,7 @@ class _AppEntryPageState extends State<AppEntryPage> {
         onCompleted: () {
           _completedAppleWelcome =
               Theme.of(context).platform == TargetPlatform.iOS;
+          _justCompletedOnboarding = !_completedAppleWelcome;
           unawaited(_openMain());
         },
       );

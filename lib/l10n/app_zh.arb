@@ -10806,5 +10806,35 @@
   "chartPlayLoadPv": "加载 PV 背景",
   "chartPlayLoadPvSubtitle": "有 PV 时裁剪为机台圆形背景播放",
   "chartPlayDifficultySection": "选择谱面难度",
-  "chartPlayOptionsSection": "播放资源"
+  "chartPlayOptionsSection": "播放资源",
+  "firstBindTitle": "快速绑定查分器账号",
+  "firstBindSubtitle": "任选一个常用查分平台完成绑定，拉取数据后即可查看 Best50 与个人成绩。",
+  "firstBindRecommended": "最快捷",
+  "firstBindReady": "已就绪",
+  "firstBindNeedAuth": "已登录 · 待授权",
+  "firstBindAwmcDesc": "输入已绑定的 QQ 号即可直接查询成绩，无需登录密码。",
+  "firstBindFishDesc": "登录水鱼账号并完成浏览器授权，即可拉取与同步成绩。",
+  "firstBindLxnsDesc": "通过浏览器 OAuth 获取授权码，授权后自动续期。",
+  "firstBindActionLink": "去绑定",
+  "firstBindActionEdit": "修改",
+  "firstBindActionSignIn": "去登录",
+  "firstBindActionAuthorize": "去授权",
+  "firstBindActionReauthorize": "重新授权",
+  "firstBindActionAuthStatus": "授权状态",
+  "firstBindSelectedForPull": "将从此平台拉取首次数据",
+  "firstBindTapToSelectSource": "点击卡片可切换首次拉取的数据源",
+  "firstBindNoAccountTitle": "还没有查分器账号？",
+  "firstBindNoAccountSubtitle": "查看水鱼、落雪与 AWMC NET 的注册与配置引导",
+  "firstBindLaterHint": "之后可随时在「我的 → 绑定与授权管理」管理更多账号或机台身份。",
+  "firstBindFishAuthPrompt": "水鱼账号已登录，请点击上方「去授权」完成浏览器授权后再拉取数据。",
+  "firstBindPullAndEnter": "拉取 {source} 数据并进入",
+  "@firstBindPullAndEnter": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      }
+    }
+  },
+  "firstBindSkipPullEnter": "跳过拉取，直接进入首页",
+  "firstBindSkipForNow": "暂不绑定，先逛逛"
 }

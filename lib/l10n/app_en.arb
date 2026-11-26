@@ -4583,5 +4583,35 @@
   "chartPlayLoadPv": "Load PV background",
   "chartPlayLoadPvSubtitle": "Crop PV into circular arcade background when available",
   "chartPlayDifficultySection": "Select chart difficulty",
-  "chartPlayOptionsSection": "Playback resources"
+  "chartPlayOptionsSection": "Playback resources",
+  "firstBindTitle": "Quick Account Setup",
+  "firstBindSubtitle": "Link any score tracker below to fetch your Best50 and personal records right away.",
+  "firstBindRecommended": "Fastest",
+  "firstBindReady": "Ready",
+  "firstBindNeedAuth": "Signed in · Auth needed",
+  "firstBindAwmcDesc": "Enter your linked QQ number to fetch scores directly—no password required.",
+  "firstBindFishDesc": "Sign in to Diving-Fish and authorize in your browser to fetch and sync scores.",
+  "firstBindLxnsDesc": "Get an OAuth code via browser; renewals happen automatically afterward.",
+  "firstBindActionLink": "Link",
+  "firstBindActionEdit": "Edit",
+  "firstBindActionSignIn": "Sign in",
+  "firstBindActionAuthorize": "Authorize",
+  "firstBindActionReauthorize": "Reauthorize",
+  "firstBindActionAuthStatus": "Auth status",
+  "firstBindSelectedForPull": "Will fetch initial data from here",
+  "firstBindTapToSelectSource": "Tap a ready card to choose which source to fetch",
+  "firstBindNoAccountTitle": "Don't have an account yet?",
+  "firstBindNoAccountSubtitle": "View setup guides for Diving-Fish, LXNS, and AWMC NET",
+  "firstBindLaterHint": "You can manage more accounts or cabinet identity anytime in Me → Account & Auth.",
+  "firstBindFishAuthPrompt": "Diving-Fish is signed in. Tap \"Authorize\" above to complete browser authorization before fetching data.",
+  "firstBindPullAndEnter": "Fetch {source} data & start",
+  "@firstBindPullAndEnter": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      }
+    }
+  },
+  "firstBindSkipPullEnter": "Skip fetch & go to Home",
+  "firstBindSkipForNow": "Skip for now"
 }
