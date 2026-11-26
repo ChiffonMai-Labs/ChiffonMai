@@ -42,6 +42,7 @@ class NavigationPreferences extends ChangeNotifier {
   bool _swipeEnabled = true;
   NavigationBarStyle _barStyle = NavigationBarStyle.standard;
   bool _immersiveStatusBarEnabled = false;
+  bool _gameplayStatusBarHidden = false;
   bool _pvFullscreen = false;
   bool _pvOverlaysHidden = false;
   bool _busyHintEnabled = false;
@@ -49,6 +50,16 @@ class NavigationPreferences extends ChangeNotifier {
   Future<void>? _loading;
   Future<void> _styleWrites = Future<void>.value();
   Future<void> _systemUiWrites = Future<void>.value();
+
+  final ValueNotifier<NavigationBarStyle> _barStyleNotifier =
+      ValueNotifier<NavigationBarStyle>(NavigationBarStyle.standard);
+  final ValueNotifier<bool> _transitionEnabledNotifier =
+      ValueNotifier<bool>(true);
+  final ValueNotifier<bool> _swipeEnabledNotifier = ValueNotifier<bool>(true);
+  final ValueNotifier<bool> _immersiveStatusBarNotifier =
+      ValueNotifier<bool>(false);
+  final ValueNotifier<bool> _busyHintNotifier = ValueNotifier<bool>(false);
+  final ValueNotifier<bool> _loadedNotifier = ValueNotifier<bool>(false);
 
   bool get transitionEnabled => _transitionEnabled;
   bool get swipeEnabled => _swipeEnabled;
@@ -63,6 +74,25 @@ class NavigationPreferences extends ChangeNotifier {
   bool get busyHintEnabled => _busyHintEnabled;
   bool get loaded => _loaded;
 
+  ValueListenable<NavigationBarStyle> get barStyleListenable =>
+      _barStyleNotifier;
+  ValueListenable<bool> get transitionEnabledListenable =>
+      _transitionEnabledNotifier;
+  ValueListenable<bool> get swipeEnabledListenable => _swipeEnabledNotifier;
+  ValueListenable<bool> get immersiveStatusBarListenable =>
+      _immersiveStatusBarNotifier;
+  ValueListenable<bool> get busyHintListenable => _busyHintNotifier;
+  ValueListenable<bool> get loadedListenable => _loadedNotifier;
+
+  void _syncValueNotifiers() {
+    _barStyleNotifier.value = _barStyle;
+    _transitionEnabledNotifier.value = _transitionEnabled;
+    _swipeEnabledNotifier.value = _swipeEnabled;
+    _immersiveStatusBarNotifier.value = _immersiveStatusBarEnabled;
+    _busyHintNotifier.value = _busyHintEnabled;
+    _loadedNotifier.value = _loaded;
+  }
+
   Future<void> load() {
     if (_loaded) return Future<void>.value();
     return _loading ??= _load();
@@ -73,6 +103,7 @@ class NavigationPreferences extends ChangeNotifier {
     await _styleWrites;
     _loaded = false;
     _loading = null;
+    _syncValueNotifiers();
     await load();
   }
 
@@ -99,12 +130,15 @@ class NavigationPreferences extends ChangeNotifier {
       // 读取失败时保留默认值，不影响主界面启动。
     } finally {
       _loaded = true;
+      _syncValueNotifiers();
       notifyListeners();
     }
   }
 
   Future<void> setTransitionEnabled(bool value) async {
+    if (_transitionEnabled == value) return;
     _transitionEnabled = value;
+    _transitionEnabledNotifier.value = value;
     notifyListeners();
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -115,7 +149,9 @@ class NavigationPreferences extends ChangeNotifier {
   }
 
   Future<void> setSwipeEnabled(bool value) async {
+    if (_swipeEnabled == value) return;
     _swipeEnabled = value;
+    _swipeEnabledNotifier.value = value;
     notifyListeners();
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -132,6 +168,7 @@ class NavigationPreferences extends ChangeNotifier {
     if (!_loaded) await load();
     if (_barStyle == value) return;
     _barStyle = value;
+    _barStyleNotifier.value = value;
     notifyListeners();
     // 内存立即更新，写盘串行；连续切换时最终保存最后一次选择。
     final write = _styleWrites.then((_) async {
@@ -175,11 +212,21 @@ class NavigationPreferences extends ChangeNotifier {
       await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
       await _systemUiChannel.invokeMethod<void>(
         'setStatusBarHidden',
-        {'hidden': _immersiveStatusBarEnabled, 'fullscreen': _pvFullscreen},
+        {
+          'hidden': _immersiveStatusBarEnabled || _gameplayStatusBarHidden,
+          'fullscreen': _pvFullscreen,
+        },
       );
     } catch (error) {
       debugPrint('[SystemUI] 状态栏模式应用失败：$error');
     }
+  }
+
+  /// 游玩期间临时隐藏顶部状态栏（仅内存态，不覆写用户持久化的沉浸状态栏开关）。
+  Future<void> setGameplayStatusBarHidden(bool value) {
+    if (_gameplayStatusBarHidden == value) return Future<void>.value();
+    _gameplayStatusBarHidden = value;
+    return applySystemUiMode();
   }
 
   Future<void> setPvFullscreen(bool value) {
@@ -189,7 +236,9 @@ class NavigationPreferences extends ChangeNotifier {
   }
 
   Future<void> setImmersiveStatusBarEnabled(bool value) async {
+    if (_immersiveStatusBarEnabled == value) return;
     _immersiveStatusBarEnabled = value;
+    _immersiveStatusBarNotifier.value = value;
     notifyListeners();
     await applySystemUiMode();
     try {
@@ -203,6 +252,7 @@ class NavigationPreferences extends ChangeNotifier {
   Future<void> setBusyHintEnabled(bool value) async {
     if (_busyHintEnabled == value) return;
     _busyHintEnabled = value;
+    _busyHintNotifier.value = value;
     notifyListeners();
     try {
       final prefs = await SharedPreferences.getInstance();

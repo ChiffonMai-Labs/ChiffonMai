@@ -83,29 +83,85 @@ class GuessCell extends StatelessWidget {
 }
 
 /// 翻转进场：沿 X 轴从 -90° 转到 0°，按 [index] 错开。
-class GuessFlipIn extends StatelessWidget {
+class GuessFlipIn extends StatefulWidget {
   final Widget child;
   final int index;
 
   const GuessFlipIn({super.key, required this.child, this.index = 0});
 
   @override
-  Widget build(BuildContext context) {
-    final delay = 90 * index;
+  State<GuessFlipIn> createState() => _GuessFlipInState();
+}
+
+class _GuessFlipInState extends State<GuessFlipIn>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _progress;
+  bool _started = false;
+  bool _completed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final delay = 90 * widget.index;
     final total = delay + 500;
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: AppDesignTokens.motion(context, Duration(milliseconds: total)),
-      curve: Interval(delay / total, 1,
-          curve: AppDesignTokens.emphasizedCurve),
-      child: child,
-      builder: (context, t, child) => Opacity(
-        opacity: t.clamp(0.0, 1.0),
-        child: Transform(
+    _controller = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: total),
+    );
+    _progress = CurvedAnimation(
+      parent: _controller,
+      curve: Interval(delay / total, 1, curve: AppDesignTokens.emphasizedCurve),
+    );
+    _controller.addStatusListener(_onStatusChanged);
+  }
+
+  void _onStatusChanged(AnimationStatus status) {
+    if (status == AnimationStatus.completed && !_completed && mounted) {
+      setState(() => _completed = true);
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    final delay = 90 * widget.index;
+    final total = delay + 500;
+    final duration = AppDesignTokens.motion(
+      context,
+      Duration(milliseconds: total),
+    );
+    if (duration == Duration.zero) {
+      _controller.value = 1;
+      _completed = true;
+    } else {
+      _controller.duration = duration;
+      _controller.forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.removeStatusListener(_onStatusChanged);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_completed) return widget.child;
+    return FadeTransition(
+      opacity: _progress,
+      child: AnimatedBuilder(
+        animation: _progress,
+        child: widget.child,
+        builder: (context, child) => Transform(
           alignment: Alignment.center,
           transform: Matrix4.identity()
             ..setEntry(3, 2, 1 / 300)
-            ..rotateX((1 - t) * -1.5708),
+            ..rotateX((1 - _progress.value) * -1.5708),
           child: child,
         ),
       ),

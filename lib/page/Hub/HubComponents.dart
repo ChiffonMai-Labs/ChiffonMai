@@ -533,7 +533,7 @@ class HubActionTile extends StatelessWidget {
             // 红字原因是否显示由「系统设置」里的开关决定（默认关闭），
             // 这里就地订阅偏好，调用方不用逐个透传。
             child: ListenableBuilder(
-              listenable: NavigationPreferences.instance,
+              listenable: NavigationPreferences.instance.busyHintListenable,
               builder: (context, _) => AnimatedReveal(
                 visible: disabled &&
                     !loading &&

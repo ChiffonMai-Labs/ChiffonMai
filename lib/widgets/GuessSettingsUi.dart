@@ -356,33 +356,39 @@ class GuessChoicePill extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final duration =
         AppDesignTokens.motion(context, AppDesignTokens.fastMotion);
-    return PressScale(
-      child: Semantics(
-        button: true,
-        selected: selected,
-        label: label,
-        excludeSemantics: true,
-        child: GestureDetector(
-          onTap: onTap,
-          child: AnimatedContainer(
-            duration: duration,
-            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
-            decoration: BoxDecoration(
-              color: selected
-                  ? (selectedColor ?? scheme.primary)
-                  : AppSurfaces.inset(context),
-              borderRadius: BorderRadius.circular(AppDesignTokens.radiusPill),
-            ),
-            child: AnimatedDefaultTextStyle(
+    final targetColor = selected
+        ? (selectedForeground ?? scheme.onPrimary)
+        : scheme.onSurface;
+    return RepaintBoundary(
+      child: PressScale(
+        child: Semantics(
+          button: true,
+          selected: selected,
+          label: label,
+          excludeSemantics: true,
+          child: GestureDetector(
+            onTap: onTap,
+            child: AnimatedContainer(
               duration: duration,
-              style: AppTheme.font(
-                fontSize: 13,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+              decoration: BoxDecoration(
                 color: selected
-                    ? (selectedForeground ?? scheme.onPrimary)
-                    : scheme.onSurface,
+                    ? (selectedColor ?? scheme.primary)
+                    : AppSurfaces.inset(context),
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusPill),
               ),
-              child: Text(label),
+              child: TweenAnimationBuilder<Color?>(
+                tween: ColorTween(end: targetColor),
+                duration: duration,
+                builder: (context, color, _) => Text(
+                  label,
+                  style: AppTheme.font(
+                    fontSize: 13,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    color: color ?? targetColor,
+                  ),
+                ),
+              ),
             ),
           ),
         ),

@@ -164,6 +164,8 @@ class _AppToastHostState extends State<AppToastHost>
   // 没有上下界：弹簧过冲时数值会略超过 1。
   late final AnimationController _motion =
       AnimationController.unbounded(vsync: this);
+  late final Animation<double> _opacity =
+      _motion.drive(const _ClampedFadeAnimatable());
   // preserve：系统关闭动画时普通控制器会把时长压缩到 5%，提示会一闪而过。
   late final AnimationController _countdown = AnimationController(
       vsync: this, animationBehavior: AnimationBehavior.preserve);
@@ -290,25 +292,27 @@ class _AppToastHostState extends State<AppToastHost>
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 520),
-          child: AnimatedBuilder(
-            animation: Listenable.merge([_motion, _pulse]),
-            builder: (context, child) {
-              final v = _motion.value;
-              final bump = 1 + 0.035 * Curves.easeOut.transform(
-                  _pulse.value < 0.4 ? _pulse.value / 0.4 : (1 - _pulse.value) / 0.6);
-              return Opacity(
-                opacity: (v * 1.6).clamp(0.0, 1.0),
-                child: Transform.translate(
+          child: FadeTransition(
+            opacity: _opacity,
+            child: AnimatedBuilder(
+              animation: Listenable.merge([_motion, _pulse]),
+              builder: (context, child) {
+                final v = _motion.value;
+                final bump = 1 +
+                    0.035 *
+                        Curves.easeOut.transform(_pulse.value < 0.4
+                            ? _pulse.value / 0.4
+                            : (1 - _pulse.value) / 0.6);
+                return Transform.translate(
                   offset: Offset(0, (v - 1) * (88 + media.padding.top) + _drag),
                   child: Transform.scale(
                     scale: (0.9 + 0.1 * v) * bump,
                     alignment: Alignment.topCenter,
                     child: child,
                   ),
-                ),
-              );
-            },
-            child: Listener(
+                );
+              },
+              child: Listener(
               onPointerDown: (_) => _countdown.stop(),
               onPointerUp: (_) {
                 if (_shown != null && AppToast._current.value != null) {
@@ -327,11 +331,19 @@ class _AppToastHostState extends State<AppToastHost>
                 child: _ToastCard(data: data, countdown: _countdown),
               ),
             ),
+            ),
           ),
         ),
       ),
     );
   }
+}
+
+class _ClampedFadeAnimatable extends Animatable<double> {
+  const _ClampedFadeAnimatable();
+
+  @override
+  double transform(double t) => (t * 1.6).clamp(0.0, 1.0);
 }
 
 class _ToastCard extends StatelessWidget {

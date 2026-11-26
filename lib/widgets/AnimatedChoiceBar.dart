@@ -60,80 +60,114 @@ class AnimatedChoiceBar<T extends Object> extends StatelessWidget {
         ? Duration.zero
         : const Duration(milliseconds: 240);
     final index = values.indexOf(value).clamp(0, values.length - 1);
-    return LayoutBuilder(builder: (context, constraints) {
-      final width = constraints.hasBoundedWidth
-          ? constraints.maxWidth
-          : values.length * 82.0;
-      return SizedBox(
-          width: width,
-          child: DecoratedBox(
-              decoration: BoxDecoration(
-                  color: AppSurfaces.track(context),
-                  borderRadius:
-                      BorderRadius.circular(AppDesignTokens.radiusMedium)),
-              child: Stack(children: [
-                AnimatedPositioned(
-                    duration: duration,
-                    curve: Curves.easeInOutCubic,
-                    left: index * width / values.length + 3,
-                    top: 3,
-                    bottom: 3,
-                    width: width / values.length - 6,
-                    child: DecoratedBox(
-                        decoration: BoxDecoration(
-                            color: thumbColor,
-                            borderRadius: BorderRadius.circular(
-                                AppDesignTokens.radiusSmall)))),
-                Row(children: [
-                  for (final option in values)
-                    Expanded(
-                        child: Semantics(
-                            selected: option == value,
-                            button: true,
-                            child: Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                    borderRadius: BorderRadius.circular(14),
-                                    splashFactory: enableRipple
-                                        ? null
-                                        : NoSplash.splashFactory,
-                                    highlightColor: enableRipple
-                                        ? null
-                                        : Colors.transparent,
-                                    onTap: onChanged == null
-                                        ? null
-                                        : () {
-                                            if (option != value)
-                                              onChanged!(option);
-                                          },
-                                    child: Padding(
-                                        padding: EdgeInsets.symmetric(
-                                            horizontal: compact ? 4 : 6,
-                                            vertical: compact ? 6 : 12),
-                                        child: AnimatedDefaultTextStyle(
-                                            duration: duration,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .labelLarge!
-                                                .copyWith(
-                                                    fontSize:
-                                                        compact ? 11 : null,
-                                                    color: option == value
-                                                        ? thumbText
-                                                        : scheme
-                                                            .onSurfaceVariant,
-                                                    fontWeight: option == value
-                                                        ? FontWeight.bold
-                                                        : FontWeight.w500),
-                                            // 放不下时缩小，不截断选项名。
-                                            child: FittedBox(
-                                                fit: BoxFit.scaleDown,
-                                                child: Text(label(option),
+    return RepaintBoundary(
+      child: LayoutBuilder(builder: (context, constraints) {
+        final width = constraints.hasBoundedWidth
+            ? constraints.maxWidth
+            : values.length * 82.0;
+        final baseLabelStyle = theme.textTheme.labelLarge!;
+        return SizedBox(
+            width: width,
+            child: DecoratedBox(
+                decoration: BoxDecoration(
+                    color: AppSurfaces.track(context),
+                    borderRadius:
+                        BorderRadius.circular(AppDesignTokens.radiusMedium)),
+                child: Stack(children: [
+                  AnimatedPositioned(
+                      duration: duration,
+                      curve: Curves.easeInOutCubic,
+                      left: index * width / values.length + 3,
+                      top: 3,
+                      bottom: 3,
+                      width: width / values.length - 6,
+                      child: RepaintBoundary(
+                        child: DecoratedBox(
+                            decoration: BoxDecoration(
+                                color: thumbColor,
+                                borderRadius: BorderRadius.circular(
+                                    AppDesignTokens.radiusSmall))),
+                      )),
+                  Row(children: [
+                    for (final option in values)
+                      Expanded(
+                          child: Semantics(
+                              selected: option == value,
+                              button: true,
+                              child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                      borderRadius: BorderRadius.circular(14),
+                                      splashFactory: enableRipple
+                                          ? null
+                                          : NoSplash.splashFactory,
+                                      highlightColor: enableRipple
+                                          ? null
+                                          : Colors.transparent,
+                                      onTap: onChanged == null
+                                          ? null
+                                          : () {
+                                              if (option != value)
+                                                onChanged!(option);
+                                            },
+                                      child: Padding(
+                                          padding: EdgeInsets.symmetric(
+                                              horizontal: compact ? 4 : 6,
+                                              vertical: compact ? 6 : 12),
+                                          // 仅对颜色做过渡，避免可变字体字重逐帧插值触发文本重排与字形缓存抖动。
+                                          child: FittedBox(
+                                              fit: BoxFit.scaleDown,
+                                              child: TweenAnimationBuilder<
+                                                  Color?>(
+                                                tween: ColorTween(
+                                                  end: option == value
+                                                      ? thumbText
+                                                      : scheme
+                                                          .onSurfaceVariant,
+                                                ),
+                                                duration: duration,
+                                                curve: Curves.easeInOutCubic,
+                                                builder: (context, color, _) {
+                                                  final selected =
+                                                      option == value;
+                                                  final targetWeight = selected
+                                                      ? FontWeight.bold
+                                                      : FontWeight.w500;
+                                                  return Text(
+                                                    label(option),
                                                     textAlign: TextAlign.center,
-                                                    maxLines: 1))))))))
-                ]),
-              ])));
-    });
+                                                    maxLines: 1,
+                                                    style: baseLabelStyle
+                                                        .copyWith(
+                                                      fontSize:
+                                                          compact ? 11 : null,
+                                                      color: color ??
+                                                          (selected
+                                                              ? thumbText
+                                                              : scheme
+                                                                  .onSurfaceVariant),
+                                                      fontWeight: targetWeight,
+                                                      fontVariations:
+                                                          baseLabelStyle
+                                                                      .fontVariations !=
+                                                                  null
+                                                              ? [
+                                                                  FontVariation(
+                                                                    'wght',
+                                                                    targetWeight
+                                                                        .value
+                                                                        .toDouble(),
+                                                                  ),
+                                                                ]
+                                                              : null,
+                                                    ),
+                                                  );
+                                                },
+                                              )))))))
+                  ]),
+                ])));
+      }),
+    );
   }
 }
 

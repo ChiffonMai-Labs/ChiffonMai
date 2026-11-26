@@ -118,12 +118,18 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   String? _lastWindowPadding;
   bool _windowMetricsReportScheduled = false;
   Timer? _windowRepaintTimer;
+  ({
+    Color? seedColor,
+    bool pureBlack,
+    bool fontsPrepared,
+    Object fontCacheKey,
+  })? _cachedThemeKey;
+  ThemeData? _cachedLightTheme;
+  ThemeData? _cachedDarkTheme;
   late final Listenable _appListenable = Listenable.merge([
     ThemeManager().notifier,
     ThemeManager().pureBlackNotifier,
     ThemeManager().seedColorNotifier,
-    ThemeManager().customBackgroundPathNotifier,
-    NavigationPreferences.instance,
     AppLanguagePreferences.instance,
     AppFontService.instance,
   ]);
@@ -353,6 +359,33 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     return AppTheme.withGlobalFonts(base);
   }
 
+  (ThemeData light, ThemeData dark) _resolveThemes() {
+    final seedColor = ThemeManager().seedColor;
+    final pureBlack = ThemeManager().pureBlackEnabled;
+    final key = (
+      seedColor: seedColor,
+      pureBlack: pureBlack,
+      fontsPrepared: _fontsPrepared,
+      fontCacheKey: AppTheme.fontThemeCacheKey,
+    );
+    if (_cachedThemeKey == key &&
+        _cachedLightTheme != null &&
+        _cachedDarkTheme != null) {
+      return (_cachedLightTheme!, _cachedDarkTheme!);
+    }
+    final light =
+        _buildThemeWithFonts(AppTheme.lightTheme(seedColor: seedColor));
+    final dark = _buildThemeWithFonts(
+      pureBlack
+          ? AppTheme.pureBlackTheme(seedColor: seedColor)
+          : AppTheme.darkTheme(seedColor: seedColor),
+    );
+    _cachedThemeKey = key;
+    _cachedLightTheme = light;
+    _cachedDarkTheme = dark;
+    return (light, dark);
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -361,15 +394,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         final themeMode = ThemeManager().isLoaded
             ? ThemeManager().themeMode
             : ThemeMode.system;
-        final pureBlack = ThemeManager().pureBlackEnabled;
-        final seedColor = ThemeManager().seedColor;
-        final lightThemeData =
-            _buildThemeWithFonts(AppTheme.lightTheme(seedColor: seedColor));
-        final darkThemeData = _buildThemeWithFonts(
-          pureBlack
-              ? AppTheme.pureBlackTheme(seedColor: seedColor)
-              : AppTheme.darkTheme(seedColor: seedColor),
-        );
+        final (lightThemeData, darkThemeData) = _resolveThemes();
         return MaterialApp(
           debugShowCheckedModeBanner: false,
           navigatorKey: _navigatorKey,

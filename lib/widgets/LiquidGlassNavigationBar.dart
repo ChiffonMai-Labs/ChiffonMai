@@ -152,79 +152,111 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar>
                             ),
                           ),
                         ),
-                        AnimatedBuilder(
-                          animation: _controller,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(23),
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  scheme.primary
-                                      .withValues(alpha: dark ? 0.28 : 0.18),
-                                  scheme.primary
-                                      .withValues(alpha: dark ? 0.12 : 0.07),
-                                  scheme.primary
-                                      .withValues(alpha: dark ? 0.22 : 0.14),
-                                ],
-                              ),
-                              border: Border.all(color: scheme.outlineVariant),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: scheme.primary.withValues(alpha: 0.08),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
+                        Positioned.fill(
+                          child: RepaintBoundary(
+                            child: Stack(
+                              children: [
+                                Positioned(
+                                  left: 0,
+                                  top: 5,
+                                  width: lensWidth,
+                                  height: widget.height - 10,
+                                  child: AnimatedBuilder(
+                                    animation: _controller,
+                                    child: RepaintBoundary(
+                                      child: DecoratedBox(
+                                        decoration: BoxDecoration(
+                                          borderRadius:
+                                              BorderRadius.circular(23),
+                                          gradient: LinearGradient(
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
+                                            colors: [
+                                              scheme.primary.withValues(
+                                                  alpha: dark ? 0.28 : 0.18),
+                                              scheme.primary.withValues(
+                                                  alpha: dark ? 0.12 : 0.07),
+                                              scheme.primary.withValues(
+                                                  alpha: dark ? 0.22 : 0.14),
+                                            ],
+                                          ),
+                                          border: Border.all(
+                                              color: scheme.outlineVariant),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: scheme.primary
+                                                  .withValues(alpha: 0.08),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        child: CustomPaint(
+                                          painter: _GlassReflectionPainter(
+                                            color: dark
+                                                ? scheme.onSurface
+                                                : scheme.surface,
+                                            dark: dark,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    builder: (context, child) {
+                                      final stretch =
+                                          math.sin(_controller.value * math.pi) *
+                                              math.min(
+                                                  (_to - _from).abs() *
+                                                      tabWidth *
+                                                      0.18,
+                                                  16.0);
+                                      final maxLeft = math.max(
+                                        inset,
+                                        constraints.maxWidth -
+                                            inset -
+                                            lensWidth -
+                                            stretch,
+                                      );
+                                      final left = (inset +
+                                              _position * tabWidth -
+                                              1 -
+                                              stretch / 2)
+                                          .clamp(inset, maxLeft)
+                                          .toDouble();
+                                      final scaleX =
+                                          (lensWidth + stretch) / lensWidth;
+                                      // 以固定宽度的静态镜片做 GPU 平移+横向缩放，避免逐帧重建 shader 与阴影布局。
+                                      return Transform.translate(
+                                        offset: Offset(left + stretch / 2, 0),
+                                        child: Transform.scale(
+                                          scaleX: scaleX,
+                                          scaleY: 1.0,
+                                          alignment: Alignment.center,
+                                          child: child,
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                                Positioned.fill(
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: inset),
+                                    child: Material(
+                                      type: MaterialType.transparency,
+                                      child: Row(
+                                        children: [
+                                          for (var i = 0;
+                                              i < widget.destinations.length;
+                                              i++)
+                                            Expanded(
+                                                child:
+                                                    _buildDestination(i, scheme)),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ],
-                            ),
-                            child: RepaintBoundary(
-                              child: CustomPaint(
-                                painter: _GlassReflectionPainter(
-                                  color:
-                                      dark ? scheme.onSurface : scheme.surface,
-                                  dark: dark,
-                                ),
-                              ),
-                            ),
-                          ),
-                          builder: (context, child) {
-                            final stretch = math
-                                    .sin(_controller.value * math.pi) *
-                                math.min(
-                                    (_to - _from).abs() * tabWidth * 0.18, 16.0);
-                            return Positioned(
-                              left: (inset +
-                                      _position * tabWidth -
-                                      1 -
-                                      stretch / 2)
-                                  .clamp(
-                                      inset,
-                                      constraints.maxWidth -
-                                          inset -
-                                          lensWidth -
-                                          stretch),
-                              top: 5,
-                              width: lensWidth + stretch,
-                              height: widget.height - 10,
-                              child: child!,
-                            );
-                          },
-                        ),
-                        Positioned.fill(
-                          child: Padding(
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: inset),
-                            child: Material(
-                              type: MaterialType.transparency,
-                              child: Row(
-                                children: [
-                                  for (var i = 0;
-                                      i < widget.destinations.length;
-                                      i++)
-                                    Expanded(child: _buildDestination(i, scheme)),
-                                ],
-                              ),
                             ),
                           ),
                         ),

@@ -4,7 +4,7 @@ import 'dart:ui' show lerpDouble;
 import 'package:flutter/material.dart';
 
 /// 搜索框展开为临时页面的共用动效，输入区和内容区分别避让安全边距与键盘。
-class SearchOverlaySurface extends StatelessWidget {
+class SearchOverlaySurface extends StatefulWidget {
   const SearchOverlaySurface({
     super.key,
     required this.animation,
@@ -23,9 +23,57 @@ class SearchOverlaySurface extends StatelessWidget {
   final bool closing;
 
   @override
+  State<SearchOverlaySurface> createState() => _SearchOverlaySurfaceState();
+}
+
+class _SearchOverlaySurfaceState extends State<SearchOverlaySurface> {
+  late CurvedAnimation _surfaceCurve;
+  late CurvedAnimation _contentFade;
+
+  @override
+  void initState() {
+    super.initState();
+    _bindCurves(widget.animation);
+  }
+
+  void _bindCurves(Animation<double> animation) {
+    _surfaceCurve = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeInOutCubic,
+    );
+    _contentFade = CurvedAnimation(
+      parent: _surfaceCurve,
+      curve: const Interval(0.25, 1.0),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant SearchOverlaySurface oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.animation != widget.animation) {
+      _contentFade.dispose();
+      _surfaceCurve.dispose();
+      _bindCurves(widget.animation);
+    }
+  }
+
+  @override
+  void dispose() {
+    _contentFade.dispose();
+    _surfaceCurve.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
     final colors = Theme.of(context).colorScheme;
+    final contentChild = RepaintBoundary(
+      child: FadeTransition(
+        opacity: _contentFade,
+        child: widget.child,
+      ),
+    );
     return LayoutBuilder(builder: (context, constraints) {
       final size = constraints.biggest;
       final destination = Offset.zero & size;
@@ -33,14 +81,15 @@ class SearchOverlaySurface extends StatelessWidget {
         16 + media.viewPadding.left,
         media.viewPadding.top + 8,
         math.max(0, size.width - 32 - media.viewPadding.horizontal),
-        sourceRect.height,
+        widget.sourceRect.height,
       );
       return AnimatedBuilder(
-        animation: animation,
-        builder: (context, _) {
-          final progress = Curves.easeInOutCubic.transform(animation.value);
-          final surface = Rect.lerp(sourceRect, destination, progress)!;
-          final inputRect = Rect.lerp(sourceRect, targetInput, progress)!;
+        animation: _surfaceCurve,
+        child: contentChild,
+        builder: (context, cachedContent) {
+          final progress = _surfaceCurve.value;
+          final surface = Rect.lerp(widget.sourceRect, destination, progress)!;
+          final inputRect = Rect.lerp(widget.sourceRect, targetInput, progress)!;
           final contentTop = inputRect.bottom + 12;
           final contentHeight = math.max(
             0.0,
@@ -50,7 +99,7 @@ class SearchOverlaySurface extends StatelessWidget {
                 16,
           );
           return IgnorePointer(
-            ignoring: closing,
+            ignoring: widget.closing,
             child: ClipRRect(
               clipper:
                   _SearchRevealClipper(surface, lerpDouble(8, 0, progress)!),
@@ -58,18 +107,15 @@ class SearchOverlaySurface extends StatelessWidget {
                 color: colors.surface,
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTap: onBackgroundTap,
+                  onTap: widget.onBackgroundTap,
                   child: Stack(children: [
-                    Positioned.fromRect(rect: inputRect, child: input),
+                    Positioned.fromRect(rect: inputRect, child: widget.input),
                     Positioned(
                       top: contentTop,
                       left: targetInput.left,
                       width: targetInput.width,
                       height: contentHeight,
-                      child: Opacity(
-                        opacity: ((progress - .25) / .75).clamp(0.0, 1.0),
-                        child: child,
-                      ),
+                      child: cachedContent!,
                     ),
                   ]),
                 ),

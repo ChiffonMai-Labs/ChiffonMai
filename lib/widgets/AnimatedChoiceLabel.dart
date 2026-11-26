@@ -86,81 +86,91 @@ class _AnimatedChoiceLabelState extends State<AnimatedChoiceLabel>
     final borderRadius = BorderRadius.circular(widget.radius);
     final duration =
         MediaQuery.disableAnimationsOf(context) ? Duration.zero : _duration;
-    return Semantics(
-      button: true,
-      selected: widget.selected,
-      label: widget.label,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: borderRadius,
-          splashFactory: NoSplash.splashFactory,
-          highlightColor: Colors.transparent,
-          onTap: () {
-            if (!widget.selected) widget.onTap();
-          },
-          child: AnimatedBuilder(
-            animation: _controller,
-            builder: (context, _) {
-              final progress = Curves.easeOutCubic.transform(_controller.value);
-              return ClipRRect(
-                borderRadius: borderRadius,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: widget.unselectedColor,
-                    border: Border.all(
-                      color: widget.selected
-                          ? (widget.selectedBorderColor ??
-                              widget.borderColor ??
-                              scheme.primary)
-                          : (widget.borderColor ?? scheme.outlineVariant),
-                      width: widget.borderWidth,
-                    ),
-                    borderRadius: borderRadius,
+    final targetTextColor = widget.selected
+        ? (widget.selectedTextColor ?? scheme.onPrimaryContainer)
+        : (widget.unselectedTextColor ?? scheme.onSurfaceVariant);
+    final targetWeight = widget.textStyle?.fontWeight ??
+        (widget.selected ? FontWeight.bold : FontWeight.w500);
+    final baseStyle = theme.textTheme.labelLarge!.merge(widget.textStyle);
+    return RepaintBoundary(
+      child: Semantics(
+        button: true,
+        selected: widget.selected,
+        label: widget.label,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: borderRadius,
+            splashFactory: NoSplash.splashFactory,
+            highlightColor: Colors.transparent,
+            onTap: () {
+              if (!widget.selected) widget.onTap();
+            },
+            child: ClipRRect(
+              borderRadius: borderRadius,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: widget.unselectedColor,
+                  border: Border.all(
+                    color: widget.selected
+                        ? (widget.selectedBorderColor ??
+                            widget.borderColor ??
+                            scheme.primary)
+                        : (widget.borderColor ?? scheme.outlineVariant),
+                    width: widget.borderWidth,
                   ),
-                  child: Stack(
-                    children: [
-                      Positioned.fill(
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: FractionallySizedBox(
-                            widthFactor: progress,
-                            heightFactor: 1,
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: widget.selectedColor ??
-                                    scheme.primaryContainer,
-                                borderRadius: borderRadius,
-                              ),
-                            ),
+                  borderRadius: borderRadius,
+                ),
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: AnimatedBuilder(
+                        animation: _controller,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: widget.selectedColor ??
+                                scheme.primaryContainer,
+                            borderRadius: borderRadius,
+                          ),
+                        ),
+                        builder: (context, fillChild) {
+                          final progress =
+                              Curves.easeOutCubic.transform(_controller.value);
+                          return Transform.scale(
+                            scaleX: progress,
+                            scaleY: 1,
+                            alignment: Alignment.centerLeft,
+                            child: fillChild,
+                          );
+                        },
+                      ),
+                    ),
+                    Padding(
+                      padding: widget.padding,
+                      child: TweenAnimationBuilder<Color?>(
+                        tween: ColorTween(end: targetTextColor),
+                        duration: duration,
+                        builder: (context, color, _) => Text(
+                          widget.label,
+                          style: baseStyle.copyWith(
+                            color: color ?? targetTextColor,
+                            fontWeight: targetWeight,
+                            fontVariations: baseStyle.fontVariations != null
+                                ? [
+                                    FontVariation(
+                                      'wght',
+                                      targetWeight.value.toDouble(),
+                                    ),
+                                  ]
+                                : null,
                           ),
                         ),
                       ),
-                      Padding(
-                        padding: widget.padding,
-                        child: AnimatedDefaultTextStyle(
-                          duration: duration,
-                          style: theme.textTheme.labelLarge!
-                              .merge(widget.textStyle)
-                              .copyWith(
-                                color: widget.selected
-                                    ? (widget.selectedTextColor ??
-                                        scheme.onPrimaryContainer)
-                                    : (widget.unselectedTextColor ??
-                                        scheme.onSurfaceVariant),
-                                fontWeight: widget.textStyle?.fontWeight ??
-                                    (widget.selected
-                                        ? FontWeight.bold
-                                        : FontWeight.w500),
-                              ),
-                          child: Text(widget.label),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              );
-            },
+              ),
+            ),
           ),
         ),
       ),

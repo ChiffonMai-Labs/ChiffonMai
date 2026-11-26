@@ -155,6 +155,10 @@ class AppTheme {
   @visibleForTesting
   static bool debugLocalFontFamily = false;
 
+  /// 供根部主题缓存区分当前字体配置（中文字体就绪状态与测试字体覆盖）。
+  static Object get fontThemeCacheKey =>
+      (AppFontService.instance.isCjkLoaded, debugLocalFontFamily);
+
   /// 主题文字：本地 `AppOutfit`，每一档的中文回落都通过 `wght` 轴对齐自托管思源黑体。
   static TextTheme _outfitTextTheme(TextTheme base) {
     if (debugLocalFontFamily) {
@@ -221,8 +225,13 @@ class AppTheme {
       navigationBarTheme: navigationLabel == null
           ? base.navigationBarTheme
           : base.navigationBarTheme.copyWith(
-              labelTextStyle: WidgetStateProperty.resolveWith(
-                  (states) => withFont(navigationLabel.resolve(states))),
+              labelTextStyle: navigationLabel is WidgetStatePropertyAll<TextStyle?>
+                  ? WidgetStatePropertyAll<TextStyle?>(
+                      withFont(navigationLabel.value),
+                    )
+                  : WidgetStateProperty.resolveWith(
+                      (states) => withFont(navigationLabel.resolve(states)),
+                    ),
             ),
       appBarTheme: baseTitle == null
           ? base.appBarTheme

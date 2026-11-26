@@ -92,6 +92,10 @@ class _ExpandingPillNavigationBarState extends State<ExpandingPillNavigationBar>
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final focusSide = WidgetStateProperty.resolveWith((states) =>
+        states.contains(WidgetState.focused)
+            ? BorderSide(color: scheme.primary, width: 1.5)
+            : BorderSide.none);
     return RepaintBoundary(
       child: Material(
         color: scheme.surfaceContainerHigh.withValues(alpha: 0.96),
@@ -119,9 +123,11 @@ class _ExpandingPillNavigationBarState extends State<ExpandingPillNavigationBar>
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 2),
                             child: _buildDestination(
-                                index,
-                                (weights[index] - 1).clamp(0.0, 1.0).toDouble(),
-                                scheme),
+                              index,
+                              (weights[index] - 1).clamp(0.0, 1.0).toDouble(),
+                              scheme,
+                              focusSide,
+                            ),
                           ),
                         ),
                     ],
@@ -135,7 +141,12 @@ class _ExpandingPillNavigationBarState extends State<ExpandingPillNavigationBar>
     );
   }
 
-  Widget _buildDestination(int index, double expansion, ColorScheme scheme) {
+  Widget _buildDestination(
+    int index,
+    double expansion,
+    ColorScheme scheme,
+    WidgetStateProperty<BorderSide?> focusSide,
+  ) {
     final destination = widget.destinations[index];
     final selected = index == widget.selectedIndex;
     final color = Color.lerp(
@@ -163,10 +174,7 @@ class _ExpandingPillNavigationBarState extends State<ExpandingPillNavigationBar>
         ).copyWith(
           // 颜色随宽度逐帧插值，避免按钮自己的隐式动画再次延迟。
           animationDuration: Duration.zero,
-          side: WidgetStateProperty.resolveWith((states) =>
-              states.contains(WidgetState.focused)
-                  ? BorderSide(color: scheme.primary, width: 1.5)
-                  : BorderSide.none),
+          side: focusSide,
         ),
         child: ExcludeSemantics(
           child: FittedBox(
@@ -185,12 +193,11 @@ class _ExpandingPillNavigationBarState extends State<ExpandingPillNavigationBar>
                     color: color,
                   ),
                 ),
-                ClipRect(
-                  child: Align(
-                    widthFactor: expansion,
-                    heightFactor: 1,
-                    child: Opacity(
-                      opacity: expansion,
+                if (expansion > 0.001)
+                  ClipRect(
+                    child: Align(
+                      widthFactor: expansion,
+                      heightFactor: 1,
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -199,16 +206,18 @@ class _ExpandingPillNavigationBarState extends State<ExpandingPillNavigationBar>
                             destination.label,
                             maxLines: 1,
                             softWrap: false,
+                            // 直接调整文字颜色透明度，避免 Opacity 触发离屏 saveLayer。
                             style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: color),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color:
+                                  color.withValues(alpha: color.a * expansion),
+                            ),
                           ),
                         ],
                       ),
                     ),
                   ),
-                ),
               ],
             ),
           ),

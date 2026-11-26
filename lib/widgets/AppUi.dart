@@ -508,102 +508,114 @@ class SegmentedTabs extends StatelessWidget {
     final selectedText = dark ? scheme.onSecondaryContainer : scheme.onSurface;
     final duration =
         AppDesignTokens.motion(context, AppDesignTokens.mediumMotion);
-    return Container(
-      height: height,
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: AppSurfaces.track(context),
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final w = constraints.maxWidth / items.length;
-          return Stack(
-            children: [
-              AnimatedPositioned(
-                duration: duration,
-                curve: AppDesignTokens.emphasizedCurve,
-                left: selectedIndex * w,
-                top: 0,
-                bottom: 0,
-                width: w,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: selectedColor,
-                    borderRadius:
-                        BorderRadius.circular(AppDesignTokens.radiusSmall),
-                    boxShadow: [
-                      BoxShadow(
-                        color: scheme.shadow.withValues(alpha: 0.08),
-                        blurRadius: 4,
-                        offset: const Offset(0, 1),
+    return RepaintBoundary(
+      child: Container(
+        height: height,
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: AppSurfaces.track(context),
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final w = constraints.maxWidth / items.length;
+            return Stack(
+              children: [
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: w,
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween<double>(end: selectedIndex.toDouble()),
+                    duration: duration,
+                    curve: AppDesignTokens.emphasizedCurve,
+                    child: RepaintBoundary(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: selectedColor,
+                          borderRadius:
+                              BorderRadius.circular(AppDesignTokens.radiusSmall),
+                          boxShadow: [
+                            BoxShadow(
+                              color: scheme.shadow.withValues(alpha: 0.08),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
+                        ),
                       ),
-                    ],
+                    ),
+                    builder: (context, position, child) => Transform.translate(
+                      offset: Offset(position * w, 0),
+                      child: child,
+                    ),
                   ),
                 ),
-              ),
-              Row(
-                children: [
-                  for (var i = 0; i < items.length; i++)
-                    Expanded(
-                      child: Semantics(
-                        button: true,
-                        selected: i == selectedIndex,
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () {
-                            if (i != selectedIndex) onChanged(i);
-                          },
-                          child: Center(
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Flex(
-                              direction: inlineCaption
-                                  ? Axis.horizontal
-                                  : Axis.vertical,
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                Text(
-                                  items[i].label,
-                                  maxLines: 1,
-                                  softWrap: false,
-                                  style: TextStyle(
-                                    fontSize: 12.5,
-                                    fontWeight: i == selectedIndex
-                                        ? FontWeight.w700
-                                        : FontWeight.w600,
-                                    color: i == selectedIndex
-                                        ? selectedText
-                                        : scheme.onSurfaceVariant,
-                                  ),
-                                ),
-                                if (inlineCaption && items[i].caption != null)
-                                  const SizedBox(width: 6),
-                                if (items[i].caption != null)
-                                  Text(
-                                    items[i].caption!,
-                                    maxLines: 1,
-                                    style: AppTheme.number(
-                                      fontSize: inlineCaption ? 15 : 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: i == selectedIndex
-                                          ? selectedText
-                                          : scheme.onSurfaceVariant,
+                Row(
+                  children: [
+                    for (var i = 0; i < items.length; i++)
+                      Expanded(
+                        child: Semantics(
+                          button: true,
+                          selected: i == selectedIndex,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () {
+                              if (i != selectedIndex) onChanged(i);
+                            },
+                            child: Center(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Flex(
+                                  direction: inlineCaption
+                                      ? Axis.horizontal
+                                      : Axis.vertical,
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      items[i].label,
+                                      maxLines: 1,
+                                      softWrap: false,
+                                      style: TextStyle(
+                                        fontSize: 12.5,
+                                        fontWeight: i == selectedIndex
+                                            ? FontWeight.w700
+                                            : FontWeight.w600,
+                                        color: i == selectedIndex
+                                            ? selectedText
+                                            : scheme.onSurfaceVariant,
+                                      ),
                                     ),
-                                  ),
-                              ],
+                                    if (inlineCaption &&
+                                        items[i].caption != null)
+                                      const SizedBox(width: 6),
+                                    if (items[i].caption != null)
+                                      Text(
+                                        items[i].caption!,
+                                        maxLines: 1,
+                                        style: AppTheme.number(
+                                          fontSize: inlineCaption ? 15 : 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: i == selectedIndex
+                                              ? selectedText
+                                              : scheme.onSurfaceVariant,
+                                        ),
+                                      ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                ],
-              ),
-            ],
-          );
-        },
+                  ],
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -1188,29 +1200,93 @@ class FeatureIconTile extends StatelessWidget {
 }
 
 /// 展开 / 收起一块内容：高度和透明度一起过渡，子树一直保留，不会重新入场。
-class AnimatedReveal extends StatelessWidget {
+class AnimatedReveal extends StatefulWidget {
   final bool visible;
   final Widget child;
 
   const AnimatedReveal({super.key, required this.visible, required this.child});
 
   @override
+  State<AnimatedReveal> createState() => _AnimatedRevealState();
+}
+
+class _AnimatedRevealState extends State<AnimatedReveal>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: AppDesignTokens.mediumMotion,
+    value: widget.visible ? 1 : 0,
+  );
+  late final CurvedAnimation _curve = CurvedAnimation(
+    parent: _controller,
+    curve: AppDesignTokens.emphasizedCurve,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addStatusListener(_onStatusChanged);
+  }
+
+  void _onStatusChanged(AnimationStatus status) {
+    if ((status == AnimationStatus.dismissed ||
+            status == AnimationStatus.completed) &&
+        mounted) {
+      setState(() {});
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final duration =
+        AppDesignTokens.motion(context, AppDesignTokens.mediumMotion);
+    _controller.duration = duration;
+    if (duration == Duration.zero) {
+      _controller.value = widget.visible ? 1 : 0;
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant AnimatedReveal oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.visible == oldWidget.visible) return;
+    if (_controller.duration == Duration.zero) {
+      _controller.value = widget.visible ? 1 : 0;
+    } else if (widget.visible) {
+      _controller.forward();
+    } else {
+      _controller.reverse();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.removeStatusListener(_onStatusChanged);
+    _curve.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(end: visible ? 1 : 0),
-      duration: AppDesignTokens.motion(context, AppDesignTokens.mediumMotion),
-      curve: AppDesignTokens.emphasizedCurve,
-      child: ExcludeFocus(
-        excluding: !visible,
-        child: ExcludeSemantics(excluding: !visible, child: child),
-      ),
-      builder: (context, value, child) => IgnorePointer(
-        ignoring: !visible,
-        child: ClipRect(
-          child: Align(
-            alignment: Alignment.topCenter,
-            heightFactor: value,
-            child: Opacity(opacity: value, child: child),
+    final hidden = !widget.visible && _controller.isDismissed;
+    return Offstage(
+      offstage: hidden,
+      child: IgnorePointer(
+        ignoring: !widget.visible,
+        child: ExcludeFocus(
+          excluding: !widget.visible,
+          child: ExcludeSemantics(
+            excluding: !widget.visible,
+            child: SizeTransition(
+              sizeFactor: _curve,
+              axisAlignment: -1.0,
+              child: FadeTransition(
+                opacity: _curve,
+                child: widget.child,
+              ),
+            ),
           ),
         ),
       ),
@@ -1239,35 +1315,46 @@ class UnderlineTabs extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final accent = indicatorColor ?? scheme.onSurface;
-    return SizedBox(
-      height: 44,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final w = constraints.maxWidth / labels.length;
-          return Stack(
-            children: [
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child:
-                    Container(height: 1, color: AppSurfaces.hairline(context)),
-              ),
-              AnimatedPositioned(
-                duration: AppDesignTokens.motion(
-                    context, AppDesignTokens.mediumMotion),
-                curve: AppDesignTokens.emphasizedCurve,
-                left: selectedIndex * w,
-                width: w,
-                bottom: 0,
-                height: 3,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: accent,
-                    borderRadius: BorderRadius.circular(2),
+    final duration =
+        AppDesignTokens.motion(context, AppDesignTokens.mediumMotion);
+    return RepaintBoundary(
+      child: SizedBox(
+        height: 44,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final w = constraints.maxWidth / labels.length;
+            return Stack(
+              children: [
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child:
+                      Container(height: 1, color: AppSurfaces.hairline(context)),
+                ),
+                Positioned(
+                  left: 0,
+                  width: w,
+                  bottom: 0,
+                  height: 3,
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween<double>(end: selectedIndex.toDouble()),
+                    duration: duration,
+                    curve: AppDesignTokens.emphasizedCurve,
+                    child: RepaintBoundary(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: accent,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    builder: (context, position, child) => Transform.translate(
+                      offset: Offset(position * w, 0),
+                      child: child,
+                    ),
                   ),
                 ),
-              ),
               Row(
                 children: [
                   for (var i = 0; i < labels.length; i++)
@@ -1303,6 +1390,7 @@ class UnderlineTabs extends StatelessWidget {
             ],
           );
         },
+      ),
       ),
     );
   }
@@ -1647,52 +1735,63 @@ class FilterPill extends StatelessWidget {
     final duration =
         AppDesignTokens.motion(context, AppDesignTokens.fastMotion);
     final text = hasValue ? '$label：$value' : label;
-    return Semantics(
-      button: true,
-      selected: active,
-      label: text,
-      onTap: onTap,
-      excludeSemantics: true,
-      child: PressScale(
-        scale: 0.95,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: onTap,
-          child: AnimatedContainer(
-            duration: duration,
-            curve: Curves.easeOut,
-            padding: const EdgeInsets.fromLTRB(12, 7, 10, 7),
-            decoration: BoxDecoration(
-              color: active
-                  ? (selectedColor ?? scheme.secondaryContainer)
-                  : AppSurfaces.track(context),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: AnimatedSize(
+    return RepaintBoundary(
+      child: Semantics(
+        button: true,
+        selected: active,
+        label: text,
+        onTap: onTap,
+        excludeSemantics: true,
+        child: PressScale(
+          scale: 0.95,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onTap,
+            child: AnimatedContainer(
               duration: duration,
               curve: Curves.easeOut,
-              alignment: Alignment.centerLeft,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // 胶囊排在横向滚动里，已选条件再长也完整显示
-                  AnimatedDefaultTextStyle(
-                    duration: duration,
-                    style: AppTheme.font(
-                        fontSize: 13, fontWeight: FontWeight.w600, color: fg),
-                    child: Text(text, maxLines: 1, softWrap: false),
-                  ),
-                  if (selected == null) ...[
-                    const SizedBox(width: 4),
-                    AnimatedRotation(
-                      turns: expanded ? 0.5 : 0,
+              padding: const EdgeInsets.fromLTRB(12, 7, 10, 7),
+              decoration: BoxDecoration(
+                color: active
+                    ? (selectedColor ?? scheme.secondaryContainer)
+                    : AppSurfaces.track(context),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: AnimatedSize(
+                duration: duration,
+                curve: Curves.easeOut,
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 胶囊排在横向滚动里，已选条件再长也完整显示
+                    TweenAnimationBuilder<Color?>(
+                      tween: ColorTween(end: fg),
                       duration: duration,
                       curve: Curves.easeOut,
-                      child: Icon(Icons.keyboard_arrow_down_rounded,
-                          size: 16, color: fg),
+                      builder: (context, color, _) => Text(
+                        text,
+                        maxLines: 1,
+                        softWrap: false,
+                        style: AppTheme.font(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: color ?? fg,
+                        ),
+                      ),
                     ),
+                    if (selected == null) ...[
+                      const SizedBox(width: 4),
+                      AnimatedRotation(
+                        turns: expanded ? 0.5 : 0,
+                        duration: duration,
+                        curve: Curves.easeOut,
+                        child: Icon(Icons.keyboard_arrow_down_rounded,
+                            size: 16, color: fg),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),

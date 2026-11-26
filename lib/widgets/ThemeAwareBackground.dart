@@ -77,6 +77,7 @@ class _BgImage extends StatelessWidget {
   static final Listenable _overlayListenable = Listenable.merge([
     ThemeManager().lightOverlayNotifier,
     ThemeManager().chiffonOpacityNotifier,
+    ThemeManager().customBackgroundPathNotifier,
   ]);
 
   @override

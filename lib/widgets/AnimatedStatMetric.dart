@@ -182,15 +182,16 @@ class _AnimatedStatMetricState extends State<AnimatedStatMetric>
                 alignment: Alignment.centerLeft,
                 widthFactor: 1,
                 child: widget.loading
-                    ? Opacity(
-                        opacity: 0.35 + _numberController.value * 0.4,
-                        child: Container(
-                          width: 42,
-                          height: 22,
-                          decoration: BoxDecoration(
-                              color: theme.colorScheme.onSurfaceVariant,
-                              borderRadius: BorderRadius.circular(5)),
-                        ))
+                    ? Container(
+                        width: 42,
+                        height: 22,
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.onSurfaceVariant.withValues(
+                            alpha: 0.35 + _numberController.value * 0.4,
+                          ),
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                      )
                     : FittedBox(
                         fit: BoxFit.scaleDown,
                         alignment: Alignment.centerLeft,

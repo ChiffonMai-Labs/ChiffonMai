@@ -263,23 +263,30 @@ class _CollectionSearchPageState extends State<CollectionSearchPage> {
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
-              child: AnimatedDefaultTextStyle(
+              child: TweenAnimationBuilder<Color?>(
+                tween: ColorTween(end: textColor),
                 duration: const Duration(milliseconds: 180),
-                style: AppTheme.font(
-                  fontSize: 13,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                  color: textColor,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(color),
-                    if (selected) ...[
-                      const SizedBox(width: 4),
-                      Icon(Icons.check_rounded, size: 16, color: textColor),
+                builder: (context, animatedColor, _) {
+                  final resolved = animatedColor ?? textColor;
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        color,
+                        style: AppTheme.font(
+                          fontSize: 13,
+                          fontWeight:
+                              selected ? FontWeight.w700 : FontWeight.w500,
+                          color: resolved,
+                        ),
+                      ),
+                      if (selected) ...[
+                        const SizedBox(width: 4),
+                        Icon(Icons.check_rounded, size: 16, color: resolved),
+                      ],
                     ],
-                  ],
-                ),
+                  );
+                },
               ),
             ),
           ],

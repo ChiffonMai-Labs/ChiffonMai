@@ -438,15 +438,21 @@ class _PlaybackModeMenu extends StatelessWidget {
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: AnimatedDefaultTextStyle(
+              child: TweenAnimationBuilder<Color?>(
                 duration: _switchDuration,
                 curve: Curves.easeOut,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                  color: selected ? scheme.primary : scheme.onSurface,
+                tween: ColorTween(
+                  end: selected ? scheme.primary : scheme.onSurface,
                 ),
-                child: Text(label),
+                builder: (context, color, _) => Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                    color: color ??
+                        (selected ? scheme.primary : scheme.onSurface),
+                  ),
+                ),
               ),
             ),
             // 勾选：淡入 + 轻微放大。没选中时保留占位（透明度 0），行宽才不会抖

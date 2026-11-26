@@ -248,31 +248,40 @@ class ThemeModeControl extends StatelessWidget {
 class NavigationControls extends StatelessWidget {
   const NavigationControls({super.key});
 
+  static final Listenable _barStyleListenable = Listenable.merge([
+    NavigationPreferences.instance.barStyleListenable,
+    NavigationPreferences.instance.loadedListenable,
+  ]);
+
   @override
   Widget build(BuildContext context) {
     final navigation = NavigationPreferences.instance;
-    return ListenableBuilder(
-      listenable: navigation,
-      builder: (context, _) {
-        final scheme = Theme.of(context).colorScheme;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(context.l10n.navigationStyle,
-                style: TextStyle(fontSize: 13.5)),
-            const SizedBox(height: 8),
-            AnimatedChoiceBar<NavigationBarStyle>(
-              values: NavigationBarStyle.values,
-              value: navigation.barStyle,
-              label: (style) => switch (style) {
-                NavigationBarStyle.standard => context.l10n.navigationClassic,
-                NavigationBarStyle.liquidGlass => context.l10n.navigationGlass,
-                NavigationBarStyle.expandingPill => context.l10n.navigationPill,
-              },
-              onChanged: navigation.loaded ? navigation.setBarStyle : null,
-            ),
-            const SizedBox(height: 6),
-            Text(
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(context.l10n.navigationStyle,
+            style: const TextStyle(fontSize: 13.5)),
+        const SizedBox(height: 8),
+        ListenableBuilder(
+          listenable: _barStyleListenable,
+          builder: (context, _) => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AnimatedChoiceBar<NavigationBarStyle>(
+                values: NavigationBarStyle.values,
+                value: navigation.barStyle,
+                label: (style) => switch (style) {
+                  NavigationBarStyle.standard => context.l10n.navigationClassic,
+                  NavigationBarStyle.liquidGlass =>
+                    context.l10n.navigationGlass,
+                  NavigationBarStyle.expandingPill =>
+                    context.l10n.navigationPill,
+                },
+                onChanged: navigation.loaded ? navigation.setBarStyle : null,
+              ),
+              const SizedBox(height: 6),
+              Text(
                 switch (navigation.barStyle) {
                   NavigationBarStyle.standard =>
                     context.l10n.navigationClassicHint,
@@ -281,44 +290,57 @@ class NavigationControls extends StatelessWidget {
                   NavigationBarStyle.expandingPill =>
                     context.l10n.navigationPillHint,
                 },
-                style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
-            const SizedBox(height: 6),
-            AppSwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              value: navigation.transitionEnabled,
-              onChanged: navigation.setTransitionEnabled,
-              title: Text(context.l10n.navigationAnimation),
-              subtitle: Text(context.l10n.navigationAnimationHint),
-              secondary: Icon(Icons.animation_outlined, color: scheme.primary),
-            ),
-            AppSwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              value: navigation.swipeEnabled,
-              onChanged: navigation.setSwipeEnabled,
-              title: Text(context.l10n.swipeNavigation),
-              subtitle: Text(context.l10n.swipeNavigationHint),
-              secondary: Icon(Icons.swipe_outlined, color: scheme.primary),
-            ),
-            AppSwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              value: navigation.immersiveStatusBarEnabled,
-              onChanged: navigation.setImmersiveStatusBarEnabled,
-              title: Text(context.l10n.immersiveStatusBar),
-              subtitle: Text(context.l10n.immersiveStatusBarHint),
-              secondary: Icon(Icons.fullscreen_rounded, color: scheme.primary),
-            ),
-            AppSwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              value: navigation.busyHintEnabled,
-              onChanged: navigation.setBusyHintEnabled,
-              title: Text(context.l10n.busyHint),
-              subtitle: Text(context.l10n.busyHintDescription),
-              secondary:
-                  Icon(Icons.error_outline_rounded, color: scheme.primary),
-            ),
-          ],
-        );
-      },
+                style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 6),
+        ListenableBuilder(
+          listenable: navigation.transitionEnabledListenable,
+          builder: (context, _) => AppSwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: navigation.transitionEnabled,
+            onChanged: navigation.setTransitionEnabled,
+            title: Text(context.l10n.navigationAnimation),
+            subtitle: Text(context.l10n.navigationAnimationHint),
+            secondary: Icon(Icons.animation_outlined, color: scheme.primary),
+          ),
+        ),
+        ListenableBuilder(
+          listenable: navigation.swipeEnabledListenable,
+          builder: (context, _) => AppSwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: navigation.swipeEnabled,
+            onChanged: navigation.setSwipeEnabled,
+            title: Text(context.l10n.swipeNavigation),
+            subtitle: Text(context.l10n.swipeNavigationHint),
+            secondary: Icon(Icons.swipe_outlined, color: scheme.primary),
+          ),
+        ),
+        ListenableBuilder(
+          listenable: navigation.immersiveStatusBarListenable,
+          builder: (context, _) => AppSwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: navigation.immersiveStatusBarEnabled,
+            onChanged: navigation.setImmersiveStatusBarEnabled,
+            title: Text(context.l10n.immersiveStatusBar),
+            subtitle: Text(context.l10n.immersiveStatusBarHint),
+            secondary: Icon(Icons.fullscreen_rounded, color: scheme.primary),
+          ),
+        ),
+        ListenableBuilder(
+          listenable: navigation.busyHintListenable,
+          builder: (context, _) => AppSwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: navigation.busyHintEnabled,
+            onChanged: navigation.setBusyHintEnabled,
+            title: Text(context.l10n.busyHint),
+            subtitle: Text(context.l10n.busyHintDescription),
+            secondary: Icon(Icons.error_outline_rounded, color: scheme.primary),
+          ),
+        ),
+      ],
     );
   }
 }
