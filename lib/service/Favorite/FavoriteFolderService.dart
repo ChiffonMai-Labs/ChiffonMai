@@ -279,8 +279,155 @@ class FavoriteFolderService {
             .toLowerCase()
             .compareTo(b.songTitle.toLowerCase()));
         break;
+      case FavoriteSortOption.custom:
+        // 保留谱面列表的存储顺序
+        break;
     }
     return sorted;
+  }
+
+  /// 按 ReorderableListView 语义（向下拖拽时 newIndex 含被移除项占位）重排列表
+  bool _reorderList<T>(List<T> list, int oldIndex, int newIndex) {
+    if (oldIndex < 0 || oldIndex >= list.length) return false;
+    var targetIndex = newIndex;
+    if (oldIndex < targetIndex) {
+      targetIndex -= 1;
+    }
+    if (targetIndex < 0 ||
+        targetIndex >= list.length ||
+        oldIndex == targetIndex) {
+      return false;
+    }
+    final item = list.removeAt(oldIndex);
+    list.insert(targetIndex, item);
+    return true;
+  }
+
+  /// 将列表中的元素从 [fromIndex] 移动到 0 基目标位置 [toIndex]
+  bool _moveInList<T>(List<T> list, int fromIndex, int toIndex) {
+    if (fromIndex < 0 ||
+        fromIndex >= list.length ||
+        toIndex < 0 ||
+        toIndex >= list.length ||
+        fromIndex == toIndex) {
+      return false;
+    }
+    final item = list.removeAt(fromIndex);
+    list.insert(toIndex, item);
+    return true;
+  }
+
+  /// 交换列表中两个下标的元素
+  bool _swapInList<T>(List<T> list, int indexA, int indexB) {
+    if (indexA < 0 ||
+        indexA >= list.length ||
+        indexB < 0 ||
+        indexB >= list.length ||
+        indexA == indexB) {
+      return false;
+    }
+    final temp = list[indexA];
+    list[indexA] = list[indexB];
+    list[indexB] = temp;
+    return true;
+  }
+
+  /// 拖拽调整收藏夹顺序并持久化
+  Future<void> reorderFolders(int oldIndex, int newIndex) async {
+    if (!_loaded) await loadFolders();
+    if (_reorderList(_folders, oldIndex, newIndex)) {
+      await _saveFolders();
+    }
+  }
+
+  /// 将收藏夹移动到指定 0 基序号并持久化
+  Future<void> moveFolderTo(int fromIndex, int toIndex) async {
+    if (!_loaded) await loadFolders();
+    if (_moveInList(_folders, fromIndex, toIndex)) {
+      await _saveFolders();
+    }
+  }
+
+  /// 交换两个收藏夹的位置并持久化
+  Future<void> swapFolders(int indexA, int indexB) async {
+    if (!_loaded) await loadFolders();
+    if (_swapInList(_folders, indexA, indexB)) {
+      await _saveFolders();
+    }
+  }
+
+  /// 设置并持久化收藏夹的排序方式
+  Future<void> setFolderSortOption(
+      String folderId, FavoriteSortOption option) async {
+    if (!_loaded) await loadFolders();
+    try {
+      final folder = _folders.firstWhere((f) => f.id == folderId);
+      if (folder.sortOption == option) return;
+      folder.sortOption = option;
+      folder.updatedAt = DateTime.now().millisecondsSinceEpoch;
+      await _saveFolders();
+    } catch (_) {
+      // 收藏夹不存在时静默忽略
+    }
+  }
+
+  /// 将指定的谱面顺序固化保存到收藏夹中
+  Future<void> saveChartsOrder(
+      String folderId, List<FavoriteChart> orderedCharts) async {
+    if (!_loaded) await loadFolders();
+    try {
+      final folder = _folders.firstWhere((f) => f.id == folderId);
+      folder.charts = List<FavoriteChart>.from(orderedCharts);
+      folder.updatedAt = DateTime.now().millisecondsSinceEpoch;
+      await _saveFolders();
+    } catch (_) {
+      // 收藏夹不存在时静默忽略
+    }
+  }
+
+  /// 拖拽调整收藏夹内谱面顺序并持久化
+  Future<void> reorderChartsInFolder(
+      String folderId, int oldIndex, int newIndex) async {
+    if (!_loaded) await loadFolders();
+    try {
+      final folder = _folders.firstWhere((f) => f.id == folderId);
+      if (_reorderList(folder.charts, oldIndex, newIndex)) {
+        folder.updatedAt = DateTime.now().millisecondsSinceEpoch;
+        await _saveFolders();
+      }
+    } catch (_) {
+      // 收藏夹不存在时静默忽略
+    }
+  }
+
+  /// 将收藏夹内谱面移动到指定 0 基序号并持久化
+  Future<void> moveChartInFolder(
+      String folderId, int fromIndex, int toIndex) async {
+    if (!_loaded) await loadFolders();
+    try {
+      final folder = _folders.firstWhere((f) => f.id == folderId);
+      if (_moveInList(folder.charts, fromIndex, toIndex)) {
+        folder.updatedAt = DateTime.now().millisecondsSinceEpoch;
+        await _saveFolders();
+      }
+    } catch (_) {
+      // 收藏夹不存在时静默忽略
+    }
+  }
+
+  /// 交换收藏夹内两个谱面的位置并持久化
+  Future<void> swapChartsInFolder(
+      String folderId, int indexA, int indexB) async {
+    if (!_loaded) await loadFolders();
+    try {
+      final folder = _folders.firstWhere((f) => f.id == folderId);
+      if (_swapInList(folder.charts, indexA, indexB)) {
+        folder.updatedAt = DateTime.now().millisecondsSinceEpoch;
+        await _saveFolders();
+      }
+    } catch (_) {
+      // 收藏夹不存在时静默忽略
+    }
   }
 
   /// 批量导入收藏夹。
@@ -320,6 +467,7 @@ class FavoriteFolderService {
           id: source.id.isEmpty ? null : source.id,
           name: source.name,
           createdAt: source.createdAt,
+          sortOption: source.sortOption,
         );
         _folders.add(target);
         foldersCreated++;

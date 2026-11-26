@@ -1,7 +1,8 @@
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show LengthLimitingTextInputFormatter;
+import 'package:flutter/services.dart'
+    show FilteringTextInputFormatter, LengthLimitingTextInputFormatter;
 import '../../widgets/EmptyState.dart';
 import '../../widgets/SmoothLinearProgressIndicator.dart';
 import 'package:my_first_flutter_app/entity/Favorite/FavoriteFolder.dart';
@@ -39,6 +40,9 @@ class _FavoriteFolderPageState extends State<FavoriteFolderPage> {
   final FavoriteFolderService _service = FavoriteFolderService();
   List<FavoriteFolder> _folders = [];
   bool _isLoading = true;
+  bool _isReorderMode = false;
+  bool _isSwapMode = false;
+  int? _swapFirstIndex;
 
   // 样式常量
   final double borderRadiusSmall = 8.0;
@@ -54,10 +58,108 @@ class _FavoriteFolderPageState extends State<FavoriteFolderPage> {
     final folders = await _service.getFolders();
     if (mounted) {
       setState(() {
-        _folders = folders;
+        _folders = List<FavoriteFolder>.from(folders);
+        if (_folders.length < 2 && _isReorderMode) {
+          _isReorderMode = false;
+          _isSwapMode = false;
+          _swapFirstIndex = null;
+        }
         _isLoading = false;
       });
     }
+  }
+
+  /// 切换收藏夹排序模式
+  void _toggleReorderMode() {
+    if (_isLoading) return;
+    if (_isReorderMode) {
+      setState(() {
+        _isReorderMode = false;
+        _isSwapMode = false;
+        _swapFirstIndex = null;
+      });
+      return;
+    }
+    if (_folders.length < 2) {
+      AppToast.show(context.l10n.favoriteReorderUnavailableEmpty,
+          tone: AppToastTone.info);
+      return;
+    }
+    setState(() {
+      _isReorderMode = true;
+      _isSwapMode = false;
+      _swapFirstIndex = null;
+    });
+  }
+
+  /// 拖拽调整收藏夹顺序
+  void _onReorderFolder(int oldIndex, int newIndex) {
+    setState(() {
+      _applyReorder(_folders, oldIndex, newIndex);
+      _swapFirstIndex = null;
+    });
+    _service.reorderFolders(oldIndex, newIndex);
+  }
+
+  /// 将收藏夹移动到指定 0 基位置
+  void _moveFolderTo(int fromIndex, int toIndex) {
+    if (fromIndex == toIndex ||
+        fromIndex < 0 ||
+        fromIndex >= _folders.length ||
+        toIndex < 0 ||
+        toIndex >= _folders.length) {
+      return;
+    }
+    setState(() {
+      _applyMoveTo(_folders, fromIndex, toIndex);
+      _swapFirstIndex = null;
+    });
+    _service.moveFolderTo(fromIndex, toIndex);
+  }
+
+  /// 弹窗输入序号并移动收藏夹
+  Future<void> _promptMoveFolderToIndex(int currentIndex) async {
+    final targetPosition = await showDialog<int>(
+      context: context,
+      builder: (_) => _MoveToPositionDialog(
+        currentPosition: currentIndex + 1,
+        maxPosition: _folders.length,
+      ),
+    );
+    if (!mounted || targetPosition == null) return;
+    _moveFolderTo(currentIndex, targetPosition - 1);
+  }
+
+  /// 点选交换：点击收藏夹卡片或从菜单发起
+  void _handleSwapTap(int index) {
+    if (_swapFirstIndex == null) {
+      setState(() => _swapFirstIndex = index);
+      return;
+    }
+    if (_swapFirstIndex == index) {
+      setState(() => _swapFirstIndex = null);
+      return;
+    }
+    final firstIndex = _swapFirstIndex!;
+    setState(() {
+      _applySwap(_folders, firstIndex, index);
+      _swapFirstIndex = null;
+    });
+    _service.swapFolders(firstIndex, index);
+    AppToast.show(context.l10n.favoriteSwapCompleted,
+        tone: AppToastTone.success);
+  }
+
+  /// 从单项菜单触发点选交换
+  void _startSwapFromItem(int index) {
+    if (!_isSwapMode) {
+      setState(() {
+        _isSwapMode = true;
+        _swapFirstIndex = index;
+      });
+      return;
+    }
+    _handleSwapTap(index);
   }
 
   /// 从文件导入收藏夹（后缀可在设置页自定义，导入按内容校验而非后缀）
@@ -153,6 +255,18 @@ class _FavoriteFolderPageState extends State<FavoriteFolderPage> {
   Widget build(BuildContext context) {
     return BackgroundPageScaffold(
       title: context.l10n.featureFavoriteFolders,
+      actions: [
+        IconButton(
+          icon: Icon(
+            _isReorderMode ? Icons.check_rounded : Icons.swap_vert_rounded,
+            size: 22,
+          ),
+          tooltip: _isReorderMode
+              ? context.l10n.favoriteReorderDone
+              : context.l10n.favoriteReorderMode,
+          onPressed: _toggleReorderMode,
+        ),
+      ],
       resizeToAvoidBottomInset: false,
       contentPadding:
           EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
@@ -160,48 +274,61 @@ class _FavoriteFolderPageState extends State<FavoriteFolderPage> {
         Expanded(
             child: Column(
           children: [
-            // 新建 / 导入按钮
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: _createFolder,
-                      icon: const Icon(Icons.add, size: 20),
-                      label:  Text(context.l10n.flowNewFavoritesFolder),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Theme.of(context).colorScheme.primary,
-                        foregroundColor:
-                            Theme.of(context).colorScheme.onPrimary,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(borderRadiusSmall),
+            if (_isReorderMode)
+              _ReorderBanner(
+                isSwapMode: _isSwapMode,
+                swapFirstIndex: _swapFirstIndex,
+                onToggleSwapMode: (enabled) {
+                  setState(() {
+                    _isSwapMode = enabled;
+                    _swapFirstIndex = null;
+                  });
+                },
+              )
+            else
+              // 新建 / 导入按钮
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _createFolder,
+                        icon: const Icon(Icons.add, size: 20),
+                        label: Text(context.l10n.flowNewFavoritesFolder),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor:
+                              Theme.of(context).colorScheme.primary,
+                          foregroundColor:
+                              Theme.of(context).colorScheme.onPrimary,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(borderRadiusSmall),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _importFolders,
-                      icon: const Icon(Icons.file_download_outlined, size: 20),
-                      label:  Text(context.l10n.flowImportFavorites),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor:
-                            Theme.of(context).colorScheme.onSurface,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(borderRadiusSmall),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _importFolders,
+                        icon: const Icon(Icons.file_download_outlined, size: 20),
+                        label: Text(context.l10n.flowImportFavorites),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor:
+                              Theme.of(context).colorScheme.onSurface,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(borderRadiusSmall),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
             // 内容
             Expanded(
               child: _isLoading
@@ -226,46 +353,75 @@ class _FavoriteFolderPageState extends State<FavoriteFolderPage> {
   }
 
   Widget _buildFolderList() {
-    return ListView.builder(
+    return ReorderableListView.builder(
+      buildDefaultDragHandles: false,
       padding: const EdgeInsets.all(12),
       itemCount: _folders.length,
+      onReorder: _onReorderFolder,
+      proxyDecorator: (child, index, animation) => _buildReorderProxyDecorator(
+          child, animation, AppDesignTokens.radiusCard),
       itemBuilder: (context, index) {
         final folder = _folders[index];
-        return _buildFolderCard(folder);
+        return Padding(
+          key: ValueKey('folder_${folder.id}'),
+          padding: const EdgeInsets.only(bottom: AppDesignTokens.cardGap),
+          child: _buildFolderCard(folder, index),
+        );
       },
     );
   }
 
-  Widget _buildFolderCard(FavoriteFolder folder) {
+  Widget _buildFolderCard(FavoriteFolder folder, int index) {
     final chartCount = folder.charts.length;
+    final isSwapSelected =
+        _isReorderMode && _isSwapMode && _swapFirstIndex == index;
+    final scheme = Theme.of(context).colorScheme;
 
     return Card(
-      margin: const EdgeInsets.only(bottom: AppDesignTokens.cardGap),
+      margin: EdgeInsets.zero,
       elevation: 0,
-      color: AppSurfaces.card(context),
+      color: isSwapSelected ? scheme.primaryContainer : AppSurfaces.card(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
+        side: isSwapSelected
+            ? BorderSide(color: scheme.primary, width: 1.5)
+            : BorderSide.none,
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
-        onTap: () => _viewFolder(folder),
+        splashFactory: NoSplash.splashFactory,
+        highlightColor: Colors.transparent,
+        onTap: _isReorderMode
+            ? (_isSwapMode ? () => _handleSwapTap(index) : null)
+            : () => _viewFolder(folder),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          padding: EdgeInsets.symmetric(
+            horizontal: _isReorderMode ? 10 : 16,
+            vertical: 14,
+          ),
           child: Row(
             children: [
+              if (_isReorderMode) ...[
+                _ReorderLeadingControls(
+                  index: index,
+                  isSelected: isSwapSelected,
+                  onTapIndex: () => _promptMoveFolderToIndex(index),
+                ),
+                const SizedBox(width: 8),
+              ],
               Container(
-                width: 48,
-                height: 48,
+                width: _isReorderMode ? 40 : 48,
+                height: _isReorderMode ? 40 : 48,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer,
+                  color: scheme.primaryContainer,
                   borderRadius:
                       BorderRadius.circular(AppDesignTokens.radiusSmall),
                 ),
                 child: Icon(Icons.star_rounded,
-                    color: Theme.of(context).colorScheme.onPrimaryContainer,
-                    size: 28),
+                    color: scheme.onPrimaryContainer,
+                    size: _isReorderMode ? 24 : 28),
               ),
-              const SizedBox(width: 14),
+              SizedBox(width: _isReorderMode ? 10 : 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -281,34 +437,46 @@ class _FavoriteFolderPageState extends State<FavoriteFolderPage> {
                     Text(
                       context.l10n.flowP0Charts((chartCount).toString()),
                       style: TextStyle(
-                          fontSize: 13,
-                          color:
-                              Theme.of(context).colorScheme.onSurfaceVariant),
+                          fontSize: 13, color: scheme.onSurfaceVariant),
                     ),
                   ],
                 ),
               ),
-              PopupMenuButton<String>(
-                icon: Icon(Icons.more_vert,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant),
-                onSelected: (value) {
-                  switch (value) {
-                    case 'rename':
-                      _renameFolder(folder);
-                      break;
-                    case 'delete':
-                      _deleteFolder(folder);
-                      break;
-                  }
-                },
-                itemBuilder: (ctx) => [
-                   PopupMenuItem(value: 'rename', child: Text(context.l10n.flowRename)),
-                  PopupMenuItem(
-                    value: 'delete',
-                    child: Text(context.l10n.flowDelete, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-                  ),
-                ],
-              ),
+              if (_isReorderMode)
+                _ReorderTrailingControls(
+                  index: index,
+                  totalCount: _folders.length,
+                  onMoveUp: () => _moveFolderTo(index, index - 1),
+                  onMoveDown: () => _moveFolderTo(index, index + 1),
+                  onMoveToTop: () => _moveFolderTo(index, 0),
+                  onMoveToBottom: () =>
+                      _moveFolderTo(index, _folders.length - 1),
+                  onMoveToIndex: () => _promptMoveFolderToIndex(index),
+                  onSwap: () => _startSwapFromItem(index),
+                )
+              else
+                PopupMenuButton<String>(
+                  icon: Icon(Icons.more_vert, color: scheme.onSurfaceVariant),
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'rename':
+                        _renameFolder(folder);
+                        break;
+                      case 'delete':
+                        _deleteFolder(folder);
+                        break;
+                    }
+                  },
+                  itemBuilder: (ctx) => [
+                    PopupMenuItem(
+                        value: 'rename', child: Text(context.l10n.flowRename)),
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Text(context.l10n.flowDelete,
+                          style: TextStyle(color: scheme.error)),
+                    ),
+                  ],
+                ),
             ],
           ),
         ),
@@ -346,6 +514,10 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
 
   // 排序与批量选择
   FavoriteSortOption _sortOption = FavoriteSortOption.byDsDesc;
+  bool _initializedSortOption = false;
+  bool _isReorderMode = false;
+  bool _isSwapMode = false;
+  int? _swapFirstIndex;
   bool _isBatchMode = false;
   final Set<String> _selectedKeys = {};
 
@@ -367,7 +539,10 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    final charts = await _service.getChartsInFolder(widget.folderId);
+    final folder = await _service.getFolderById(widget.folderId);
+    final charts = folder != null
+        ? folder.charts
+        : await _service.getChartsInFolder(widget.folderId);
     // 加载歌曲详细信息（曲师、版本、流派）
     final songs = await MaimaiMusicDataManager().getCachedSongs();
     final Map<String, Song> songMap = {};
@@ -378,7 +553,16 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
     }
     if (mounted) {
       setState(() {
-        _charts = charts;
+        if (!_initializedSortOption) {
+          _sortOption = folder?.sortOption ?? FavoriteSortOption.byDsDesc;
+          _initializedSortOption = true;
+        }
+        _charts = List<FavoriteChart>.from(charts);
+        if (_charts.length < 2 && _isReorderMode) {
+          _isReorderMode = false;
+          _isSwapMode = false;
+          _swapFirstIndex = null;
+        }
         _refreshSortedCharts();
         _songMap = songMap;
         _isLoading = false;
@@ -398,28 +582,149 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
 
       final userData = UserPlayDataEntity.fromJson(rawData);
       final records = userData.records;
-      bool hasChanges = false;
-      for (int i = 0; i < _charts.length; i++) {
-        final chart = _charts[i];
+      final updatedByKey = <String, FavoriteChart>{};
+      for (final chart in _charts) {
         final matchedRecords = records.where((r) =>
             r.songId.toString() == chart.songId &&
             r.levelIndex == chart.levelIndex);
         if (matchedRecords.isNotEmpty) {
           final best = matchedRecords
               .reduce((a, b) => a.achievements > b.achievements ? a : b);
-          _charts[i] = chart.copyWith(
+          updatedByKey[chart.uniqueKey] = chart.copyWith(
             achievement: best.achievements.toDouble(),
             playCount: matchedRecords.length,
           );
-          hasChanges = true;
         }
       }
-      if (hasChanges && mounted) {
-        setState(_refreshSortedCharts);
+      if (updatedByKey.isNotEmpty && mounted) {
+        setState(() {
+          for (int i = 0; i < _charts.length; i++) {
+            final updated = updatedByKey[_charts[i].uniqueKey];
+            if (updated != null) {
+              _charts[i] = updated;
+            }
+          }
+          _refreshSortedCharts();
+        });
       }
     } catch (e) {
       debugPrint('加载收藏夹成绩数据失败: $e');
     }
+  }
+
+  /// 切换谱面排序模式（进入时若非自定义排序则固化当前可见序并切至 custom）
+  Future<void> _toggleReorderMode() async {
+    if (_isLoading) return;
+    if (_isReorderMode) {
+      setState(() {
+        _isReorderMode = false;
+        _isSwapMode = false;
+        _swapFirstIndex = null;
+      });
+      return;
+    }
+    if (_charts.length < 2) {
+      AppToast.show(context.l10n.favoriteReorderUnavailableEmpty,
+          tone: AppToastTone.info);
+      return;
+    }
+    if (_sortOption != FavoriteSortOption.custom) {
+      final visible = List<FavoriteChart>.from(_sortedCharts);
+      setState(() {
+        _isBatchMode = false;
+        _selectedKeys.clear();
+        _charts = visible;
+        _sortOption = FavoriteSortOption.custom;
+        _sortedCharts = List<FavoriteChart>.from(visible);
+        _isReorderMode = true;
+        _isSwapMode = false;
+        _swapFirstIndex = null;
+      });
+      await _service.saveChartsOrder(widget.folderId, visible);
+      await _service.setFolderSortOption(
+          widget.folderId, FavoriteSortOption.custom);
+      return;
+    }
+    setState(() {
+      _isBatchMode = false;
+      _selectedKeys.clear();
+      _isReorderMode = true;
+      _isSwapMode = false;
+      _swapFirstIndex = null;
+    });
+  }
+
+  /// 拖拽调整谱面顺序
+  void _onReorderChart(int oldIndex, int newIndex) {
+    setState(() {
+      _applyReorder(_charts, oldIndex, newIndex);
+      _refreshSortedCharts();
+      _swapFirstIndex = null;
+    });
+    _service.reorderChartsInFolder(widget.folderId, oldIndex, newIndex);
+  }
+
+  /// 将谱面移动到指定 0 基位置
+  void _moveChartTo(int fromIndex, int toIndex) {
+    if (fromIndex == toIndex ||
+        fromIndex < 0 ||
+        fromIndex >= _charts.length ||
+        toIndex < 0 ||
+        toIndex >= _charts.length) {
+      return;
+    }
+    setState(() {
+      _applyMoveTo(_charts, fromIndex, toIndex);
+      _refreshSortedCharts();
+      _swapFirstIndex = null;
+    });
+    _service.moveChartInFolder(widget.folderId, fromIndex, toIndex);
+  }
+
+  /// 弹窗输入序号并移动谱面
+  Future<void> _promptMoveChartToIndex(int currentIndex) async {
+    final targetPosition = await showDialog<int>(
+      context: context,
+      builder: (_) => _MoveToPositionDialog(
+        currentPosition: currentIndex + 1,
+        maxPosition: _sortedCharts.length,
+      ),
+    );
+    if (!mounted || targetPosition == null) return;
+    _moveChartTo(currentIndex, targetPosition - 1);
+  }
+
+  /// 点选交换：点击谱面卡片或从菜单发起
+  void _handleSwapTap(int index) {
+    if (_swapFirstIndex == null) {
+      setState(() => _swapFirstIndex = index);
+      return;
+    }
+    if (_swapFirstIndex == index) {
+      setState(() => _swapFirstIndex = null);
+      return;
+    }
+    final firstIndex = _swapFirstIndex!;
+    setState(() {
+      _applySwap(_charts, firstIndex, index);
+      _refreshSortedCharts();
+      _swapFirstIndex = null;
+    });
+    _service.swapChartsInFolder(widget.folderId, firstIndex, index);
+    AppToast.show(context.l10n.favoriteSwapCompleted,
+        tone: AppToastTone.success);
+  }
+
+  /// 从单项菜单触发点选交换
+  void _startSwapFromItem(int index) {
+    if (!_isSwapMode) {
+      setState(() {
+        _isSwapMode = true;
+        _swapFirstIndex = index;
+      });
+      return;
+    }
+    _handleSwapTap(index);
   }
 
   /// 从收藏夹中移除谱面
@@ -455,11 +760,12 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return BackgroundPageScaffold(
       title: widget.folderName,
       headerOverride: _isBatchMode
           ? Container(
-              padding: EdgeInsets.fromLTRB(16, 48, 16, 8),
+              padding: const EdgeInsets.fromLTRB(16, 48, 16, 8),
               decoration: BoxDecoration(
                 color: AppColors.cardBackground(Theme.of(context).brightness),
               ),
@@ -467,45 +773,70 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
             )
           : null,
       actions: [
-        // 排序按钮
-        PopupMenuButton<FavoriteSortOption>(
-          icon: const Icon(Icons.sort, size: 22),
-          tooltip: context.l10n.flowSortOrder,
-          onSelected: (option) {
-            setState(() {
-              _sortOption = option;
-              _refreshSortedCharts();
-            });
-          },
-          itemBuilder: (ctx) => [
-             PopupMenuItem(
-              value: FavoriteSortOption.byDsDesc,
-              child: Text(context.l10n.flowConstantHighLow),
-            ),
-             PopupMenuItem(
-              value: FavoriteSortOption.byDsAsc,
-              child: Text(context.l10n.flowConstantLowHigh),
-            ),
-             PopupMenuItem(
-              value: FavoriteSortOption.byDateNewest,
-              child: Text(context.l10n.flowAddedNewOld),
-            ),
-             PopupMenuItem(
-              value: FavoriteSortOption.byDateOldest,
-              child: Text(context.l10n.flowAddedOldNew),
-            ),
-             PopupMenuItem(
-              value: FavoriteSortOption.byTitle,
-              child: Text(context.l10n.flowSongTitleAZ),
-            ),
-          ],
-        ),
-        // 导出按钮
-        IconButton(
-          icon: const Icon(Icons.share, size: 22),
-          tooltip: context.l10n.flowExportFavorites,
-          onPressed: _exportFolder,
-        ),
+        if (_isReorderMode)
+          IconButton(
+            icon: const Icon(Icons.check_rounded, size: 22),
+            tooltip: context.l10n.favoriteReorderDone,
+            onPressed: _toggleReorderMode,
+          )
+        else ...[
+          // 调整顺序按钮
+          IconButton(
+            icon: const Icon(Icons.swap_vert_rounded, size: 22),
+            tooltip: context.l10n.favoriteReorderMode,
+            onPressed: _toggleReorderMode,
+          ),
+          // 排序方式按钮
+          PopupMenuButton<FavoriteSortOption>(
+            icon: const Icon(Icons.sort, size: 22),
+            tooltip: context.l10n.flowSortOrder,
+            onSelected: (option) {
+              setState(() {
+                _sortOption = option;
+                _refreshSortedCharts();
+              });
+              _service.setFolderSortOption(widget.folderId, option);
+            },
+            itemBuilder: (ctx) => [
+              _buildSortMenuItem(
+                FavoriteSortOption.custom,
+                context.l10n.favoriteSortCustom,
+                scheme,
+              ),
+              _buildSortMenuItem(
+                FavoriteSortOption.byDsDesc,
+                context.l10n.flowConstantHighLow,
+                scheme,
+              ),
+              _buildSortMenuItem(
+                FavoriteSortOption.byDsAsc,
+                context.l10n.flowConstantLowHigh,
+                scheme,
+              ),
+              _buildSortMenuItem(
+                FavoriteSortOption.byDateNewest,
+                context.l10n.flowAddedNewOld,
+                scheme,
+              ),
+              _buildSortMenuItem(
+                FavoriteSortOption.byDateOldest,
+                context.l10n.flowAddedOldNew,
+                scheme,
+              ),
+              _buildSortMenuItem(
+                FavoriteSortOption.byTitle,
+                context.l10n.flowSongTitleAZ,
+                scheme,
+              ),
+            ],
+          ),
+          // 导出按钮
+          IconButton(
+            icon: const Icon(Icons.share, size: 22),
+            tooltip: context.l10n.flowExportFavorites,
+            onPressed: _exportFolder,
+          ),
+        ],
       ],
       resizeToAvoidBottomInset: false,
       contentPadding:
@@ -514,26 +845,38 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
         Expanded(
             child: Column(
           children: [
-            // 标签统计按钮（样式、宽度与新建收藏夹一致）
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _showTagStatistics,
-                  icon: const Icon(Icons.label_outline, size: 18),
-                  label:  Text(context.l10n.flowTagStatistics),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(borderRadiusSmall),
+            if (_isReorderMode)
+              _ReorderBanner(
+                isSwapMode: _isSwapMode,
+                swapFirstIndex: _swapFirstIndex,
+                onToggleSwapMode: (enabled) {
+                  setState(() {
+                    _isSwapMode = enabled;
+                    _swapFirstIndex = null;
+                  });
+                },
+              )
+            else
+              // 标签统计按钮（样式、宽度与新建收藏夹一致）
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _showTagStatistics,
+                    icon: const Icon(Icons.label_outline, size: 18),
+                    label: Text(context.l10n.flowTagStatistics),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: scheme.primary,
+                      foregroundColor: scheme.onPrimary,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(borderRadiusSmall),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
             // 内容
             Expanded(
               child: _isLoading
@@ -545,6 +888,36 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
           ],
         )),
       ]),
+    );
+  }
+
+  PopupMenuItem<FavoriteSortOption> _buildSortMenuItem(
+    FavoriteSortOption value,
+    String label,
+    ColorScheme scheme,
+  ) {
+    final selected = _sortOption == value;
+    return PopupMenuItem<FavoriteSortOption>(
+      value: value,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: selected
+                  ? TextStyle(
+                      color: scheme.primary,
+                      fontWeight: FontWeight.w600,
+                    )
+                  : null,
+            ),
+          ),
+          if (selected) ...[
+            const SizedBox(width: 8),
+            Icon(Icons.check_rounded, size: 18, color: scheme.primary),
+          ],
+        ],
+      ),
     );
   }
 
@@ -801,12 +1174,20 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
   }
 
   Widget _buildChartList() {
-    return ListView.builder(
+    return ReorderableListView.builder(
+      buildDefaultDragHandles: false,
       padding: const EdgeInsets.all(12),
       itemCount: _sortedCharts.length,
+      onReorder: _onReorderChart,
+      proxyDecorator: (child, index, animation) => _buildReorderProxyDecorator(
+          child, animation, AppDesignTokens.radiusMedium),
       itemBuilder: (context, index) {
         final chart = _sortedCharts[index];
-        return _buildChartCard(chart);
+        return Padding(
+          key: ValueKey('chart_${chart.uniqueKey}'),
+          padding: const EdgeInsets.only(bottom: 10),
+          child: _buildChartCard(chart, index),
+        );
       },
     );
   }
@@ -879,7 +1260,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
     );
   }
 
-  Widget _buildChartCard(FavoriteChart chart) {
+  Widget _buildChartCard(FavoriteChart chart, int index) {
     final levelNames = ChartDifficulty.labels;
     final bool isUtage = chart.songId.length == 6;
     final String levelName;
@@ -900,23 +1281,32 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
         chart.songType.isNotEmpty ? chart.songType : (song?.type ?? '');
 
     final isSelected = _selectedKeys.contains(chart.uniqueKey);
+    final isSwapSelected =
+        _isReorderMode && _isSwapMode && _swapFirstIndex == index;
+    final isHighlighted = isSelected || isSwapSelected;
+    final scheme = Theme.of(context).colorScheme;
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: EdgeInsets.zero,
       elevation: 0,
-      color: isSelected
-          ? Theme.of(context).colorScheme.primaryContainer
-          : AppSurfaces.card(context),
+      color: isHighlighted ? scheme.primaryContainer : AppSurfaces.card(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
-        side: isSelected
-            ? BorderSide(
-                color: Theme.of(context).colorScheme.primary, width: 1.5)
+        side: isHighlighted
+            ? BorderSide(color: scheme.primary, width: 1.5)
             : BorderSide.none,
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
+        splashFactory: NoSplash.splashFactory,
+        highlightColor: Colors.transparent,
         onTap: () {
+          if (_isReorderMode) {
+            if (_isSwapMode) {
+              _handleSwapTap(index);
+            }
+            return;
+          }
           if (_isBatchMode) {
             setState(() {
               if (isSelected) {
@@ -937,23 +1327,38 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
             );
           }
         },
-        onLongPress: () {
-          if (!_isBatchMode) {
-            setState(() {
-              _isBatchMode = true;
-              _selectedKeys.add(chart.uniqueKey);
-            });
-          }
-        },
+        onLongPress: _isReorderMode
+            ? null
+            : () {
+                if (!_isBatchMode) {
+                  setState(() {
+                    _isReorderMode = false;
+                    _isSwapMode = false;
+                    _swapFirstIndex = null;
+                    _isBatchMode = true;
+                    _selectedKeys.add(chart.uniqueKey);
+                  });
+                }
+              },
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          padding: EdgeInsets.symmetric(
+            horizontal: _isReorderMode ? 8 : 12,
+            vertical: 10,
+          ),
           child: Row(
             children: [
-              // 批量选择模式下显示复选框
-              if (_isBatchMode) ...[
+              if (_isReorderMode) ...[
+                _ReorderLeadingControls(
+                  index: index,
+                  isSelected: isSwapSelected,
+                  onTapIndex: () => _promptMoveChartToIndex(index),
+                ),
+                const SizedBox(width: 6),
+              ] else if (_isBatchMode) ...[
+                // 批量选择模式下显示复选框
                 Checkbox(
                   value: isSelected,
-                  activeColor: Theme.of(context).colorScheme.primary,
+                  activeColor: scheme.primary,
                   onChanged: (value) {
                     setState(() {
                       if (value == true) {
@@ -970,9 +1375,12 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
               // 左侧：曲绘
               ClipRRect(
                 borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-                child: CoverUtil.buildCoverWidget(chart.songId, 60),
+                child: CoverUtil.buildCoverWidget(
+                  chart.songId,
+                  _isReorderMode ? 44 : 60,
+                ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: _isReorderMode ? 8 : 12),
               // 右侧：信息
               Expanded(
                 child: Column(
@@ -1004,18 +1412,29 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
                       _buildChartInfoLine(chart, version, genre),
                       style: TextStyle(
                         fontSize: 12,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        color: scheme.onSurfaceVariant,
                       ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 4),
-              // 非批量模式下显示移除按钮
-              if (!_isBatchMode)
+              // 排序模式下显示排序控制，普通模式下显示移除按钮
+              if (_isReorderMode)
+                _ReorderTrailingControls(
+                  index: index,
+                  totalCount: _sortedCharts.length,
+                  onMoveUp: () => _moveChartTo(index, index - 1),
+                  onMoveDown: () => _moveChartTo(index, index + 1),
+                  onMoveToTop: () => _moveChartTo(index, 0),
+                  onMoveToBottom: () =>
+                      _moveChartTo(index, _sortedCharts.length - 1),
+                  onMoveToIndex: () => _promptMoveChartToIndex(index),
+                  onSwap: () => _startSwapFromItem(index),
+                )
+              else if (!_isBatchMode)
                 IconButton(
-                  icon: Icon(Icons.remove_circle_outline,
-                      color: Theme.of(context).colorScheme.error),
+                  icon: Icon(Icons.remove_circle_outline, color: scheme.error),
                   tooltip: context.l10n.flowRemoveFromFavoritesFolder,
                   onPressed: () => _removeChart(chart),
                 ),
@@ -1179,6 +1598,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
         id: widget.folderId,
         name: widget.folderName,
         charts: _sortedCharts,
+        sortOption: _sortOption,
       );
 
       final file = await FavoriteTransferService().exportFolders(
@@ -1296,6 +1716,414 @@ class _FolderNameDialogState extends State<_FolderNameDialog> {
         TextButton(
           onPressed: _confirm,
           child: Text(widget.confirmLabel),
+        ),
+      ],
+    );
+  }
+}
+
+/// 按 ReorderableListView 语义（向下拖拽时 newIndex 含被移除项占位）重排列表
+void _applyReorder<T>(List<T> list, int oldIndex, int newIndex) {
+  if (oldIndex < 0 || oldIndex >= list.length) return;
+  var targetIndex = newIndex;
+  if (oldIndex < targetIndex) {
+    targetIndex -= 1;
+  }
+  if (targetIndex < 0 ||
+      targetIndex >= list.length ||
+      oldIndex == targetIndex) {
+    return;
+  }
+  final item = list.removeAt(oldIndex);
+  list.insert(targetIndex, item);
+}
+
+/// 将列表元素从 [fromIndex] 移动到 0 基位置 [toIndex]
+void _applyMoveTo<T>(List<T> list, int fromIndex, int toIndex) {
+  if (fromIndex < 0 ||
+      fromIndex >= list.length ||
+      toIndex < 0 ||
+      toIndex >= list.length ||
+      fromIndex == toIndex) {
+    return;
+  }
+  final item = list.removeAt(fromIndex);
+  list.insert(toIndex, item);
+}
+
+/// 交换列表中两个下标的元素
+void _applySwap<T>(List<T> list, int indexA, int indexB) {
+  if (indexA < 0 ||
+      indexA >= list.length ||
+      indexB < 0 ||
+      indexB >= list.length ||
+      indexA == indexB) {
+    return;
+  }
+  final temp = list[indexA];
+  list[indexA] = list[indexB];
+  list[indexB] = temp;
+}
+
+/// 拖拽浮起时的圆角与阴影装饰，避免原生白底方块遮挡卡片圆角
+Widget _buildReorderProxyDecorator(
+  Widget child,
+  Animation<double> animation,
+  double borderRadius,
+) {
+  return AnimatedBuilder(
+    animation: animation,
+    builder: (context, innerChild) {
+      final elevation = 6.0 * animation.value;
+      return Material(
+        elevation: elevation,
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(borderRadius),
+        child: innerChild,
+      );
+    },
+    child: child,
+  );
+}
+
+/// 排序模式顶部说明条：展示当前操作提示与「点选交换」开关
+class _ReorderBanner extends StatelessWidget {
+  const _ReorderBanner({
+    required this.isSwapMode,
+    required this.swapFirstIndex,
+    required this.onToggleSwapMode,
+  });
+
+  final bool isSwapMode;
+  final int? swapFirstIndex;
+  final ValueChanged<bool> onToggleSwapMode;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final String hintText;
+    if (!isSwapMode) {
+      hintText = context.l10n.favoriteReorderHint;
+    } else if (swapFirstIndex == null) {
+      hintText = context.l10n.favoriteSwapHintIdle;
+    } else {
+      hintText = context.l10n.favoriteSwapHintSelected('${swapFirstIndex! + 1}');
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+      child: AnimatedContainer(
+        duration: AppDesignTokens.motion(context, AppDesignTokens.fastMotion),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSwapMode
+              ? scheme.primaryContainer.withValues(alpha: 0.7)
+              : AppSurfaces.card(context),
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
+          border: Border.all(
+            color: isSwapMode ? scheme.primary : scheme.outlineVariant,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              isSwapMode ? Icons.swap_horiz_rounded : Icons.drag_indicator_rounded,
+              size: 18,
+              color: isSwapMode ? scheme.primary : scheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                hintText,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: isSwapMode
+                      ? scheme.onPrimaryContainer
+                      : scheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Material(
+              color: isSwapMode ? scheme.primary : AppSurfaces.inset(context),
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusPill),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusPill),
+                splashFactory: NoSplash.splashFactory,
+                highlightColor: Colors.transparent,
+                onTap: () => onToggleSwapMode(!isSwapMode),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.swap_horiz_rounded,
+                        size: 15,
+                        color: isSwapMode ? scheme.onPrimary : scheme.onSurface,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        context.l10n.favoriteSwapMode,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color:
+                              isSwapMode ? scheme.onPrimary : scheme.onSurface,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 排序模式列表左侧控制区：拖拽手柄 + 可点击序号胶囊 `#1`
+class _ReorderLeadingControls extends StatelessWidget {
+  const _ReorderLeadingControls({
+    required this.index,
+    required this.isSelected,
+    required this.onTapIndex,
+  });
+
+  final int index;
+  final bool isSelected;
+  final VoidCallback onTapIndex;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ReorderableDragStartListener(
+          index: index,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
+            child: Icon(
+              Icons.drag_handle_rounded,
+              size: 20,
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        const SizedBox(width: 2),
+        Material(
+          color: isSelected ? scheme.primary : AppSurfaces.inset(context),
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusPill),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusPill),
+            splashFactory: NoSplash.splashFactory,
+            highlightColor: Colors.transparent,
+            onTap: onTapIndex,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(AppDesignTokens.radiusPill),
+                border: Border.all(
+                  color: isSelected ? scheme.primary : scheme.outlineVariant,
+                ),
+              ),
+              child: Text(
+                '#${index + 1}',
+                style: AppTheme.number(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: isSelected ? scheme.onPrimary : scheme.onSurface,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 排序模式列表右侧控制区：上移、下移按钮 + 置顶/置底/输入序号/点选交换菜单
+class _ReorderTrailingControls extends StatelessWidget {
+  const _ReorderTrailingControls({
+    required this.index,
+    required this.totalCount,
+    required this.onMoveUp,
+    required this.onMoveDown,
+    required this.onMoveToTop,
+    required this.onMoveToBottom,
+    required this.onMoveToIndex,
+    required this.onSwap,
+  });
+
+  final int index;
+  final int totalCount;
+  final VoidCallback onMoveUp;
+  final VoidCallback onMoveDown;
+  final VoidCallback onMoveToTop;
+  final VoidCallback onMoveToBottom;
+  final VoidCallback onMoveToIndex;
+  final VoidCallback onSwap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final canMoveUp = index > 0;
+    final canMoveDown = index < totalCount - 1;
+    const compactConstraints = BoxConstraints(minWidth: 30, minHeight: 32);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.arrow_upward_rounded, size: 18),
+          tooltip: context.l10n.favoriteMoveUp,
+          padding: EdgeInsets.zero,
+          constraints: compactConstraints,
+          visualDensity: VisualDensity.compact,
+          onPressed: canMoveUp ? onMoveUp : null,
+        ),
+        IconButton(
+          icon: const Icon(Icons.arrow_downward_rounded, size: 18),
+          tooltip: context.l10n.favoriteMoveDown,
+          padding: EdgeInsets.zero,
+          constraints: compactConstraints,
+          visualDensity: VisualDensity.compact,
+          onPressed: canMoveDown ? onMoveDown : null,
+        ),
+        PopupMenuButton<String>(
+          icon: Icon(Icons.more_vert, size: 18, color: scheme.onSurfaceVariant),
+          padding: EdgeInsets.zero,
+          constraints: compactConstraints,
+          onSelected: (value) {
+            switch (value) {
+              case 'top':
+                onMoveToTop();
+                break;
+              case 'bottom':
+                onMoveToBottom();
+                break;
+              case 'index':
+                onMoveToIndex();
+                break;
+              case 'swap':
+                onSwap();
+                break;
+            }
+          },
+          itemBuilder: (ctx) => [
+            PopupMenuItem<String>(
+              value: 'top',
+              enabled: canMoveUp,
+              child: Text(context.l10n.favoriteMoveToTop),
+            ),
+            PopupMenuItem<String>(
+              value: 'bottom',
+              enabled: canMoveDown,
+              child: Text(context.l10n.favoriteMoveToBottom),
+            ),
+            PopupMenuItem<String>(
+              value: 'index',
+              child: Text(context.l10n.favoriteMoveToIndex),
+            ),
+            PopupMenuItem<String>(
+              value: 'swap',
+              child: Text(context.l10n.favoriteSwapMode),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// 移动到指定序号弹窗（自管理 TextEditingController 并在 State.dispose 释放）
+class _MoveToPositionDialog extends StatefulWidget {
+  const _MoveToPositionDialog({
+    required this.currentPosition,
+    required this.maxPosition,
+  });
+
+  final int currentPosition;
+  final int maxPosition;
+
+  @override
+  State<_MoveToPositionDialog> createState() => _MoveToPositionDialogState();
+}
+
+class _MoveToPositionDialogState extends State<_MoveToPositionDialog> {
+  late final TextEditingController _controller;
+  String? _errorText;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: '${widget.currentPosition}');
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  String? _validateText(String value) {
+    final parsed = int.tryParse(value.trim());
+    if (parsed == null || parsed < 1 || parsed > widget.maxPosition) {
+      return context.l10n.favoriteMoveIndexInvalid('${widget.maxPosition}');
+    }
+    return null;
+  }
+
+  void _onChanged(String value) {
+    final nextError = value.trim().isEmpty ? null : _validateText(value);
+    if (nextError != _errorText) {
+      setState(() => _errorText = nextError);
+    }
+  }
+
+  void _confirm() {
+    final error = _validateText(_controller.text);
+    if (error != null) {
+      setState(() => _errorText = error);
+      return;
+    }
+    final target = int.parse(_controller.text.trim());
+    Navigator.of(context).pop(target);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final maxStr = '${widget.maxPosition}';
+    return AppAlertDialog(
+      title: Text(context.l10n.favoriteMoveIndexDialogTitle),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        keyboardType: TextInputType.number,
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        onChanged: _onChanged,
+        onSubmitted: (_) => _confirm(),
+        decoration: InputDecoration(
+          hintText: context.l10n.favoriteMoveIndexDialogHint(maxStr),
+          errorText: _errorText,
+          errorBorder: OutlineInputBorder(
+            borderSide: BorderSide(color: Theme.of(context).colorScheme.error),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(context.l10n.featureCancel),
+        ),
+        TextButton(
+          onPressed: _confirm,
+          child: Text(context.l10n.flowConfirm),
         ),
       ],
     );

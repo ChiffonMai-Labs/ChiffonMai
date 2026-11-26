@@ -125,6 +125,7 @@ enum FavoriteSortOption {
   byDateNewest, // 添加时间 新→旧
   byDateOldest, // 添加时间 旧→新
   byTitle,      // 按歌名 A-Z
+  custom,       // 自定义排序
 }
 
 /// 收藏夹
@@ -134,6 +135,7 @@ class FavoriteFolder {
   List<FavoriteChart> charts;
   final int createdAt;
   int updatedAt;
+  FavoriteSortOption? sortOption;
 
   FavoriteFolder({
     String? id,
@@ -141,12 +143,23 @@ class FavoriteFolder {
     List<FavoriteChart>? charts,
     int? createdAt,
     int? updatedAt,
+    this.sortOption,
   })  : id = id ?? const Uuid().v4(),
         charts = charts ?? [],
         createdAt = createdAt ?? DateTime.now().millisecondsSinceEpoch,
         updatedAt = updatedAt ?? DateTime.now().millisecondsSinceEpoch;
 
   factory FavoriteFolder.fromJson(Map<String, dynamic> json) {
+    final rawSort = json['sortOption'];
+    FavoriteSortOption? parsedSort;
+    if (rawSort is String) {
+      for (final option in FavoriteSortOption.values) {
+        if (option.name == rawSort) {
+          parsedSort = option;
+          break;
+        }
+      }
+    }
     return FavoriteFolder(
       id: json['id'],
       name: json['name'] ?? '',
@@ -156,6 +169,7 @@ class FavoriteFolder {
           [],
       createdAt: json['createdAt'],
       updatedAt: json['updatedAt'],
+      sortOption: parsedSort,
     );
   }
 
@@ -166,6 +180,7 @@ class FavoriteFolder {
       'charts': charts.map((c) => c.toJson()).toList(),
       'createdAt': createdAt,
       'updatedAt': updatedAt,
+      if (sortOption != null) 'sortOption': sortOption!.name,
     };
   }
 }
