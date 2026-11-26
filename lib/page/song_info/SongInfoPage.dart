@@ -353,9 +353,6 @@ class _SongInfoPageState extends State<_SongInfoView> {
   int? _theoreticalRating;
   String? _best50OpportunityText;
 
-  /// 上分潜力的首次结果是否已显示；此后才允许尺寸过渡。
-  bool _best50OpportunitySettled = false;
-
   /// 上分潜力能加多少分；null 表示没有可加的分（只显示说明）。
   int? _best50OpportunityGain;
 

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.dart';
 import 'package:my_first_flutter_app/service/Library/SongSearchService.dart';
 import 'package:my_first_flutter_app/service/Library/SongSearchHistoryStore.dart';
+import 'package:my_first_flutter_app/utils/SongQueryMatcher.dart';
 import 'package:my_first_flutter_app/page/song_info/SongInfoPage.dart';
 import 'package:my_first_flutter_app/manager/Song/SongAliasManager.dart';
 import 'package:my_first_flutter_app/manager/DXRating/MaiTagsManager.dart';
@@ -68,8 +69,8 @@ class _SongSearchPageState extends State<SongSearchPage> {
   int _historyRevision = 0;
   int _searchGeneration = 0;
 
-  // 只按歌名搜索开关
-  bool _searchByTitleOnly = false;
+  // 关键词搜索范围
+  SongSearchScope _searchScope = SongSearchScope.all;
 
   // 分页相关
   final ScrollController _scrollController = ScrollController();
@@ -92,6 +93,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
   TextEditingController _maxNotesController = TextEditingController();
   TextEditingController _minBpmController = TextEditingController();
   TextEditingController _maxBpmController = TextEditingController();
+  bool _showScopeFilter = false;
   bool _showLevelFilter = false;
   bool _showNotesFilter = false;
   bool _showBpmFilter = false;
@@ -255,6 +257,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
 
   /// 胶囊下面展开的筛选是否真的开着（筛选自己的标题行也能收起它）。
   bool get _filterShown => switch (_activeFilter) {
+        'scope' => _showScopeFilter,
         'difficulty' => _showDifficultyFilter,
         'level' => _showLevelFilter,
         'notes' => _showNotesFilter,
@@ -270,6 +273,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
     final open = !(_activeFilter == key && _filterShown);
     setState(() {
       _activeFilter = open ? key : null;
+      _showScopeFilter = open && key == 'scope';
       _showDifficultyFilter = open && key == 'difficulty';
       _showLevelFilter = open && key == 'level';
       _showNotesFilter = open && key == 'notes';
@@ -285,6 +289,8 @@ class _SongSearchPageState extends State<SongSearchPage> {
     FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
       _searchController.clear();
+      _searchScope = SongSearchScope.all;
+      _showScopeFilter = false;
       _minLevelController.clear();
       _maxLevelController.clear();
       for (final controller in _difficultyLevelControllers.values) {
@@ -586,8 +592,8 @@ class _SongSearchPageState extends State<SongSearchPage> {
         results = await MaimaiMusicDataManager().getCachedSongs() ?? [];
       } else {
         // 当输入框不为空时，执行搜索
-        results = await SongSearchService.searchSongs(query,
-            titleOnly: _searchByTitleOnly);
+        results =
+            await SongSearchService.searchSongs(query, scope: _searchScope);
       }
       if (!mounted || generation != _searchGeneration) return;
 
@@ -620,9 +626,9 @@ class _SongSearchPageState extends State<SongSearchPage> {
         }
       } else if (_minLevelController.text.isNotEmpty ||
           _maxLevelController.text.isNotEmpty) {
-        // 处理边界值
-        double? minLevel = double.tryParse(_minLevelController.text);
-        double? maxLevel = double.tryParse(_maxLevelController.text);
+        // 处理边界值（兼容逗号小数点，如 iOS 部分区域数字键盘）
+        double? minLevel = _parseDecimalInput(_minLevelController.text);
+        double? maxLevel = _parseDecimalInput(_maxLevelController.text);
 
         // 如果没写下界但写了上界，则将下界设为1.0
         if (minLevel == null && maxLevel != null) {
@@ -1023,11 +1029,14 @@ class _SongSearchPageState extends State<SongSearchPage> {
     );
   }
 
+  double? _parseDecimalInput(String raw) =>
+      double.tryParse(raw.trim().replaceAll(',', '.'));
+
   Widget _buildSearchEntry(double fontSize, double hintFontSize) =>
       SongSearchEntry(
         controller: _searchController,
         focusNode: _inlineSearchFocus,
-        titleOnly: _searchByTitleOnly,
+        searchScope: _searchScope,
         fontSize: fontSize,
         hintFontSize: hintFontSize,
         onChanged: (query) {
@@ -1387,7 +1396,9 @@ class _SongSearchPageState extends State<SongSearchPage> {
                               Expanded(
                                 child: TextField(
                                   controller: _minLevelController,
-                                  keyboardType: TextInputType.number,
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                          decimal: true),
                                   decoration: InputDecoration(
                                     hintText: context.l10n.flowMinimum,
                                     border: OutlineInputBorder(
@@ -1405,7 +1416,9 @@ class _SongSearchPageState extends State<SongSearchPage> {
                               Expanded(
                                 child: TextField(
                                   controller: _maxLevelController,
-                                  keyboardType: TextInputType.number,
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                          decimal: true),
                                   decoration: InputDecoration(
                                     hintText: context.l10n.flowMaximum,
                                     border: OutlineInputBorder(
@@ -2299,9 +2312,91 @@ class _SongSearchPageState extends State<SongSearchPage> {
     );
   }
 
+  String _scopeLabel(SongSearchScope scope) => switch (scope) {
+        SongSearchScope.all => context.l10n.songSearchScopeAll,
+        SongSearchScope.titleAndAlias =>
+          context.l10n.songSearchScopeTitleAndAlias,
+        SongSearchScope.titleOnly => context.l10n.songSearchScopeTitleOnly,
+        SongSearchScope.aliasOnly => context.l10n.songSearchScopeAliasOnly,
+      };
+
+  Widget _buildScopeFilter(double screenWidth) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InkWell(
+          onTap: () => setState(() => _showScopeFilter = !_showScopeFilter),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Flexible(
+                  child: Row(
+                    children: [
+                      Text(
+                        context.l10n.songSearchScope,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                      Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.only(left: screenWidth * 0.02),
+                          child: Text(
+                            _scopeLabel(_searchScope),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _filterArrow(_showScopeFilter, screenWidth),
+              ],
+            ),
+          ),
+        ),
+        _buildFilterExpansion(
+          visible: _showScopeFilter,
+          child: Container(
+            padding: EdgeInsets.symmetric(vertical: screenWidth * 0.02),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final scope in SongSearchScope.values)
+                  FilterPill(
+                    label: _scopeLabel(scope),
+                    selected: _searchScope == scope,
+                    onTap: () {
+                      if (_searchScope == scope) return;
+                      setState(() => _searchScope = scope);
+                      // 切换搜索范围后立即触发防抖搜索。
+                      _debouncedSearch(_searchController.text);
+                    },
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildActiveFilter() {
     final size = MediaQuery.sizeOf(context);
     return switch (_activeFilter) {
+      'scope' => _buildScopeFilter(size.width),
       'difficulty' => _buildDifficultyFilter(size.width),
       'level' => _buildLevelFilter(size.width, size.height),
       'notes' => _buildNotesFilter(size.width, size.height),
@@ -2420,17 +2515,12 @@ class _SongSearchPageState extends State<SongSearchPage> {
               },
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.only(right: 6),
-            child: FilterPill(
-              label: context.l10n.flowTitlesOnly,
-              selected: _searchByTitleOnly,
-              onTap: () {
-                setState(() => _searchByTitleOnly = !_searchByTitleOnly);
-                // 切换后防抖触发搜索。
-                _debouncedSearch(_searchController.text);
-              },
-            ),
+          pill(
+            'scope',
+            context.l10n.songSearchScope,
+            _searchScope == SongSearchScope.all
+                ? null
+                : _scopeLabel(_searchScope),
           ),
           pill('difficulty', context.l10n.flowDifficulty,
               _selectedDifficulties.join('、')),
@@ -2809,7 +2899,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
   // 获取匹配信息
   List<Map<String, String>> _getMatchInfo(dynamic song) {
     List<Map<String, String>> matchInfos = [];
-    String query = _searchController.text.toLowerCase();
+    String query = normalizeSongQuery(_searchController.text);
     bool hasQuery = query.isNotEmpty;
 
     // 难度筛选：显示歌曲实际命中的难度。
@@ -2843,8 +2933,8 @@ class _SongSearchPageState extends State<SongSearchPage> {
       }
     } else if (_minLevelController.text.isNotEmpty ||
         _maxLevelController.text.isNotEmpty) {
-      double? minLevel = double.tryParse(_minLevelController.text);
-      double? maxLevel = double.tryParse(_maxLevelController.text);
+      double? minLevel = _parseDecimalInput(_minLevelController.text);
+      double? maxLevel = _parseDecimalInput(_maxLevelController.text);
       if (minLevel == null && maxLevel != null) minLevel = 1.0;
       if (minLevel != null && maxLevel == null) maxLevel = 15.0;
 
@@ -2941,44 +3031,55 @@ class _SongSearchPageState extends State<SongSearchPage> {
 
     if (!hasQuery) return matchInfos;
 
+    final includeAllFields = _searchScope == SongSearchScope.all;
+    final includeTitle = _searchScope != SongSearchScope.aliasOnly;
+    final includeAlias = _searchScope != SongSearchScope.titleOnly;
+
     // 检查歌曲ID匹配
-    if (song.id.toString() == _searchController.text) {
+    if (includeAllFields && song.id.toString().trim().toLowerCase() == query) {
       matchInfos
           .add({'type': context.l10n.flowSongID, 'value': song.id.toString()});
     }
     // 检查标题匹配
-    if (song.basicInfo.title.toLowerCase().contains(query)) {
+    if (includeTitle && song.basicInfo.title.toLowerCase().contains(query)) {
       matchInfos.add(
           {'type': context.l10n.flowSongTitle, 'value': song.basicInfo.title});
     }
     // 检查艺术家匹配
-    if (song.basicInfo.artist.toLowerCase().contains(query)) {
+    if (includeAllFields &&
+        song.basicInfo.artist.toLowerCase().contains(query)) {
       matchInfos.add(
           {'type': context.l10n.flowArtist2, 'value': song.basicInfo.artist});
     }
     // 检查BPM匹配
-    if (song.basicInfo.bpm.toString().contains(query)) {
+    if (includeAllFields && song.basicInfo.bpm.toString() == query) {
       matchInfos.add({'type': 'BPM', 'value': song.basicInfo.bpm.toString()});
     }
     // 检查谱师匹配
-    for (final index in _selectedDifficultyIndices(song)) {
-      if (index >= song.charts.length) continue;
-      final chart = song.charts[index];
-      if (chart.charter.toLowerCase().contains(query)) {
-        matchInfos.add({
-          'type': context.l10n.flowCharter,
-          'value':
-              '${ChartDifficulty.labelOf(index, isUtage: _isUtageSong(song))} ${chart.charter}'
-        });
+    if (includeAllFields) {
+      for (final index in _selectedDifficultyIndices(song)) {
+        if (index >= song.charts.length) continue;
+        final chart = song.charts[index];
+        if (chart.charter.toLowerCase().contains(query)) {
+          matchInfos.add({
+            'type': context.l10n.flowCharter,
+            'value':
+                '${ChartDifficulty.labelOf(index, isUtage: _isUtageSong(song))} ${chart.charter}'
+          });
+        }
       }
     }
     // 检查流派匹配
-    if (song.basicInfo.genre.toLowerCase().contains(query)) {
+    if (includeAllFields &&
+        song.basicInfo.genre.toLowerCase().contains(query)) {
       matchInfos
           .add({'type': context.l10n.flowGenre, 'value': song.basicInfo.genre});
     }
-    // 检查版本匹配
-    if (song.basicInfo.from.toLowerCase().contains(query)) {
+    // 检查版本匹配（与匹配规则一致，仅比对剥离通用品牌词后的版本代号）
+    final versionCode = extractSongVersionCode(song.basicInfo.from);
+    if (includeAllFields &&
+        versionCode.isNotEmpty &&
+        versionCode.contains(query)) {
       matchInfos.add({
         'type': context.l10n.flowVersion,
         'value':
@@ -2986,25 +3087,35 @@ class _SongSearchPageState extends State<SongSearchPage> {
       });
     }
     // 检查别名匹配
-    final aliases = SongAliasManager.instance.aliases[song.title] ?? [];
-    final matchingAliases =
-        aliases.where((alias) => alias.toLowerCase().contains(query)).toList();
-    if (matchingAliases.isNotEmpty) {
-      matchInfos.add(
-          {'type': context.l10n.flowAlias, 'value': matchingAliases.join('，')});
+    if (includeAlias) {
+      final aliasMap = SongAliasManager.instance.aliases;
+      final aliases = {
+        ...?aliasMap[song.basicInfo.title],
+        ...?aliasMap[song.title],
+      };
+      final matchingAliases =
+          aliases.where((alias) => alias.toLowerCase().contains(query)).toList();
+      if (matchingAliases.isNotEmpty) {
+        matchInfos.add({
+          'type': context.l10n.flowAlias,
+          'value': matchingAliases.join('，')
+        });
+      }
     }
     // 检查物量匹配（任意难度的总音符数包含 query）
-    for (final i in _selectedDifficultyIndices(song)) {
-      if (i >= song.level.length) continue;
-      final chart = song.charts[i];
-      if (chart.notes.isEmpty) continue;
-      int total = chart.notes.fold(0, (sum, n) => sum + n);
-      if (total.toString().contains(query)) {
-        matchInfos.add({
-          'type': context.l10n.flowNotes,
-          'value': '${_getDifficultyDisplayNameForSong(song, i)}：$total',
-        });
-        break; // 只显示第一个匹配的难度
+    if (includeAllFields) {
+      for (final i in _selectedDifficultyIndices(song)) {
+        if (i >= song.level.length) continue;
+        final chart = song.charts[i];
+        if (chart.notes.isEmpty) continue;
+        int total = chart.notes.fold(0, (sum, n) => sum + n);
+        if (total.toString().contains(query)) {
+          matchInfos.add({
+            'type': context.l10n.flowNotes,
+            'value': '${_getDifficultyDisplayNameForSong(song, i)}：$total',
+          });
+          break; // 只显示第一个匹配的难度
+        }
       }
     }
     return matchInfos;

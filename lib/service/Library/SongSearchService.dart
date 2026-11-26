@@ -31,32 +31,48 @@ class SongSearchService {
   static List<Song> _parseBundledLibrary(String source) =>
       (jsonDecode(source) as List).map((row) => Song.fromJson(row)).toList();
 
+  static List<String> _aliasesForSong(Song song) {
+    final aliasMap = SongAliasManager.instance.aliases;
+    final byBasicTitle = aliasMap[song.basicInfo.title];
+    final byTitle =
+        song.title == song.basicInfo.title ? null : aliasMap[song.title];
+    if (byBasicTitle == null && byTitle == null) return const [];
+    if (byTitle == null) return byBasicTitle!;
+    if (byBasicTitle == null) return byTitle;
+    return {...byBasicTitle, ...byTitle}.toList(growable: false);
+  }
+
   // 搜索函数
-  // [titleOnly] 为 true 时只按歌名匹配，其它字段（ID/艺术家/BPM/谱师/流派/版本/别名）忽略
-  static Future<List<Song>> searchSongs(String query, {bool titleOnly = false}) async {
-    if (query.isEmpty) {
+  // 支持通过 [scope] 指定搜索范围；未传时向后兼容 [titleOnly]。
+  static Future<List<Song>> searchSongs(
+    String query, {
+    bool titleOnly = false,
+    SongSearchScope? scope,
+  }) async {
+    final normalizedQuery = normalizeSongQuery(query);
+    if (normalizedQuery.isEmpty) {
       return [];
     }
 
     final allSongs = await loadAllSongs();
     if (allSongs == null) return [];
-    final lowerQuery = query.toLowerCase();
 
-    if (titleOnly) {
-      return allSongs
-          .where((song) => song.basicInfo.title.toLowerCase().contains(lowerQuery) ||
-              matchesFuzzySongTitle(lowerQuery, [song.basicInfo.title]))
-          .toList();
+    final resolvedScope =
+        scope ?? (titleOnly ? SongSearchScope.titleOnly : SongSearchScope.all);
+
+    // 范围包含别名时确保缓存别名与本地别名均已加载进内存。
+    if (resolvedScope != SongSearchScope.titleOnly) {
+      await SongAliasManager.instance.init(refreshFromNetwork: false);
     }
 
-    // 匹配规则已抽到 `utils/SongQueryMatcher.dart`：随身听的搜索要求「照搬这一页的
-    // 逻辑」，两份各写一份迟早漂移。这里只是把别名取出来喂给共享的纯函数。
-    await SongAliasManager.instance.loadLocalAliases();
     return allSongs
         .where((song) => matchesDivingFishSongQuery(
               song,
-              lowerQuery,
-              aliases: SongAliasManager.instance.aliases[song.title] ?? const [],
+              normalizedQuery,
+              aliases: resolvedScope == SongSearchScope.titleOnly
+                  ? const []
+                  : _aliasesForSong(song),
+              scope: resolvedScope,
             ))
         .toList();
   }

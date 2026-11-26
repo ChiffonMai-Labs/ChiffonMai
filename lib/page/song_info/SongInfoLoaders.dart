@@ -404,12 +404,6 @@ extension _SongInfoLoaders on _SongInfoPageState {
         _best50OpportunityTiers = tiers;
         _best50OpportunityNote = note;
       });
-      if (!_best50OpportunitySettled) {
-        // 等首次结果的这一帧画完再打开过渡，否则这一帧仍会播放展开动画。
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _best50OpportunitySettled = true;
-        });
-      }
     }
 
     final song = _songData;

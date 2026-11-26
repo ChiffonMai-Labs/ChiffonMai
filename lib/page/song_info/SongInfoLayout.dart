@@ -771,18 +771,12 @@ extension _SongInfoLayout on _SongInfoPageState {
               },
             ),
           ),
-          AnimatedSize(
-            // 进入页面时结果是异步到达的，首次显示不做展开，之后切难度才过渡。
-            duration: _best50OpportunitySettled ? sizeMotion : instant,
-            curve: AppDesignTokens.emphasizedCurve,
-            alignment: Alignment.topCenter,
-            child: _best50OpportunityText == null
-                ? const SizedBox(width: double.infinity)
-                : Padding(
-                    padding: const EdgeInsets.only(top: 14),
-                    child: _buildBest50OpportunityBanner(),
-                  ),
-          ),
+          _best50OpportunityText == null
+              ? const SizedBox.shrink()
+              : Padding(
+                  padding: const EdgeInsets.only(top: 14),
+                  child: _buildBest50OpportunityBanner(),
+                ),
         ],
       ),
     );
@@ -1040,16 +1034,13 @@ extension _SongInfoLayout on _SongInfoPageState {
                   ),
                 ),
                 const SizedBox(height: 2),
-                FadeSwitcher(
-                  value: text,
-                  child: Text(
-                    text,
-                    style: AppTheme.number(
-                      fontSize: 13,
-                      height: 1.3,
-                      fontWeight: FontWeight.w600,
-                      color: scheme.onSurface,
-                    ),
+                Text(
+                  text,
+                  style: AppTheme.number(
+                    fontSize: 13,
+                    height: 1.3,
+                    fontWeight: FontWeight.w600,
+                    color: scheme.onSurface,
                   ),
                 ),
               ],
@@ -1057,9 +1048,9 @@ extension _SongInfoLayout on _SongInfoPageState {
           ),
           if (gain != null) ...[
             const SizedBox(width: 12),
-            RollingNumber(
-              value: gain,
-              prefix: '+',
+            Text(
+              '+$gain',
+              maxLines: 1,
               style: AppTheme.number(
                 fontSize: 24,
                 fontWeight: FontWeight.w700,

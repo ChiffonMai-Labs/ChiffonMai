@@ -1,11 +1,13 @@
 import 'AppleSearchField.dart';
 import 'package:flutter/cupertino.dart' as ios;
 import '../l10n/FeatureLocalizations.dart';
+import '../l10n/LocalizationsExtension.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 
 import '../service/Library/SongSearchHistoryStore.dart';
+import '../utils/SongQueryMatcher.dart';
 import 'TouchSearchButton.dart';
 import 'SearchOverlaySurface.dart';
 import '../widgets/AppToast.dart';
@@ -17,6 +19,7 @@ class SongSearchOverlay extends StatefulWidget {
     required this.sourceRect,
     required this.initialQuery,
     required this.titleOnly,
+    this.searchScope,
     this.hintText,
     this.historyStore,
     this.queryResultsBuilder,
@@ -26,6 +29,7 @@ class SongSearchOverlay extends StatefulWidget {
   final Rect sourceRect;
   final String initialQuery;
   final bool titleOnly;
+  final SongSearchScope? searchScope;
   final String? hintText;
   final SongSearchHistoryStore? historyStore;
   final Widget Function(BuildContext, String, VoidCallback)?
@@ -34,7 +38,8 @@ class SongSearchOverlay extends StatefulWidget {
   static PageRouteBuilder<String> route({
     required Rect sourceRect,
     required String initialQuery,
-    required bool titleOnly,
+    bool titleOnly = false,
+    SongSearchScope? searchScope,
     required bool reduceMotion,
     String? hintText,
     SongSearchHistoryStore? historyStore,
@@ -53,6 +58,7 @@ class SongSearchOverlay extends StatefulWidget {
         sourceRect: sourceRect,
         initialQuery: initialQuery,
         titleOnly: titleOnly,
+        searchScope: searchScope,
         hintText: hintText,
         historyStore: historyStore,
         queryResultsBuilder: queryResultsBuilder,
@@ -189,8 +195,18 @@ class _SongSearchOverlayState extends State<SongSearchOverlay> {
   }
 
   Widget _buildInput() {
-    final hint = context.featureText(widget.hintText ??
-        (widget.titleOnly ? '只按歌名搜索' : '歌名/BPM/谱师/曲师/别名/歌曲ID/...'));
+    final scope = widget.searchScope ??
+        (widget.titleOnly ? SongSearchScope.titleOnly : SongSearchScope.all);
+    final hint = widget.hintText != null
+        ? context.featureText(widget.hintText!)
+        : switch (scope) {
+            SongSearchScope.all =>
+              context.featureText('歌名/BPM/谱师/曲师/别名/歌曲ID/...'),
+            SongSearchScope.titleAndAlias =>
+              context.l10n.songSearchHintTitleAndAlias,
+            SongSearchScope.titleOnly => context.featureText('只按歌名搜索'),
+            SongSearchScope.aliasOnly => context.l10n.songSearchHintAliasOnly,
+          };
     if (Theme.of(context).platform == TargetPlatform.iOS) {
       return Row(children: [
         Expanded(

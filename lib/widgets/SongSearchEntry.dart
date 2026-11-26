@@ -1,9 +1,11 @@
 import 'AppleSearchField.dart';
 import '../l10n/FeatureLocalizations.dart';
+import '../l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 
 import '../utils/AppDesignTokens.dart';
 import '../utils/SearchInteractionPreferences.dart';
+import '../utils/SongQueryMatcher.dart';
 import 'SongSearchOverlay.dart';
 
 /// 乐曲查询与成绩历史共用的搜索入口，统一输入框、搜索按钮和展开交互。
@@ -15,6 +17,7 @@ class SongSearchEntry extends StatefulWidget {
     required this.onSubmitted,
     this.focusNode,
     this.titleOnly = false,
+    this.searchScope,
     this.fontSize,
     this.hintFontSize,
   });
@@ -23,6 +26,7 @@ class SongSearchEntry extends StatefulWidget {
   final FocusNode? focusNode;
   final ValueChanged<String> onChanged, onSubmitted;
   final bool titleOnly;
+  final SongSearchScope? searchScope;
   final double? fontSize, hintFontSize;
 
   @override
@@ -32,6 +36,19 @@ class SongSearchEntry extends StatefulWidget {
 class _SongSearchEntryState extends State<SongSearchEntry> {
   final _fieldKey = GlobalKey();
   bool _overlayOpen = false;
+
+  SongSearchScope get _resolvedScope =>
+      widget.searchScope ??
+      (widget.titleOnly ? SongSearchScope.titleOnly : SongSearchScope.all);
+
+  String _hintForScope(BuildContext context, SongSearchScope scope) =>
+      switch (scope) {
+        SongSearchScope.all => context.featureText('曲名、别名、ID、曲师、谱师、BPM'),
+        SongSearchScope.titleAndAlias =>
+          context.l10n.songSearchHintTitleAndAlias,
+        SongSearchScope.titleOnly => context.featureText('只按歌名搜索'),
+        SongSearchScope.aliasOnly => context.l10n.songSearchHintAliasOnly,
+      };
 
   @override
   void initState() {
@@ -49,10 +66,12 @@ class _SongSearchEntryState extends State<SongSearchEntry> {
         field.localToGlobal(Offset.zero, ancestor: overlay) & field.size;
     FocusManager.instance.primaryFocus?.unfocus();
     setState(() => _overlayOpen = true);
+    final scope = _resolvedScope;
     final route = SongSearchOverlay.route(
       sourceRect: rect,
       initialQuery: widget.controller.text,
-      titleOnly: widget.titleOnly,
+      titleOnly: scope == SongSearchScope.titleOnly,
+      searchScope: scope,
       reduceMotion: MediaQuery.disableAnimationsOf(context),
     );
     try {
@@ -74,8 +93,7 @@ class _SongSearchEntryState extends State<SongSearchEntry> {
         listenable: SearchInteractionPreferences.instance,
         builder: (context, _) {
           final usesOverlay = SearchInteractionPreferences.instance.usesOverlay;
-          final hint = context
-              .featureText(widget.titleOnly ? '只按歌名搜索' : '曲名、别名、ID、曲师、谱师、BPM');
+          final hint = _hintForScope(context, _resolvedScope);
           if (Theme.of(context).platform == TargetPlatform.iOS) {
             return Opacity(
               key: _fieldKey,

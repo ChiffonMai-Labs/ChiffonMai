@@ -25,38 +25,95 @@ import '../entity/Portable/PortableSong.dart';
 /// 保留中间空格能让「Link CoF」这类带空格的搜索按预期工作。
 String normalizeSongQuery(String query) => query.trim().toLowerCase();
 
+/// 乐曲查询匹配范围。
+enum SongSearchScope {
+  all,
+  titleAndAlias,
+  titleOnly,
+  aliasOnly,
+}
+
+final _versionBrandTokens = RegExp(
+  r'(?:maimai|舞萌|でらっくす|deluxe|dx)',
+  caseSensitive: false,
+);
+final _multiWhitespace = RegExp(r'\s+');
+
+/// 剥离版本名中的通用游戏品牌词，只保留具体版本代号（如 "PRiSM" / "2024" / "GreeN"），
+/// 避免搜索 "maimai" 或 "舞萌" 时误命中全库。
+String extractSongVersionCode(String version) {
+  return version
+      .toLowerCase()
+      .replaceAll(_versionBrandTokens, ' ')
+      .replaceAll(_multiWhitespace, ' ')
+      .trim();
+}
+
+bool _containsNormalized(Iterable<String> candidates, String normalizedQuery) {
+  for (final value in candidates) {
+    if (value.toLowerCase().contains(normalizedQuery)) return true;
+  }
+  return false;
+}
+
 /// 水鱼 [Song] 是否命中查询（乐曲查询页用）。
 ///
-/// [aliases] 传该曲的别名列表（`SongAliasManager.instance.aliases[song.title]`）。
+/// [aliases] 传该曲的别名列表，[scope] 指定参与匹配的字段范围。
 bool matchesDivingFishSongQuery(
   Song song,
   String normalizedQuery, {
   List<String> aliases = const <String>[],
+  SongSearchScope scope = SongSearchScope.all,
 }) {
-  // 歌曲 ID（精确匹配，和乐曲查询页一致：`song.id.toString() == query`）
-  if (song.id.trim() == normalizedQuery) return true;
-  // 曲名
-  if (song.basicInfo.title.toLowerCase().contains(normalizedQuery)) return true;
-  // 艺术家
-  if (song.basicInfo.artist.toLowerCase().contains(normalizedQuery)) {
-    return true;
+  if (normalizedQuery.isEmpty) return false;
+  switch (scope) {
+    case SongSearchScope.titleOnly:
+      if (song.basicInfo.title.toLowerCase().contains(normalizedQuery)) {
+        return true;
+      }
+      return matchesFuzzySongTitle(normalizedQuery, [song.basicInfo.title]);
+    case SongSearchScope.aliasOnly:
+      if (aliases.isEmpty) return false;
+      if (_containsNormalized(aliases, normalizedQuery)) return true;
+      return matchesFuzzySongTitle(normalizedQuery, aliases);
+    case SongSearchScope.titleAndAlias:
+      if (song.basicInfo.title.toLowerCase().contains(normalizedQuery)) {
+        return true;
+      }
+      if (_containsNormalized(aliases, normalizedQuery)) return true;
+      return matchesFuzzySongTitle(
+          normalizedQuery, [song.basicInfo.title, ...aliases]);
+    case SongSearchScope.all:
+      // 歌曲 ID（精确匹配，和乐曲查询页一致：`song.id.toString() == query`）
+      if (song.id.trim() == normalizedQuery) return true;
+      // 曲名
+      if (song.basicInfo.title.toLowerCase().contains(normalizedQuery)) {
+        return true;
+      }
+      // 艺术家
+      if (song.basicInfo.artist.toLowerCase().contains(normalizedQuery)) {
+        return true;
+      }
+      // BPM（精确匹配）
+      if (song.basicInfo.bpm.toString() == normalizedQuery) return true;
+      // 谱师
+      for (final chart in song.charts) {
+        if (chart.charter.toLowerCase().contains(normalizedQuery)) return true;
+      }
+      // 流派
+      if (song.basicInfo.genre.toLowerCase().contains(normalizedQuery)) {
+        return true;
+      }
+      // 版本（仅比对剥离通用品牌词后的版本代号）
+      final versionCode = extractSongVersionCode(song.basicInfo.from);
+      if (versionCode.isNotEmpty && versionCode.contains(normalizedQuery)) {
+        return true;
+      }
+      // 别名
+      if (_containsNormalized(aliases, normalizedQuery)) return true;
+      return matchesFuzzySongTitle(
+          normalizedQuery, [song.basicInfo.title, ...aliases]);
   }
-  // BPM（精确匹配）
-  if (song.basicInfo.bpm.toString() == normalizedQuery) return true;
-  // 谱师
-  for (final chart in song.charts) {
-    if (chart.charter.toLowerCase().contains(normalizedQuery)) return true;
-  }
-  // 流派
-  if (song.basicInfo.genre.toLowerCase().contains(normalizedQuery)) return true;
-  // 版本
-  if (song.basicInfo.from.toLowerCase().contains(normalizedQuery)) return true;
-  // 别名
-  for (final alias in aliases) {
-    if (alias.toLowerCase().contains(normalizedQuery)) return true;
-  }
-  return matchesFuzzySongTitle(
-      normalizedQuery, [song.basicInfo.title, ...aliases]);
 }
 
 /// 随身听条目是否命中查询。

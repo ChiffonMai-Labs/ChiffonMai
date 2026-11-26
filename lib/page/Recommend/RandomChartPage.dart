@@ -179,8 +179,8 @@ class _RandomChartPageState extends State<RandomChartPage> {
     var candidates = <Song>[];
     setState(() => _isDrawing = true);
     try {
-      _minDs = double.tryParse(_minDsController.text);
-      _maxDs = double.tryParse(_maxDsController.text);
+      _minDs = double.tryParse(_minDsController.text.trim().replaceAll(',', '.'));
+      _maxDs = double.tryParse(_maxDsController.text.trim().replaceAll(',', '.'));
       final songs = await _service.randomDrawSongs(
         count: count,
         minDs: _minDs,
@@ -483,7 +483,7 @@ class _RandomChartPageState extends State<RandomChartPage> {
     return TextField(
       enabled: !busy,
       controller: controller,
-      keyboardType: TextInputType.number,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
       style: const TextStyle(fontSize: 14),
       decoration: recommendInputDecoration(context, hint: hint),
     );
