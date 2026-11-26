@@ -1,5 +1,6 @@
 import Accelerate
 import AVFoundation
+import CoreImage
 import Flutter
 import Photos
 import UIKit
@@ -49,7 +50,8 @@ public final class SimaiFlutterPlugin: NSObject, FlutterPlugin {
           let session = try self.requiredSession(arguments)
           try session.submitFrame(
             slot: try arguments.requiredInt("slot"),
-            presentationTimeUs: try arguments.requiredInt64("presentationTimeUs")
+            presentationTimeUs: try arguments.requiredInt64("presentationTimeUs"),
+            pvTimeUs: (arguments["pvTimeUs"] as? NSNumber)?.int64Value
           )
           result(nil)
         case "validateStorage":
@@ -93,6 +95,8 @@ public final class SimaiFlutterPlugin: NSObject, FlutterPlugin {
     let audioAsset = arguments["audioAsset"] as? String
     let audioAssetPath = audioAsset.flatMap { assetPath($0, package: nil) }
     let hitPath = assetPath("assets/answer.wav", package: "simai_flutter")
+    let pvVideoPath = (arguments["pvVideoPath"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+    let pvRect = (arguments["pvRect"] as? [NSNumber])?.map(\.intValue)
     let session = try IOSVideoExportSession(
       id: id,
       width: width,
@@ -102,7 +106,9 @@ public final class SimaiFlutterPlugin: NSObject, FlutterPlugin {
       requestedOutputPath: arguments["outputPath"] as? String,
       audioPath: arguments["audioFilePath"] as? String ?? audioAssetPath,
       hitSoundPath: hitPath,
-      audioMode: try arguments.requiredString("audioMode")
+      audioMode: try arguments.requiredString("audioMode"),
+      pvVideoPath: pvVideoPath,
+      pvRect: pvRect
     )
     do {
       try session.start()
@@ -371,6 +377,9 @@ private final class IOSVideoExportSession {
   private let workingDirectory: URL
   private let videoOnlyURL: URL
   private let finalMuxedURL: URL
+  private let pvRect: [Int]?
+  private var pvReader: IOSPvFrameReader?
+  private var pvForegroundScratch: UnsafeMutableRawPointer?
   private var writer: AVAssetWriter?
   private var videoInput: AVAssetWriterInput?
   private var adaptor: AVAssetWriterInputPixelBufferAdaptor?
@@ -387,7 +396,9 @@ private final class IOSVideoExportSession {
     requestedOutputPath: String?,
     audioPath: String?,
     hitSoundPath: String?,
-    audioMode: String
+    audioMode: String,
+    pvVideoPath: String? = nil,
+    pvRect: [Int]? = nil
   ) throws {
     guard ["musicAndHitSounds", "musicOnly", "silent"].contains(audioMode) else {
       throw IOSExportError(code: "invalid_audio_mode", message: "Unsupported audio mode: \(audioMode)")
@@ -437,6 +448,29 @@ private final class IOSVideoExportSession {
       at: resolvedWorkingDirectory,
       withIntermediateDirectories: true
     )
+    var resolvedPvRect: [Int]?
+    var resolvedPvReader: IOSPvFrameReader?
+    var resolvedPvForegroundScratch: UnsafeMutableRawPointer?
+    if let pvVideoPath {
+      guard let pvRect, pvRect.count == 4,
+            pvRect[0] >= 0, pvRect[1] >= 0,
+            pvRect[2] > 0, pvRect[3] > 0,
+            pvRect[0] + pvRect[2] <= width,
+            pvRect[1] + pvRect[3] <= height else {
+        throw IOSExportError(code: "invalid_pv_rect", message: "启用 PV 背景导出时必须提供有效的 pvRect。")
+      }
+      resolvedPvRect = pvRect
+      resolvedPvReader = try IOSPvFrameReader(
+        videoPath: pvVideoPath,
+        targetWidth: pvRect[2],
+        targetHeight: pvRect[3]
+      )
+      resolvedPvForegroundScratch = UnsafeMutableRawPointer.allocate(
+        byteCount: pvRect[2] * pvRect[3] * 4,
+        alignment: 64
+      )
+    }
+
     let byteCount = width * height * 4
     self.id = id
     self.width = width
@@ -455,10 +489,14 @@ private final class IOSVideoExportSession {
     self.workingDirectory = resolvedWorkingDirectory
     self.videoOnlyURL = resolvedVideoOnlyURL
     self.finalMuxedURL = resolvedFinalMuxedURL
+    self.pvRect = resolvedPvRect
+    self.pvReader = resolvedPvReader
+    self.pvForegroundScratch = resolvedPvForegroundScratch
   }
 
   deinit {
     frameBuffers.forEach { $0.deallocate() }
+    pvForegroundScratch?.deallocate()
   }
 
   static func hardwareEncoderSupported(width: Int, height: Int, fps: Int) -> Bool {
@@ -599,7 +637,7 @@ private final class IOSVideoExportSession {
     ]
   }
 
-  func submitFrame(slot: Int, presentationTimeUs: Int64) throws {
+  func submitFrame(slot: Int, presentationTimeUs: Int64, pvTimeUs: Int64? = nil) throws {
     try checkCancelled()
     guard frameBuffers.indices.contains(slot) else {
       throw IOSExportError(code: "invalid_slot", message: "Invalid frame buffer slot \(slot).")
@@ -621,6 +659,7 @@ private final class IOSVideoExportSession {
     guard let destination = CVPixelBufferGetBaseAddress(pixelBuffer) else {
       throw IOSExportError(code: "pixel_buffer", message: "Pixel buffer has no writable base address.")
     }
+    let destinationBytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
     var sourceBuffer = vImage_Buffer(
       data: frameBuffers[slot],
       height: vImagePixelCount(height),
@@ -631,7 +670,7 @@ private final class IOSVideoExportSession {
       data: destination,
       height: vImagePixelCount(height),
       width: vImagePixelCount(width),
-      rowBytes: CVPixelBufferGetBytesPerRow(pixelBuffer)
+      rowBytes: destinationBytesPerRow
     )
     var permutation: [UInt8] = [2, 1, 0, 3]
     let conversion = vImagePermuteChannels_ARGB8888(
@@ -643,6 +682,65 @@ private final class IOSVideoExportSession {
     guard conversion == kvImageNoError else {
       throw IOSExportError(code: "pixel_conversion", message: "RGBA to BGRA conversion failed: \(conversion).")
     }
+
+    if let pvReader,
+       let pvRect,
+       let pvForegroundScratch,
+       let pvTimeUs,
+       pvReader.advanceTo(targetTimeUs: pvTimeUs) {
+      let left = pvRect[0]
+      let top = pvRect[1]
+      let pvW = pvRect[2]
+      let pvH = pvRect[3]
+      let srcRowBytes = width * 4
+      let srcRoiPtr = frameBuffers[slot].advanced(by: top * srcRowBytes + left * 4)
+      var srcRoiBuffer = vImage_Buffer(
+        data: srcRoiPtr,
+        height: vImagePixelCount(pvH),
+        width: vImagePixelCount(pvW),
+        rowBytes: srcRowBytes
+      )
+      var fgBuffer = vImage_Buffer(
+        data: pvForegroundScratch,
+        height: vImagePixelCount(pvH),
+        width: vImagePixelCount(pvW),
+        rowBytes: pvW * 4
+      )
+      var fgPermutation: [UInt8] = [2, 1, 0, 3]
+      let fgConversion = vImagePermuteChannels_ARGB8888(
+        &srcRoiBuffer,
+        &fgBuffer,
+        &fgPermutation,
+        vImage_Flags(kvImageNoFlags)
+      )
+      guard fgConversion == kvImageNoError else {
+        throw IOSExportError(code: "pixel_conversion", message: "PV 前景区域通道转换失败: \(fgConversion).")
+      }
+      var bgBuffer = vImage_Buffer(
+        data: pvReader.bgraBuffer,
+        height: vImagePixelCount(pvH),
+        width: vImagePixelCount(pvW),
+        rowBytes: pvReader.rowBytes
+      )
+      let destRoiPtr = destination.advanced(by: top * destinationBytesPerRow + left * 4)
+      var destRoiBuffer = vImage_Buffer(
+        data: destRoiPtr,
+        height: vImagePixelCount(pvH),
+        width: vImagePixelCount(pvW),
+        rowBytes: destinationBytesPerRow
+      )
+      // 使用预乘 Alpha 将透明镂空的 Flutter 前景叠加到解码后的 PV 帧之上
+      let blendError = vImagePremultipliedAlphaBlend_BGRA8888(
+        &fgBuffer,
+        &bgBuffer,
+        &destRoiBuffer,
+        vImage_Flags(kvImageNoFlags)
+      )
+      guard blendError == kvImageNoError else {
+        throw IOSExportError(code: "pixel_blend", message: "PV 与谱面前景预乘合成失败: \(blendError).")
+      }
+    }
+
     let time = CMTime(value: presentationTimeUs, timescale: 1_000_000)
     guard adaptor.append(pixelBuffer, withPresentationTime: time) else {
       throw IOSExportError(code: "video_writer", message: writer?.error?.localizedDescription ?? "Unable to append video frame.")
@@ -659,6 +757,7 @@ private final class IOSVideoExportSession {
     try checkCancelled()
     try ensureDiskSpace(durationUs: durationUs)
     videoInput?.markAsFinished()
+    pvReader = nil
     guard let writer else {
       throw IOSExportError(code: "video_writer", message: "Video writer is not running.")
     }
@@ -697,6 +796,7 @@ private final class IOSVideoExportSession {
     stateLock.lock()
     cancelled = true
     stateLock.unlock()
+    pvReader = nil
     writer?.cancelWriting()
     try? FileManager.default.removeItem(at: workingDirectory)
   }
@@ -767,6 +867,174 @@ private enum IOSVideoRateControl: CaseIterable {
     case .variableBitrate: "VBR"
     case .targetBitrate: "target bitrate"
     }
+  }
+}
+
+/// iOS 原生 PV 视频顺序解码器，按轨道方向与 BoxFit.cover 裁切写入复用 BGRA 缓冲区。
+private final class IOSPvFrameReader {
+  private let reader: AVAssetReader
+  private let trackOutput: AVAssetReaderTrackOutput
+  private let ciContext: CIContext
+  private let colorSpace: CGColorSpace
+  private let preferredTransform: CGAffineTransform
+  let targetWidth: Int
+  let targetHeight: Int
+  let durationUs: Int64
+  let rowBytes: Int
+  let bgraBuffer: UnsafeMutableRawPointer
+
+  private var hasDecodedFrame = false
+  private var lastPtsUs: Int64 = Int64.min
+  private var reachedEnd = false
+
+  init(videoPath: String, targetWidth: Int, targetHeight: Int) throws {
+    guard targetWidth > 0, targetHeight > 0 else {
+      throw IOSExportError(code: "invalid_pv_rect", message: "PV 目标绘制尺寸必须为正数。")
+    }
+    let url = URL(fileURLWithPath: videoPath)
+    var isDirectory: ObjCBool = false
+    guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
+          !isDirectory.boolValue,
+          FileManager.default.isReadableFile(atPath: url.path) else {
+      throw IOSExportError(code: "pv_not_found", message: "PV 视频文件不存在或不可读: \(videoPath)")
+    }
+    let asset = AVURLAsset(url: url)
+    guard let videoTrack = asset.tracks(withMediaType: .video).first else {
+      throw IOSExportError(code: "pv_invalid", message: "PV 文件中未找到视频轨道。")
+    }
+    let rawDuration = videoTrack.timeRange.duration.seconds
+    let fallbackDuration = asset.duration.seconds
+    let durationSec = (rawDuration.isFinite && rawDuration > 0) ? rawDuration : fallbackDuration
+    self.durationUs = (durationSec.isFinite && durationSec > 0)
+      ? Int64((durationSec * 1_000_000).rounded())
+      : 0
+
+    let reader = try AVAssetReader(asset: asset)
+    let outputSettings: [String: Any] = [
+      kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+    ]
+    let trackOutput = AVAssetReaderTrackOutput(track: videoTrack, outputSettings: outputSettings)
+    trackOutput.alwaysCopiesSampleData = false
+    guard reader.canAdd(trackOutput) else {
+      throw IOSExportError(code: "pv_reader", message: "无法创建 PV 视频读取输出。")
+    }
+    reader.add(trackOutput)
+    guard reader.startReading() else {
+      throw IOSExportError(
+        code: "pv_reader",
+        message: reader.error?.localizedDescription ?? "无法开始读取 PV 视频。"
+      )
+    }
+
+    self.reader = reader
+    self.trackOutput = trackOutput
+    self.ciContext = CIContext(options: [.useSoftwareRenderer: false])
+    self.colorSpace = CGColorSpaceCreateDeviceRGB()
+    self.preferredTransform = videoTrack.preferredTransform
+    self.targetWidth = targetWidth
+    self.targetHeight = targetHeight
+    self.rowBytes = targetWidth * 4
+    self.bgraBuffer = UnsafeMutableRawPointer.allocate(
+      byteCount: targetWidth * targetHeight * 4,
+      alignment: 64
+    )
+  }
+
+  deinit {
+    reader.cancelReading()
+    bgraBuffer.deallocate()
+  }
+
+  func advanceTo(targetTimeUs: Int64) -> Bool {
+    if durationUs <= 0 || targetTimeUs < 0 || targetTimeUs > durationUs {
+      return false
+    }
+    let thresholdUs = targetTimeUs - 8_333
+    if hasDecodedFrame && lastPtsUs >= thresholdUs {
+      return true
+    }
+    if reachedEnd {
+      return hasDecodedFrame
+    }
+
+    var lastSkippedSample: CMSampleBuffer?
+    var lastSkippedPtsUs: Int64 = Int64.min
+
+    while let sampleBuffer = trackOutput.copyNextSampleBuffer() {
+      let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+      let ptsSeconds = pts.seconds
+      guard ptsSeconds.isFinite else { continue }
+      let ptsUs = Int64((ptsSeconds * 1_000_000).rounded())
+      if ptsUs >= thresholdUs {
+        if renderSampleToBuffer(sampleBuffer) {
+          lastPtsUs = ptsUs
+          hasDecodedFrame = true
+        }
+        return hasDecodedFrame
+      }
+      lastSkippedSample = sampleBuffer
+      lastSkippedPtsUs = ptsUs
+    }
+
+    reachedEnd = true
+    if let lastSkippedSample, lastSkippedPtsUs > lastPtsUs {
+      if renderSampleToBuffer(lastSkippedSample) {
+        lastPtsUs = lastSkippedPtsUs
+        hasDecodedFrame = true
+      }
+    }
+    return hasDecodedFrame
+  }
+
+  private func renderSampleToBuffer(_ sampleBuffer: CMSampleBuffer) -> Bool {
+    guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+      return false
+    }
+    var ciImage = CIImage(cvPixelBuffer: imageBuffer)
+    if !preferredTransform.isIdentity {
+      // 将左上角原点的 preferredTransform 转换到 CoreImage 左下角原点坐标系
+      let rawHeight = ciImage.extent.height
+      let toTopDown = CGAffineTransform(scaleX: 1, y: -1)
+        .concatenating(CGAffineTransform(translationX: 0, y: rawHeight))
+      let combined = toTopDown
+        .concatenating(preferredTransform)
+        .concatenating(CGAffineTransform(scaleX: 1, y: -1))
+      ciImage = ciImage.transformed(by: combined)
+      let origin = ciImage.extent.origin
+      if origin.x != 0 || origin.y != 0 {
+        ciImage = ciImage.transformed(
+          by: CGAffineTransform(translationX: -origin.x, y: -origin.y)
+        )
+      }
+    }
+
+    let srcWidth = ciImage.extent.width
+    let srcHeight = ciImage.extent.height
+    guard srcWidth > 0, srcHeight > 0 else {
+      return false
+    }
+
+    let scale = max(CGFloat(targetWidth) / srcWidth, CGFloat(targetHeight) / srcHeight)
+    let scaledWidth = srcWidth * scale
+    let scaledHeight = srcHeight * scale
+    let offsetX = (CGFloat(targetWidth) - scaledWidth) * 0.5
+    let offsetY = (CGFloat(targetHeight) - scaledHeight) * 0.5
+    let renderBounds = CGRect(x: 0, y: 0, width: targetWidth, height: targetHeight)
+    let outputImage = ciImage
+      .clampedToExtent()
+      .transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+      .transformed(by: CGAffineTransform(translationX: offsetX, y: offsetY))
+      .cropped(to: renderBounds)
+
+    ciContext.render(
+      outputImage,
+      toBitmap: bgraBuffer,
+      rowBytes: rowBytes,
+      bounds: renderBounds,
+      format: .BGRA8,
+      colorSpace: colorSpace
+    )
+    return true
   }
 }
 

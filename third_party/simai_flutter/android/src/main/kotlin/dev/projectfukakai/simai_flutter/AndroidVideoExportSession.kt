@@ -23,6 +23,8 @@ internal class AndroidVideoExportSession(
     private val audioFilePath: String?,
     private val hitAssetKey: String,
     private val audioMode: String,
+    private val pvVideoPath: String? = null,
+    private val pvRect: IntArray? = null,
 ) {
     val frameByteCount: Int = Math.multiplyExact(Math.multiplyExact(width, height), 4)
     val frameBuffers: List<ByteBuffer> = List(2) {
@@ -61,6 +63,11 @@ internal class AndroidVideoExportSession(
             require(audio.isFile) { "Music source does not exist: ${audio.absolutePath}" }
             audioDurationUs = probeAudioDurationUs(audio)
         }
+        if (pvVideoPath != null) {
+            require(pvRect != null && pvRect.size == 4 && pvRect[2] > 0 && pvRect[3] > 0) {
+                "启用 PV 背景导出时必须提供有效的 pvRect。"
+            }
+        }
         encoder = HardwareVideoEncoder(
             width = width,
             height = height,
@@ -68,13 +75,15 @@ internal class AndroidVideoExportSession(
             bitrate = videoBitrate,
             codecName = videoCodecName,
             outputFile = videoOnlyFile,
+            pvVideoPath = pvVideoPath,
+            pvRect = pvRect,
         ).also { it.start() }
     }
 
-    fun submitFrame(slot: Int, presentationTimeUs: Long) {
+    fun submitFrame(slot: Int, presentationTimeUs: Long, pvTimeUs: Long? = null) {
         checkCancelled()
         require(slot in frameBuffers.indices) { "Invalid frame buffer slot $slot" }
-        encoder?.submit(frameBuffers[slot], presentationTimeUs)
+        encoder?.submit(frameBuffers[slot], presentationTimeUs, pvTimeUs)
             ?: error("Video encoder is not running.")
     }
 

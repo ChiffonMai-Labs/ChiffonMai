@@ -46,6 +46,8 @@ class _UnsupportedVideoExportPlatform
     required String? audioAsset,
     required String? audioFilePath,
     required String audioMode,
+    String? pvVideoPath,
+    List<int>? pvRect,
   }) async => _unsupported();
 
   @override
@@ -53,6 +55,7 @@ class _UnsupportedVideoExportPlatform
     required int sessionId,
     required int slot,
     required int presentationTimeUs,
+    int? pvTimeUs,
   }) async => _unsupported();
 
   @override

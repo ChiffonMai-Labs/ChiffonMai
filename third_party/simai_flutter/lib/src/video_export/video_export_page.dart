@@ -9,8 +9,10 @@ import 'package:flutter_soloud/flutter_soloud.dart';
 
 import '../audio/soloud_audio_player.dart';
 import '../ui/center_display_mode.dart';
+import '../ui/note_style.dart';
 import '../ui/simai_game.dart';
 import '../ui/simai_player.dart';
+import '../ui/simai_player_controls.dart';
 import 'video_export_models.dart';
 import 'video_export_timeline.dart';
 import 'video_exporter.dart';
@@ -30,6 +32,15 @@ class SimaiVideoExportPage extends StatefulWidget {
   final SimaiVideoExportSettings? initialSettings;
   final ValueChanged<SimaiVideoExportSettings>? onSettingsChanged;
   final Future<String?> Function()? resolveAudioFilePath;
+  final Future<String?> Function()? checkCachedPvFilePath;
+  final Future<String?> Function(BuildContext context)? downloadPvFilePath;
+  final Widget Function(
+    BuildContext context,
+    String pvVideoPath,
+    ValueListenable<double> timeListenable,
+    bool isPlaying,
+  )?
+  pvPreviewBuilder;
   final SimaiVideoExportTask? task;
   final ValueChanged<SimaiVideoExportResult>? onVideoExported;
   final TextStyle? displayFont;
@@ -44,6 +55,9 @@ class SimaiVideoExportPage extends StatefulWidget {
     this.initialSettings,
     this.onSettingsChanged,
     this.resolveAudioFilePath,
+    this.checkCachedPvFilePath,
+    this.downloadPvFilePath,
+    this.pvPreviewBuilder,
     this.task,
     this.onVideoExported,
     this.displayFont,
@@ -86,6 +100,13 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
   Object? _previewError;
   double _previewTime = 0;
   double _previewDuration = 0;
+  final ValueNotifier<double> _previewTimeNotifier = ValueNotifier<double>(0.0);
+  final ValueNotifier<double> _previewPvTimeNotifier = ValueNotifier<double>(
+    0.0,
+  );
+  bool _usePvBackground = false;
+  String? _pvVideoPath;
+  bool _resolvingPv = false;
   Duration? _lastTickElapsed;
   double? _queuedPreviewTime;
   bool _queuedResetWindow = false;
@@ -140,6 +161,8 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
       hitSoundEnabled: useMusic && settings.hitSoundEnabled,
       showCornerInfo: settings.showCornerInfo,
       showDetailedPerformanceInfo: settings.showDetailedPerformanceInfo,
+      pvVideoPath: _usePvBackground ? _pvVideoPath : null,
+      clearPvVideoPath: !_usePvBackground || _pvVideoPath == null,
     );
   }
 
@@ -166,6 +189,14 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
         ? activeTask.options.audioMode != SimaiVideoAudioMode.silent
         : initialSettings?.includeMusic ??
               (widget.initialOptions.audioMode != SimaiVideoAudioMode.silent);
+    // 默认关闭 PV 背景，仅在接管已包含 pvVideoPath 的进行中/已完成任务时开启，绝不持久化。
+    final activeTaskPvPath = activeTask?.options.pvVideoPath;
+    if (activeTask != null &&
+        activeTaskPvPath != null &&
+        activeTaskPvPath.isNotEmpty) {
+      _usePvBackground = true;
+      _pvVideoPath = activeTaskPvPath;
+    }
     if (activeTask == null) {
       final configuration = createSimaiVideoExportControllerSnapshot(
         widget.controller,
@@ -186,6 +217,7 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
       }
       _configurationController = configuration;
     }
+    _syncPreviewPvTime();
     _wasPlaying = widget.controller.isPlaying;
     _pauseSourceFuture = _wasPlaying
         ? widget.controller.pause()
@@ -223,6 +255,8 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     _queuedResetWindow = false;
     _previewImage?.dispose();
     _previewImage = null;
+    _previewTimeNotifier.dispose();
+    _previewPvTimeNotifier.dispose();
     unawaited(_disposePreviewAudio());
     unawaited(_disposePreviewResourcesWhenIdle());
     _configurationController?.dispose();
@@ -287,12 +321,19 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
         displayFont: widget.displayFont,
         textStyleResolver: widget.textStyleResolver,
         prepareFonts: widget.prepareFonts,
+        transparentContentBackground:
+            _usePvBackground && (_pvVideoPath?.isNotEmpty ?? false),
       );
       _previewController = previewController;
       _previewRenderer = renderer;
       await renderer.prepare();
       if (_disposed) return;
       _previewDuration = renderer.visualDuration;
+      if (_previewTime > _previewDuration) {
+        _previewTime = _previewDuration;
+      }
+      _previewTimeNotifier.value = _previewTime;
+      _syncPreviewPvTime();
       _previewReady = true;
       _queuePreviewFrame(resetWindow: true);
       if (mounted) setState(() {});
@@ -321,6 +362,13 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     }
   }
 
+  void _syncPreviewPvTime() {
+    final settings = _settingsController;
+    _previewPvTimeNotifier.value =
+        (_previewTime - settings.effectiveMusicOffsetSeconds) -
+        (settings.pvOffsetMs / 1000.0);
+  }
+
   void _handlePreviewTick(Duration elapsed) {
     if (!_previewPlaying || !_previewReady) return;
     final previous = _lastTickElapsed;
@@ -331,8 +379,12 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     _previewTime += delta;
     if (_previewDuration > 0 && _previewTime >= _previewDuration) {
       _previewTime = _previewDuration;
+      _previewTimeNotifier.value = _previewTime;
+      _syncPreviewPvTime();
       _setPreviewPlaying(false);
     } else {
+      _previewTimeNotifier.value = _previewTime;
+      _syncPreviewPvTime();
       _advancePreviewAudio();
     }
     _queuePreviewFrame();
@@ -344,6 +396,8 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
         _previewDuration > 0 &&
         _previewTime >= _previewDuration - 1e-6) {
       _previewTime = 0;
+      _previewTimeNotifier.value = 0;
+      _syncPreviewPvTime();
       _queuePreviewFrame(resetWindow: true);
     }
     setState(() => _previewPlaying = value);
@@ -357,13 +411,48 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     }
   }
 
+  Future<void> _seekPreview(double time, {bool syncAudio = true}) async {
+    if (!_previewReady || _disposed) return;
+    final total = _previewDuration > 0 ? _previewDuration : 0.0;
+    final clamped = time.isFinite ? time.clamp(0.0, total).toDouble() : 0.0;
+    _previewTime = clamped;
+    _previewTimeNotifier.value = clamped;
+    _syncPreviewPvTime();
+    _previewHitIndex = _lowerBoundHitEvent((clamped * 1000000).round());
+    _queuePreviewFrame(resetWindow: true);
+    if (!syncAudio || !_includeMusic || !_previewMusicReady) return;
+    final musicSeconds =
+        clamped - _settingsController.effectiveMusicOffsetSeconds;
+    if (_previewPlaying) {
+      if (musicSeconds >= 0) {
+        _previewAudioPlayActive = true;
+        await _seekAndPlayPreviewMusic(musicSeconds);
+      } else {
+        _previewAudioPlayActive = false;
+        await _seekPreviewMusic(0);
+      }
+    } else {
+      _previewAudioPlayActive = false;
+      await _seekPreviewMusic(math.max(0.0, musicSeconds));
+    }
+  }
+
   void _restartPreview() {
     if (!_previewReady) return;
     _setPreviewPlaying(false);
-    _previewTime = 0;
-    _previewHitIndex = _lowerBoundHitEvent(0);
-    unawaited(_seekPreviewMusic(0));
-    _queuePreviewFrame(resetWindow: true);
+    unawaited(_seekPreview(0.0, syncAudio: true));
+  }
+
+  void _previousPreviewMeasure() {
+    if (!_previewReady) return;
+    final target = _settingsController.computePreviousMeasureTime(_previewTime);
+    unawaited(_seekPreview(target, syncAudio: true));
+  }
+
+  void _nextPreviewMeasure() {
+    if (!_previewReady) return;
+    final target = _settingsController.computeNextMeasureTime(_previewTime);
+    unawaited(_seekPreview(target, syncAudio: true));
   }
 
   void _queuePreviewFrame({bool resetWindow = false}) {
@@ -722,7 +811,10 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     _previewHitVoices.removeWhere(
       (handle) => !SoLoud.instance.getIsValidVoiceHandle(handle),
     );
-    final baseGain = _settingsController.hitSoundVolume.clamp(0.0, 1.0);
+    final baseGain = _settingsController.hitSoundVolume.clamp(
+      0.0,
+      simaiMaxHitSoundVolume,
+    );
     final gain = baseGain / math.sqrt(voiceCount);
     if (gain <= 0) return;
     try {
@@ -806,9 +898,49 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     setState(() {});
     _notifySettingsChanged();
     _rebuildPreviewHitEvents();
+    _syncPreviewPvTime();
     unawaited(_previewMusicPlayer?.setVolume(controller.musicVolume));
     if (controller.hitSoundEnabled && _includeMusic) {
       unawaited(_preparePreviewHitSound());
+    }
+  }
+
+  Future<void> _setUsePvBackground(bool value) async {
+    if (_resolvingPv || _disposed) return;
+    if (!value) {
+      if (!_usePvBackground && _pvVideoPath == null) return;
+      setState(() {
+        _usePvBackground = false;
+        _pvVideoPath = null;
+      });
+      _schedulePreviewRebuild();
+      return;
+    }
+    setState(() => _resolvingPv = true);
+    try {
+      String? path = await widget.checkCachedPvFilePath?.call();
+      if (_disposed || !mounted) return;
+      if (path == null || path.isEmpty) {
+        path = await widget.downloadPvFilePath?.call(context);
+        if (_disposed || !mounted) return;
+      }
+      if (path != null && path.isNotEmpty) {
+        setState(() {
+          _usePvBackground = true;
+          _pvVideoPath = path;
+        });
+        _syncPreviewPvTime();
+        _schedulePreviewRebuild();
+      } else {
+        setState(() {
+          _usePvBackground = false;
+          _pvVideoPath = null;
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _resolvingPv = false);
+      }
     }
   }
 
@@ -1002,6 +1134,7 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     if (_task != null ||
         _loadingSupport ||
         _resolvingAudio ||
+        _resolvingPv ||
         !_selectedQualitySupported) {
       return;
     }
@@ -1109,7 +1242,11 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     late final String label;
     ButtonStyle? style;
     if (task == null) {
-      onPressed = _loadingSupport || _resolvingAudio || !_selectedQualitySupported
+      onPressed =
+          _loadingSupport ||
+              _resolvingAudio ||
+              _resolvingPv ||
+              !_selectedQualitySupported
           ? null
           : _startExport;
       icon = const Icon(Icons.file_upload_outlined);
@@ -1117,6 +1254,8 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
           ? '正在检查编码器…'
           : _resolvingAudio
           ? '正在准备音源…'
+          : _resolvingPv
+          ? '正在准备 PV…'
           : _supportError != null
           ? '无法检测硬件编码器'
           : _selectedQualitySupported
@@ -1412,6 +1551,24 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
           ),
         ),
         const SizedBox(height: 16),
+        _buildSegmentedSetting<SimaiNoteStyle>(
+          theme,
+          label: 'NOTE 样式',
+          icon: Icons.style_outlined,
+          value: controller.noteStyle,
+          segments: SimaiNoteStyle.values
+              .map(
+                (style) => ButtonSegment<SimaiNoteStyle>(
+                  value: style,
+                  label: Text(style.label),
+                ),
+              )
+              .toList(growable: false),
+          onChanged: (value) => _updateVisualSetting(
+            (controller) => controller.noteStyle = value,
+          ),
+        ),
+        const SizedBox(height: 16),
         _buildSegmentedSetting<SimaiBackgroundMode>(
           theme,
           label: '判定线',
@@ -1433,6 +1590,51 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
             (controller) => controller.backgroundMode = value,
           ),
         ),
+        if (widget.checkCachedPvFilePath != null ||
+            widget.downloadPvFilePath != null) ...[
+          const SizedBox(height: 8),
+          _buildSwitchSetting(
+            theme,
+            label: '使用 PV 作为背景',
+            icon: Icons.ondemand_video_outlined,
+            value: _usePvBackground,
+            enabled: !_resolvingPv,
+            onChanged: (value) => unawaited(_setUsePvBackground(value)),
+          ),
+          if (_usePvBackground) ...[
+            _buildSliderSetting(
+              theme,
+              label: '背景透明度',
+              icon: Icons.opacity,
+              value: controller.backgroundOpacity,
+              min: 0.0,
+              max: 1.0,
+              divisions: 100,
+              valueSuffix: '${(controller.backgroundOpacity * 100).round()}%',
+              onChanged: (value) => _updateVisualSetting(
+                (controller) => controller.backgroundOpacity = value,
+              ),
+            ),
+            _buildSliderSetting(
+              theme,
+              label: 'PV 偏移',
+              icon: Icons.ondemand_video_rounded,
+              value: controller.pvOffsetMs.toDouble(),
+              min: -2000,
+              max: 2000,
+              divisions: 400,
+              valueSuffix:
+                  '${controller.pvOffsetMs > 0 ? '+' : ''}${controller.pvOffsetMs}ms',
+              onChanged: (value) {
+                _updateVisualSetting(
+                  (controller) => controller.pvOffsetMs = value.round(),
+                  rebuildPreview: false,
+                );
+                _syncPreviewPvTime();
+              },
+            ),
+          ],
+        ],
         _buildSliderSetting(
           theme,
           label: '流速',
@@ -1491,25 +1693,45 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
             (controller) => controller.showHitEffects = value,
           ),
         ),
-        const SizedBox(height: 16),
-        _buildSegmentedSetting<SimaiCenterDisplayMode>(
+        _buildDropdownSetting<SimaiCenterDisplayMode>(
           theme,
           label: '中央显示',
           icon: Icons.swap_vert,
           value: controller.centerDisplayMode,
-          segments: const [
-            ButtonSegment(
-              value: SimaiCenterDisplayMode.achievement,
-              label: Text('达成率'),
-            ),
-            ButtonSegment(
-              value: SimaiCenterDisplayMode.combo,
-              label: Text('Combo'),
-            ),
-          ],
-          onChanged: (value) => _updateVisualSetting(
-            (controller) => controller.centerDisplayMode = value,
-          ),
+          items: SimaiCenterDisplayMode.values
+              .map(
+                (mode) => DropdownMenuItem<SimaiCenterDisplayMode>(
+                  value: mode,
+                  child: Text(mode.label),
+                ),
+              )
+              .toList(growable: false),
+          onChanged: (value) {
+            if (value == null) return;
+            _updateVisualSetting(
+              (controller) => controller.centerDisplayMode = value,
+            );
+          },
+        ),
+        _buildDropdownSetting<SimaiCenterDisplayMode>(
+          theme,
+          label: '右上角显示',
+          icon: Icons.north_east_rounded,
+          value: controller.topRightDisplayMode,
+          items: SimaiCenterDisplayMode.values
+              .map(
+                (mode) => DropdownMenuItem<SimaiCenterDisplayMode>(
+                  value: mode,
+                  child: Text(mode.label),
+                ),
+              )
+              .toList(growable: false),
+          onChanged: (value) {
+            if (value == null) return;
+            _updateVisualSetting(
+              (controller) => controller.topRightDisplayMode = value,
+            );
+          },
         ),
         _buildSwitchSetting(
           theme,
@@ -1668,6 +1890,30 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     );
   }
 
+  Widget _buildDropdownSetting<T>(
+    ThemeData theme, {
+    required String label,
+    required IconData icon,
+    required T value,
+    required List<DropdownMenuItem<T>> items,
+    required ValueChanged<T?> onChanged,
+  }) {
+    return ListTile(
+      leading: Icon(icon, color: theme.colorScheme.onSurfaceVariant),
+      title: Text(label, style: theme.textTheme.bodyLarge),
+      trailing: DropdownButtonHideUnderline(
+        child: DropdownButton<T>(
+          value: value,
+          items: items,
+          onChanged: onChanged,
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+    );
+  }
+
   Widget _buildSwitchSetting(
     ThemeData theme, {
     required String label,
@@ -1751,18 +1997,28 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
   Widget _buildPreviewTab(ThemeData theme) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final availableHeight = math.max(160.0, constraints.maxHeight - 104);
+        final availableHeight = math.max(160.0, constraints.maxHeight - 176);
         final previewWidth = math.min(
           math.max(120.0, constraints.maxWidth - 32),
           availableHeight * SimaiVideoLayout.aspectRatio,
         );
+        final previewHeight =
+            previewWidth *
+            SimaiVideoLayout.designHeight /
+            SimaiVideoLayout.designWidth;
+        final previewSize = Size(previewWidth, previewHeight);
+        final totalDuration = _previewDuration > 0
+            ? _previewDuration
+            : (_settingsController.chartInfo.totalDuration > 0
+                  ? _settingsController.chartInfo.totalDuration
+                  : 1.0);
         return Column(
           children: [
             Expanded(
               child: Center(
                 child: Container(
                   width: previewWidth,
-                  height: previewWidth / SimaiVideoLayout.aspectRatio,
+                  height: previewHeight,
                   decoration: BoxDecoration(
                     color: Colors.black,
                     border: Border.all(color: theme.colorScheme.outlineVariant),
@@ -1774,40 +2030,96 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
                       ),
                     ],
                   ),
-                  child: _buildPreviewCanvas(),
+                  child: _buildPreviewCanvas(previewSize),
                 ),
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton.filledTonal(
-                    tooltip: '重新开始',
-                    onPressed: _previewReady ? _restartPreview : null,
-                    icon: const Icon(Icons.replay),
-                  ),
-                  const SizedBox(width: 12),
-                  FilledButton.tonalIcon(
-                    onPressed: _previewReady
-                        ? () => _setPreviewPlaying(!_previewPlaying)
-                        : null,
-                    icon: Icon(
-                      _previewPlaying ? Icons.pause : Icons.play_arrow,
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF14161D),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: theme.colorScheme.outlineVariant),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SimaiDensityTimeline(
+                      chart: _settingsController.chart,
+                      totalDuration: totalDuration,
+                      timeListenable: _previewTimeNotifier,
+                      isPlaying: _previewPlaying,
+                      onSeek: (time, {bool syncAudio = true}) =>
+                          _seekPreview(time, syncAudio: syncAudio),
+                      onPause: () => _setPreviewPlaying(false),
+                      onPlay: () => _setPreviewPlaying(true),
+                      height: 74,
+                      playbackRate: 1.0,
                     ),
-                    label: Text(_previewPlaying ? '暂停' : '播放'),
-                  ),
-                  const SizedBox(width: 16),
-                  Text(
-                    '${_formatTime(_previewTime)} / '
-                    '${_formatTime(_previewDuration)}',
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontFeatures: const [FontFeature.tabularFigures()],
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        IconButton(
+                          tooltip: '重新开始',
+                          visualDensity: VisualDensity.compact,
+                          color: Colors.white70,
+                          onPressed: _previewReady ? _restartPreview : null,
+                          icon: const Icon(Icons.replay, size: 20),
+                        ),
+                        IconButton(
+                          tooltip: '上一小节',
+                          visualDensity: VisualDensity.compact,
+                          color: Colors.white70,
+                          onPressed: _previewReady
+                              ? _previousPreviewMeasure
+                              : null,
+                          icon: const Icon(Icons.skip_previous, size: 22),
+                        ),
+                        IconButton.filled(
+                          tooltip: _previewPlaying ? '暂停' : '播放',
+                          style: IconButton.styleFrom(
+                            backgroundColor: theme.colorScheme.primary,
+                            foregroundColor: theme.colorScheme.onPrimary,
+                            padding: const EdgeInsets.all(8),
+                            minimumSize: const Size(40, 40),
+                          ),
+                          onPressed: _previewReady
+                              ? () => _setPreviewPlaying(!_previewPlaying)
+                              : null,
+                          icon: Icon(
+                            _previewPlaying ? Icons.pause : Icons.play_arrow,
+                            size: 22,
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: '下一小节',
+                          visualDensity: VisualDensity.compact,
+                          color: Colors.white70,
+                          onPressed: _previewReady ? _nextPreviewMeasure : null,
+                          icon: const Icon(Icons.skip_next, size: 22),
+                        ),
+                        const Spacer(),
+                        ValueListenableBuilder<double>(
+                          valueListenable: _previewTimeNotifier,
+                          builder: (context, time, _) {
+                            return Text(
+                              '${_formatTime(time)} / '
+                              '${_formatTime(_previewDuration)}',
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: Colors.white70,
+                                fontFeatures: const [
+                                  FontFeature.tabularFigures(),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ],
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ],
@@ -1816,7 +2128,7 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     );
   }
 
-  Widget _buildPreviewCanvas() {
+  Widget _buildPreviewCanvas(Size previewSize) {
     final error = _previewError;
     if (error != null) {
       return Center(
@@ -1834,10 +2146,40 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     if (image == null) {
       return const Center(child: CircularProgressIndicator());
     }
-    return RawImage(
-      image: image,
-      fit: BoxFit.contain,
-      filterQuality: FilterQuality.high,
+    final pvPath = _pvVideoPath;
+    final showPv =
+        _usePvBackground &&
+        pvPath != null &&
+        pvPath.isNotEmpty &&
+        widget.pvPreviewBuilder != null;
+    if (!showPv) {
+      return RawImage(
+        image: image,
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.high,
+      );
+    }
+    final layout = SimaiVideoLayout.forSize(previewSize);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Positioned.fromRect(
+          rect: layout.pvCircleRect,
+          child: ClipOval(
+            child: widget.pvPreviewBuilder!(
+              context,
+              pvPath,
+              _previewPvTimeNotifier,
+              _previewPlaying && _tabController.index == 1,
+            ),
+          ),
+        ),
+        RawImage(
+          image: image,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+        ),
+      ],
     );
   }
 

@@ -17,12 +17,15 @@ abstract class SimaiNativeVideoExportPlatform {
     required String? audioAsset,
     required String? audioFilePath,
     required String audioMode,
+    String? pvVideoPath,
+    List<int>? pvRect,
   });
 
   Future<void> submitFrame({
     required int sessionId,
     required int slot,
     required int presentationTimeUs,
+    int? pvTimeUs,
   });
 
   Future<void> validateStorage({

@@ -8,6 +8,7 @@ import android.media.MediaMuxer
 import android.os.Build
 import android.opengl.EGL14
 import android.opengl.EGLExt
+import android.opengl.GLES11Ext
 import android.opengl.GLES20
 import android.view.Surface
 import java.io.File
@@ -22,6 +23,8 @@ internal class HardwareVideoEncoder(
     private val bitrate: Int,
     private val codecName: String,
     private val outputFile: File,
+    private val pvVideoPath: String? = null,
+    private val pvRect: IntArray? = null,
 ) {
     private lateinit var codec: MediaCodec
     private val bufferInfo = MediaCodec.BufferInfo()
@@ -62,6 +65,7 @@ internal class HardwareVideoEncoder(
             val attemptCodec = MediaCodec.createByCodecName(codecName)
             var attemptSurface: Surface? = null
             var attemptMuxer: MediaMuxer? = null
+            var attemptEgl: CodecInputEglSurface? = null
             try {
                 val format = createFormat(candidate, encoderCapabilities)
                 attemptCodec.configure(
@@ -78,7 +82,14 @@ internal class HardwareVideoEncoder(
                     MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4,
                 )
                 attemptMuxer = createdMuxer
-                val createdEgl = CodecInputEglSurface(surface, width, height)
+                val createdEgl = CodecInputEglSurface(
+                    surface = surface,
+                    width = width,
+                    height = height,
+                    pvVideoPath = pvVideoPath,
+                    pvRect = pvRect,
+                )
+                attemptEgl = createdEgl
                 codec = attemptCodec
                 inputSurface = surface
                 muxer = createdMuxer
@@ -86,6 +97,7 @@ internal class HardwareVideoEncoder(
                 return
             } catch (error: Throwable) {
                 lastError = error
+                runCatching { attemptEgl?.release() }
                 runCatching { attemptSurface?.release() }
                 runCatching { attemptCodec.stop() }
                 runCatching { attemptCodec.release() }
@@ -147,10 +159,10 @@ internal class HardwareVideoEncoder(
         }
     }
 
-    fun submit(rgba: ByteBuffer, presentationTimeUs: Long) {
+    fun submit(rgba: ByteBuffer, presentationTimeUs: Long, pvTimeUs: Long? = null) {
         check(!finished) { "Video encoder is already finished." }
         rgba.position(0)
-        egl.drawFrame(rgba, presentationTimeUs * 1000)
+        egl.drawFrame(rgba, presentationTimeUs * 1000, pvTimeUs)
         drain(endOfStream = false)
     }
 
@@ -253,6 +265,8 @@ private class CodecInputEglSurface(
     surface: Surface,
     private val width: Int,
     private val height: Int,
+    pvVideoPath: String? = null,
+    private val pvRect: IntArray? = null,
 ) {
     private val display = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
     private val context: android.opengl.EGLContext
@@ -262,6 +276,14 @@ private class CodecInputEglSurface(
     private val positionLocation: Int
     private val textureCoordinateLocation: Int
     private val samplerLocation: Int
+
+    private var oesProgram: Int = 0
+    private var oesTexture: Int = 0
+    private var oesPositionLocation: Int = -1
+    private var oesTextureCoordinateLocation: Int = -1
+    private var oesTexMatrixLocation: Int = -1
+    private var oesSamplerLocation: Int = -1
+    private var pvDecoder: AndroidPvFrameDecoder? = null
 
     private val vertices: FloatBuffer = floatBufferOf(
         -1f, -1f,
@@ -364,11 +386,112 @@ private class CodecInputEglSurface(
             GLES20.GL_UNSIGNED_BYTE,
             null,
         )
+
+        if (pvVideoPath != null && pvRect != null && pvRect.size == 4 && pvRect[2] > 0 && pvRect[3] > 0) {
+            try {
+                oesProgram = createProgram(OES_VERTEX_SHADER, OES_FRAGMENT_SHADER)
+                oesPositionLocation = GLES20.glGetAttribLocation(oesProgram, "aPosition")
+                oesTextureCoordinateLocation = GLES20.glGetAttribLocation(oesProgram, "aTexCoord")
+                oesTexMatrixLocation = GLES20.glGetUniformLocation(oesProgram, "uTexMatrix")
+                oesSamplerLocation = GLES20.glGetUniformLocation(oesProgram, "uTexture")
+
+                val oesTextures = IntArray(1)
+                GLES20.glGenTextures(1, oesTextures, 0)
+                oesTexture = oesTextures[0]
+                GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, oesTexture)
+                GLES20.glTexParameteri(
+                    GLES11Ext.GL_TEXTURE_EXTERNAL_OES,
+                    GLES20.GL_TEXTURE_MIN_FILTER,
+                    GLES20.GL_LINEAR,
+                )
+                GLES20.glTexParameteri(
+                    GLES11Ext.GL_TEXTURE_EXTERNAL_OES,
+                    GLES20.GL_TEXTURE_MAG_FILTER,
+                    GLES20.GL_LINEAR,
+                )
+                GLES20.glTexParameteri(
+                    GLES11Ext.GL_TEXTURE_EXTERNAL_OES,
+                    GLES20.GL_TEXTURE_WRAP_S,
+                    GLES20.GL_CLAMP_TO_EDGE,
+                )
+                GLES20.glTexParameteri(
+                    GLES11Ext.GL_TEXTURE_EXTERNAL_OES,
+                    GLES20.GL_TEXTURE_WRAP_T,
+                    GLES20.GL_CLAMP_TO_EDGE,
+                )
+                GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, 0)
+
+                pvDecoder = AndroidPvFrameDecoder(
+                    videoPath = pvVideoPath,
+                    oesTextureId = oesTexture,
+                    targetWidth = pvRect[2],
+                    targetHeight = pvRect[3],
+                )
+            } catch (error: Throwable) {
+                release()
+                throw error
+            }
+        }
     }
 
-    fun drawFrame(rgba: ByteBuffer, presentationTimeNs: Long) {
+    fun drawFrame(rgba: ByteBuffer, presentationTimeNs: Long, pvTimeUs: Long? = null) {
         makeCurrent()
-        GLES20.glViewport(0, 0, width, height)
+        val decoder = pvDecoder
+        val rect = pvRect
+        if (decoder != null && rect != null) {
+            // 先清为纯黑底，再绘制 PV 视频区域，最后以预乘 Alpha 叠画 Flutter 图层
+            GLES20.glDisable(GLES20.GL_BLEND)
+            GLES20.glViewport(0, 0, width, height)
+            GLES20.glClearColor(0f, 0f, 0f, 1f)
+            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+
+            if (pvTimeUs != null && decoder.advanceTo(pvTimeUs)) {
+                val left = rect[0]
+                val top = rect[1]
+                val pvW = rect[2]
+                val pvH = rect[3]
+                val glY = height - top - pvH
+                GLES20.glViewport(left, glY, pvW, pvH)
+                GLES20.glUseProgram(oesProgram)
+                vertices.position(0)
+                decoder.textureCoordinates.position(0)
+                GLES20.glEnableVertexAttribArray(oesPositionLocation)
+                GLES20.glVertexAttribPointer(
+                    oesPositionLocation,
+                    2,
+                    GLES20.GL_FLOAT,
+                    false,
+                    0,
+                    vertices,
+                )
+                GLES20.glEnableVertexAttribArray(oesTextureCoordinateLocation)
+                GLES20.glVertexAttribPointer(
+                    oesTextureCoordinateLocation,
+                    2,
+                    GLES20.GL_FLOAT,
+                    false,
+                    0,
+                    decoder.textureCoordinates,
+                )
+                GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
+                GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, oesTexture)
+                GLES20.glUniform1i(oesSamplerLocation, 0)
+                GLES20.glUniformMatrix4fv(oesTexMatrixLocation, 1, false, decoder.transformMatrix, 0)
+                GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+                GLES20.glDisableVertexAttribArray(oesPositionLocation)
+                GLES20.glDisableVertexAttribArray(oesTextureCoordinateLocation)
+                GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, 0)
+            }
+
+            GLES20.glViewport(0, 0, width, height)
+            GLES20.glEnable(GLES20.GL_BLEND)
+            GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+        } else {
+            GLES20.glDisable(GLES20.GL_BLEND)
+            GLES20.glViewport(0, 0, width, height)
+        }
+
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture)
         GLES20.glTexSubImage2D(
             GLES20.GL_TEXTURE_2D,
@@ -402,29 +525,45 @@ private class CodecInputEglSurface(
             0,
             textureCoordinates,
         )
-        GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
         GLES20.glUniform1i(samplerLocation, 0)
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
         GLES20.glDisableVertexAttribArray(positionLocation)
         GLES20.glDisableVertexAttribArray(textureCoordinateLocation)
+        if (decoder != null) {
+            GLES20.glDisable(GLES20.GL_BLEND)
+        }
         EGLExt.eglPresentationTimeANDROID(display, eglSurface, presentationTimeNs)
         check(EGL14.eglSwapBuffers(display, eglSurface)) { "Encoder EGL swap failed." }
     }
 
     fun release() {
-        makeCurrent()
-        GLES20.glDeleteTextures(1, intArrayOf(texture), 0)
-        GLES20.glDeleteProgram(program)
-        EGL14.eglMakeCurrent(
-            display,
-            EGL14.EGL_NO_SURFACE,
-            EGL14.EGL_NO_SURFACE,
-            EGL14.EGL_NO_CONTEXT,
-        )
-        EGL14.eglDestroySurface(display, eglSurface)
-        EGL14.eglDestroyContext(display, context)
-        EGL14.eglReleaseThread()
-        EGL14.eglTerminate(display)
+        runCatching { pvDecoder?.release() }
+        pvDecoder = null
+        runCatching {
+            makeCurrent()
+            if (oesTexture != 0) {
+                GLES20.glDeleteTextures(1, intArrayOf(oesTexture), 0)
+                oesTexture = 0
+            }
+            if (oesProgram != 0) {
+                GLES20.glDeleteProgram(oesProgram)
+                oesProgram = 0
+            }
+            GLES20.glDeleteTextures(1, intArrayOf(texture), 0)
+            GLES20.glDeleteProgram(program)
+        }
+        runCatching {
+            EGL14.eglMakeCurrent(
+                display,
+                EGL14.EGL_NO_SURFACE,
+                EGL14.EGL_NO_SURFACE,
+                EGL14.EGL_NO_CONTEXT,
+            )
+        }
+        runCatching { EGL14.eglDestroySurface(display, eglSurface) }
+        runCatching { EGL14.eglDestroyContext(display, context) }
+        runCatching { EGL14.eglReleaseThread() }
+        runCatching { EGL14.eglTerminate(display) }
     }
 
     private fun makeCurrent() {
@@ -472,6 +611,25 @@ private class CodecInputEglSurface(
             precision mediump float;
             varying vec2 vTexCoord;
             uniform sampler2D uTexture;
+            void main() {
+              gl_FragColor = texture2D(uTexture, vTexCoord);
+            }
+        """
+        private const val OES_VERTEX_SHADER = """
+            attribute vec4 aPosition;
+            attribute vec2 aTexCoord;
+            uniform mat4 uTexMatrix;
+            varying vec2 vTexCoord;
+            void main() {
+              gl_Position = aPosition;
+              vTexCoord = (uTexMatrix * vec4(aTexCoord, 0.0, 1.0)).xy;
+            }
+        """
+        private const val OES_FRAGMENT_SHADER = """
+            #extension GL_OES_EGL_image_external : require
+            precision mediump float;
+            varying vec2 vTexCoord;
+            uniform samplerExternalOES uTexture;
             void main() {
               gl_FragColor = texture2D(uTexture, vTexCoord);
             }

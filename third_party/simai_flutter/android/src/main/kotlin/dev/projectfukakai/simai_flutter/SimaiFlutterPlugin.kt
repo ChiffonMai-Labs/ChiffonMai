@@ -76,8 +76,9 @@ class SimaiFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 "submitFrame" -> {
                     val session = requireSession(call.requireInt("sessionId"))
                     session.submitFrame(
-                        call.requireInt("slot"),
-                        call.requireLong("presentationTimeUs"),
+                        slot = call.requireInt("slot"),
+                        presentationTimeUs = call.requireLong("presentationTimeUs"),
+                        pvTimeUs = call.argument<Number>("pvTimeUs")?.toLong(),
                     )
                     result.success(null)
                 }
@@ -138,6 +139,8 @@ class SimaiFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             "assets/answer.wav",
             "simai_flutter",
         )
+        val pvVideoPath = call.argument<String>("pvVideoPath")?.takeIf { it.isNotBlank() }
+        val pvRect = call.argument<List<Number>>("pvRect")?.map { it.toInt() }?.toIntArray()
         val session = AndroidVideoExportSession(
             id = id,
             context = context,
@@ -151,6 +154,8 @@ class SimaiFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             audioFilePath = call.argument("audioFilePath"),
             hitAssetKey = hitAssetKey,
             audioMode = call.requireString("audioMode"),
+            pvVideoPath = pvVideoPath,
+            pvRect = pvRect,
         )
         try {
             session.start()

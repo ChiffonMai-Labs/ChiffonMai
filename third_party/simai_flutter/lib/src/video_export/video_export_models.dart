@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../simai_file.dart';
 import '../ui/center_display_mode.dart';
+import '../ui/note_style.dart';
 import '../ui/simai_player.dart';
 
 enum SimaiChartDifficulty {
@@ -160,6 +161,9 @@ class SimaiVideoExportOptions {
   final bool? showDetailedPerformanceInfo;
   final String? outputPath;
 
+  /// 用作圆窗背景的本地 PV 视频文件路径；仅单次导出传递，不持久化保存。
+  final String? pvVideoPath;
+
   const SimaiVideoExportOptions({
     this.quality = SimaiVideoQuality.fullHd1080,
     this.audioMode = SimaiVideoAudioMode.musicAndHitSounds,
@@ -167,6 +171,7 @@ class SimaiVideoExportOptions {
     this.showCornerInfo,
     this.showDetailedPerformanceInfo,
     this.outputPath,
+    this.pvVideoPath,
   });
 
   SimaiVideoExportOptions copyWith({
@@ -180,6 +185,8 @@ class SimaiVideoExportOptions {
     bool inheritShowDetailedPerformanceInfo = false,
     String? outputPath,
     bool clearOutputPath = false,
+    String? pvVideoPath,
+    bool clearPvVideoPath = false,
   }) {
     return SimaiVideoExportOptions(
       quality: quality ?? this.quality,
@@ -194,6 +201,7 @@ class SimaiVideoExportOptions {
           ? null
           : showDetailedPerformanceInfo ?? this.showDetailedPerformanceInfo,
       outputPath: clearOutputPath ? null : outputPath ?? this.outputPath,
+      pvVideoPath: clearPvVideoPath ? null : pvVideoPath ?? this.pvVideoPath,
     );
   }
 }
@@ -212,6 +220,8 @@ class SimaiVideoExportSettings {
   final bool showApproachLine;
   final bool showHitEffects;
   final SimaiCenterDisplayMode centerDisplayMode;
+  final SimaiCenterDisplayMode topRightDisplayMode;
+  final SimaiNoteStyle noteStyle;
   final bool showAchievementRate;
   final bool highlightExNotes;
   final bool showCornerInfo;
@@ -232,7 +242,9 @@ class SimaiVideoExportSettings {
     this.standardBreakSlide = false,
     this.showApproachLine = true,
     this.showHitEffects = true,
-    this.centerDisplayMode = SimaiCenterDisplayMode.achievement,
+    this.centerDisplayMode = SimaiCenterDisplayMode.achievementAdd,
+    this.topRightDisplayMode = SimaiCenterDisplayMode.combo,
+    this.noteStyle = SimaiNoteStyle.arcade,
     this.showAchievementRate = true,
     this.highlightExNotes = true,
     this.showCornerInfo = true,
@@ -260,6 +272,8 @@ class SimaiVideoExportSettings {
       showApproachLine: controller.showApproachLine,
       showHitEffects: controller.showHitEffects,
       centerDisplayMode: controller.centerDisplayMode,
+      topRightDisplayMode: controller.topRightDisplayMode,
+      noteStyle: controller.noteStyle,
       showAchievementRate: controller.showAchievementRate,
       highlightExNotes: controller.highlightExNotes,
       showCornerInfo: controller.showCornerInfo,
@@ -282,6 +296,8 @@ class SimaiVideoExportSettings {
       ..showApproachLine = showApproachLine
       ..showHitEffects = showHitEffects
       ..centerDisplayMode = centerDisplayMode
+      ..topRightDisplayMode = topRightDisplayMode
+      ..noteStyle = noteStyle
       ..showAchievementRate = showAchievementRate
       ..highlightExNotes = highlightExNotes
       ..showCornerInfo = showCornerInfo
@@ -453,6 +469,10 @@ class SimaiVideoLayout {
   final Rect coverRect;
   final Rect contentRect;
   final double scale;
+
+  /// PV 视频在内容区内的圆形裁切区域（与判定环 1.05 倍外缘对齐）。
+  Rect get pvCircleRect =>
+      Rect.fromCircle(center: contentRect.center, radius: contentRect.width * 0.42);
 
   const SimaiVideoLayout({
     required this.videoSize,

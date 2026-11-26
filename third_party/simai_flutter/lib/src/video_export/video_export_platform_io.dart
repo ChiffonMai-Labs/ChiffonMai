@@ -62,6 +62,8 @@ class _MethodChannelVideoExportPlatform
     required String? audioAsset,
     required String? audioFilePath,
     required String audioMode,
+    String? pvVideoPath,
+    List<int>? pvRect,
   }) async {
     if (!_isMobile) {
       throw UnsupportedError(
@@ -77,6 +79,8 @@ class _MethodChannelVideoExportPlatform
       'audioAsset': audioAsset,
       'audioFilePath': audioFilePath,
       'audioMode': audioMode,
+      'pvVideoPath': pvVideoPath,
+      'pvRect': pvRect,
     });
     if (result == null) {
       throw PlatformException(
@@ -99,11 +103,13 @@ class _MethodChannelVideoExportPlatform
     required int sessionId,
     required int slot,
     required int presentationTimeUs,
+    int? pvTimeUs,
   }) {
     return _channel.invokeMethod<void>('submitFrame', {
       'sessionId': sessionId,
       'slot': slot,
       'presentationTimeUs': presentationTimeUs,
+      'pvTimeUs': pvTimeUs,
     });
   }
 

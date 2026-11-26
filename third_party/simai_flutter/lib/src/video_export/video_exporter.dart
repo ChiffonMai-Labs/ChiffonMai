@@ -242,6 +242,8 @@ class SimaiVideoExporter with WidgetsBindingObserver {
       }
       if (isCancelled()) throw const SimaiVideoExportCancelledException();
 
+      final pvVideoPath = options.pvVideoPath;
+      final hasPvVideo = pvVideoPath != null && pvVideoPath.isNotEmpty;
       renderer = SimaiVideoFrameRenderer(
         controller: snapshotController,
         metadata: metadata,
@@ -249,7 +251,19 @@ class SimaiVideoExporter with WidgetsBindingObserver {
         displayFont: displayFont,
         textStyleResolver: textStyleResolver,
         prepareFonts: prepareFonts,
+        transparentContentBackground: hasPvVideo,
       );
+      List<int>? pvRect;
+      if (hasPvVideo) {
+        final circle = renderer.layout.pvCircleRect;
+        final maxW = options.quality.width;
+        final maxH = options.quality.height;
+        final left = circle.left.floor().clamp(0, maxW - 1);
+        final top = circle.top.floor().clamp(0, maxH - 1);
+        final right = circle.right.ceil().clamp(left + 1, maxW);
+        final bottom = circle.bottom.ceil().clamp(top + 1, maxH);
+        pvRect = <int>[left, top, right - left, bottom - top];
+      }
       session = await _platform.start(
         width: options.quality.width,
         height: options.quality.height,
@@ -258,6 +272,8 @@ class SimaiVideoExporter with WidgetsBindingObserver {
         audioAsset: snapshotController.audioAsset,
         audioFilePath: snapshotController.audioFilePath,
         audioMode: nativeAudioMode.name,
+        pvVideoPath: hasPvVideo ? pvVideoPath : null,
+        pvRect: pvRect,
       );
       onSessionCreated(session.id);
       if (isCancelled()) throw const SimaiVideoExportCancelledException();
@@ -315,8 +331,9 @@ class SimaiVideoExporter with WidgetsBindingObserver {
       final renderStopwatch = Stopwatch()..start();
       for (int frame = 0; frame < timeline.frameCount; frame++) {
         if (isCancelled()) throw const SimaiVideoExportCancelledException();
+        final chartTime = timeline.chartTimeForFrame(frame);
         final rgba = await renderer.renderRgbaFrame(
-          timeline.chartTimeForFrame(frame),
+          chartTime,
           resetWindow: frame == 0,
         );
         final slot = frame & 1;
@@ -325,10 +342,18 @@ class SimaiVideoExporter with WidgetsBindingObserver {
           slot: slot,
           rgbaBytes: rgba,
         );
+        int? pvTimeUs;
+        if (hasPvVideo) {
+          final pvSec =
+              (chartTime - snapshotController.effectiveMusicOffsetSeconds) -
+              (snapshotController.pvOffsetMs / 1000.0);
+          pvTimeUs = (pvSec * 1000000).round();
+        }
         await _platform.submitFrame(
           sessionId: session.id,
           slot: slot,
           presentationTimeUs: timeline.presentationTimeUsForFrame(frame),
+          pvTimeUs: pvTimeUs,
         );
         final completed = frame + 1;
         Duration? estimatedRemaining;
@@ -532,8 +557,10 @@ SimaiPlayerController createSimaiVideoExportControllerSnapshot(
     ..hitSoundVolume = source.hitSoundVolume
     ..musicOffsetMs = source.musicOffsetMs
     ..hitSoundOffsetMs = source.hitSoundOffsetMs
+    ..pvOffsetMs = source.pvOffsetMs
     ..hitSoundEnabled = source.hitSoundEnabled
     ..backgroundMode = source.backgroundMode
+    ..backgroundOpacity = source.backgroundOpacity
     ..mirrorMode = source.mirrorMode
     ..rotateSlideStar = source.rotateSlideStar
     ..pinkSlideStar = source.pinkSlideStar
@@ -543,6 +570,8 @@ SimaiPlayerController createSimaiVideoExportControllerSnapshot(
     ..showHitEffects = source.showHitEffects
     ..showAchievementRate = source.showAchievementRate
     ..centerDisplayMode = source.centerDisplayMode
+    ..topRightDisplayMode = source.topRightDisplayMode
+    ..noteStyle = source.noteStyle
     ..showCornerInfo = source.showCornerInfo
     ..showDetailedPerformanceInfo = source.showDetailedPerformanceInfo;
   return snapshot;

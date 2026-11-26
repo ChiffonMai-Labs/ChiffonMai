@@ -7,10 +7,15 @@ import android.app.PendingIntent
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
+import android.graphics.Rect
+import android.media.AudioManager
 import android.media.MediaScannerConnection
 import android.content.ContentUris
 import android.content.ActivityNotFoundException
 import android.database.Cursor
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -33,6 +38,7 @@ import java.io.File
 import java.io.IOException
 import java.io.OutputStream
 import java.util.concurrent.Executors
+import kotlin.math.roundToInt
 
 /**
  * 主 Activity。
@@ -54,6 +60,11 @@ class MainActivity : AudioServiceActivity() {
     override fun onStop() {
         super.onStop()
         AppUpdateAutoInstall.setForeground(this, false)
+    }
+
+    override fun onDestroy() {
+        clearGameplayEdgeProtectionImmediately()
+        super.onDestroy()
     }
 
     companion object {
@@ -99,6 +110,7 @@ class MainActivity : AudioServiceActivity() {
     private val EXPORT_NOTIFICATION_CHANNEL = "com.example.app/export_notification"
     private val EXPORT_FILES_CHANNEL = "com.example.app/export_files"
     private val CRASH_REPORT_CHANNEL = "com.example.app/crash_report"
+    private val NETWORK_TYPE_CHANNEL = "com.example.app/network_type"
     private var statusBarHidden: Boolean? = null
     private var pvFullscreen = false
 
@@ -127,6 +139,21 @@ class MainActivity : AudioServiceActivity() {
     private var savedDisplayModeId: Int? = null
     private var savedRefreshRate: Float? = null
     private var highRefreshActive = false
+    private var appliedRefreshRate: Float = 0f
+
+    /** 谱面播放器音频硬件输出参数查询通道，供 SoLoud 初始化对齐采样率与缓冲帧数。 */
+    private val SIMAI_AUDIO_CHANNEL = "simai_flutter/audio"
+
+    /** 横屏游玩边沿手势保护状态：在左右边缘中段屏蔽侧滑返回手势，避免滑星贴边触发取消。 */
+    private var gameplayEdgeProtectionEnabled = false
+    private var edgeProtectionListenerAttached = false
+
+    private val edgeProtectionLayoutListener = View.OnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
+        if (!gameplayEdgeProtectionEnabled) return@OnLayoutChangeListener
+        if ((right - left) != (oldRight - oldLeft) || (bottom - top) != (oldBottom - oldTop)) {
+            applyGameplayEdgeProtection()
+        }
+    }
 
     /**
      * 待交给 Dart 处理的导入文件路径。
@@ -421,20 +448,75 @@ class MainActivity : AudioServiceActivity() {
                     result.success(null)
                 }
                 "queryRefreshRate" -> result.success(queryRefreshRateInfo())
+                "setGameplayEdgeProtection" -> {
+                    val enabled = call.argument<Boolean>("enabled") ?: false
+                    setGameplayEdgeProtection(enabled)
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
+        }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SIMAI_AUDIO_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "getAndroidAudioOutputConfig" -> result.success(queryAndroidAudioOutputConfig())
+                    else -> result.notImplemented()
+                }
+            }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, NETWORK_TYPE_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                if (call.method == "isCellularNetwork") {
+                    result.success(isCellularNetwork())
+                } else {
+                    result.notImplemented()
+                }
+            }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // 横竖屏切换或窗口尺寸变化可能重建 Surface，补投目标刷新率并刷新边沿手势排除区。
+        if (highRefreshActive && appliedRefreshRate > 0f) {
+            window.decorView.post {
+                if (highRefreshActive && appliedRefreshRate > 0f) {
+                    applySurfaceFrameRate(appliedRefreshRate)
+                }
+            }
+        }
+        if (gameplayEdgeProtectionEnabled) {
+            applyGameplayEdgeProtection()
         }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        // Flutter 在窗口恢复时也会重设系统栏，等其完成后再恢复用户的可见性偏好。
-        if (hasFocus) window.decorView.post { applyStatusBarVisibility() }
+        // Flutter 在窗口恢复时也会重设系统栏，等其完成后再恢复可见性偏好、高刷投票与边沿保护。
+        if (hasFocus) {
+            window.decorView.post {
+                applyStatusBarVisibility()
+                if (highRefreshActive && appliedRefreshRate > 0f) {
+                    applySurfaceFrameRate(appliedRefreshRate)
+                }
+                if (gameplayEdgeProtectionEnabled) {
+                    updateGameplayEdgeExclusionRects(window.decorView)
+                }
+            }
+        }
     }
 
     override fun onPostResume() {
         super.onPostResume()
-        window.decorView.post { applyStatusBarVisibility() }
+        window.decorView.post {
+            applyStatusBarVisibility()
+            if (highRefreshActive && appliedRefreshRate > 0f) {
+                applySurfaceFrameRate(appliedRefreshRate)
+            }
+            if (gameplayEdgeProtectionEnabled) {
+                updateGameplayEdgeExclusionRects(window.decorView)
+            }
+        }
     }
 
     @Suppress("DEPRECATION")
@@ -531,6 +613,7 @@ class MainActivity : AudioServiceActivity() {
             info["currentModeId"] = currentId
             info["currentRate"] = display.refreshRate
             highRefreshActive = true
+            appliedRefreshRate = targetRate
 
             // API 30+ 再直接给 Surface 投一票（SurfaceFlinger 的官方入口），双保险
             applySurfaceFrameRate(targetRate)
@@ -542,9 +625,12 @@ class MainActivity : AudioServiceActivity() {
         return info
     }
 
-    /** 退出播放页：把刷新率交还给系统。 */
+    /** 退出播放页：把刷新率交还给系统，并兜底清空游玩边沿手势保护。 */
     private fun restoreRefreshRate() {
         try {
+            if (gameplayEdgeProtectionEnabled) {
+                setGameplayEdgeProtection(false)
+            }
             if (!highRefreshActive) return
             val lp = window.attributes
             lp.preferredDisplayModeId = savedDisplayModeId ?: 0
@@ -556,8 +642,136 @@ class MainActivity : AudioServiceActivity() {
             e.printStackTrace()
         } finally {
             highRefreshActive = false
+            appliedRefreshRate = 0f
             savedDisplayModeId = null
             savedRefreshRate = null
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // 横屏游玩边沿手势保护与音频硬件参数查询
+    // ---------------------------------------------------------------------
+
+    /** 开启或关闭横屏游玩时的左右边缘系统返回手势排除区，避免滑星贴边触发 ACTION_CANCEL。 */
+    private fun setGameplayEdgeProtection(enabled: Boolean) {
+        gameplayEdgeProtectionEnabled = enabled
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+        val decorView = window.decorView
+        if (enabled) {
+            if (!edgeProtectionListenerAttached) {
+                decorView.addOnLayoutChangeListener(edgeProtectionLayoutListener)
+                edgeProtectionListenerAttached = true
+            }
+        } else if (edgeProtectionListenerAttached) {
+            decorView.removeOnLayoutChangeListener(edgeProtectionLayoutListener)
+            edgeProtectionListenerAttached = false
+        }
+        applyGameplayEdgeProtection()
+    }
+
+    /** 在下一帧布局后应用或清空左右边缘的系统手势排除矩形。 */
+    private fun applyGameplayEdgeProtection() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+        val decorView = window.decorView
+        decorView.post {
+            updateGameplayEdgeExclusionRects(decorView)
+        }
+    }
+
+    private fun updateGameplayEdgeExclusionRects(decorView: View) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+        try {
+            if (!gameplayEdgeProtectionEnabled) {
+                decorView.systemGestureExclusionRects = emptyList()
+                return
+            }
+            val width = decorView.width
+            val height = decorView.height
+            if (width <= 0 || height <= 0) return
+
+            val density = resources.displayMetrics.density
+            // Android 10+ 单边手势排除高度上限为 200dp；在左右边缘纵向居中各保护宽 32dp 的矩形区域。
+            val edgeWidth = (32f * density).roundToInt().coerceIn(1, width)
+            val exclusionHeight = minOf((200f * density).toInt(), height).coerceAtLeast(1)
+            val top = ((height - exclusionHeight) / 2).coerceAtLeast(0)
+            val bottom = (top + exclusionHeight).coerceAtMost(height)
+
+            decorView.systemGestureExclusionRects = listOf(
+                Rect(0, top, edgeWidth, bottom),
+                Rect((width - edgeWidth).coerceAtLeast(0), top, width, bottom),
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    /** Activity 销毁前同步清空边沿手势排除区与布局监听。 */
+    private fun clearGameplayEdgeProtectionImmediately() {
+        if (!gameplayEdgeProtectionEnabled && !edgeProtectionListenerAttached) return
+        gameplayEdgeProtectionEnabled = false
+        try {
+            val decorView = window.decorView
+            if (edgeProtectionListenerAttached) {
+                decorView.removeOnLayoutChangeListener(edgeProtectionLayoutListener)
+                edgeProtectionListenerAttached = false
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                decorView.systemGestureExclusionRects = emptyList()
+            }
+        } catch (_: Exception) {
+            // 销毁阶段忽略窗口不可用异常
+        }
+    }
+
+    /** 检测当前活跃网络是否仅走移动蜂窝数据（排除 Wi-Fi 与以太网）。 */
+    private fun isCellularNetwork(): Boolean {
+        return try {
+            val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                ?: return false
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val network = cm.activeNetwork ?: return false
+                val caps = cm.getNetworkCapabilities(network) ?: return false
+                caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) &&
+                    !caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) &&
+                    !caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+            } else {
+                @Suppress("DEPRECATION")
+                val info = cm.activeNetworkInfo ?: return false
+                @Suppress("DEPRECATION")
+                info.isConnected && info.type == ConnectivityManager.TYPE_MOBILE
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /** 查询 Android 原生音频输出采样率与每缓冲帧数；读取或解析失败时返回空字段。 */
+    private fun queryAndroidAudioOutputConfig(): Map<String, Int?> {
+        val audioManager = try {
+            getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+        val sampleRate = parsePositiveAudioProperty(
+            audioManager,
+            AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE,
+        )
+        val framesPerBuffer = parsePositiveAudioProperty(
+            audioManager,
+            AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER,
+        )
+        return mapOf(
+            "sampleRate" to sampleRate,
+            "framesPerBuffer" to framesPerBuffer,
+        )
+    }
+
+    private fun parsePositiveAudioProperty(audioManager: AudioManager?, key: String): Int? {
+        return try {
+            audioManager?.getProperty(key)?.trim()?.toIntOrNull()?.takeIf { it > 0 }
+        } catch (_: Exception) {
+            null
         }
     }
 

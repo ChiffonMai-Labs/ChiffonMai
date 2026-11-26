@@ -18,6 +18,9 @@ class SimaiVideoFrameRenderer {
   final SimaiTextStyleResolver? textStyleResolver;
   final Future<void> Function()? prepareFonts;
 
+  /// 是否将谱面内容区的 PV 圆窗抠透明以便原生层叠画视频背景。
+  final bool transparentContentBackground;
+
   late final SimaiVideoLayout layout = outputSize == null
       ? SimaiVideoLayout.forQuality(quality)
       : SimaiVideoLayout.forSize(outputSize!);
@@ -35,6 +38,7 @@ class SimaiVideoFrameRenderer {
     this.displayFont,
     this.textStyleResolver,
     this.prepareFonts,
+    this.transparentContentBackground = false,
   });
 
   double get visualDuration => _game.totalVisualDuration;
@@ -102,6 +106,7 @@ class SimaiVideoFrameRenderer {
       hitSoundOffset: controller.hitSoundOffsetMs / 1000.0,
       hitSoundEnabled: false,
       backgroundMode: controller.backgroundMode,
+      backgroundOpacity: controller.backgroundOpacity,
       mirrorMode: controller.mirrorMode,
       rotateSlideStar: controller.rotateSlideStar,
       pinkSlideStar: controller.pinkSlideStar,
@@ -111,9 +116,12 @@ class SimaiVideoFrameRenderer {
       showHitEffects: controller.showHitEffects,
       showAchievementRate: controller.showAchievementRate,
       centerDisplayMode: controller.centerDisplayMode,
+      topRightDisplayMode: controller.topRightDisplayMode,
+      noteStyle: controller.noteStyle,
       showCornerInfo: controller.showCornerInfo,
       showFps: controller.showDetailedPerformanceInfo,
       showDetailedPerformanceInfo: controller.showDetailedPerformanceInfo,
+      hasVideoBackground: transparentContentBackground,
       initialChartTime: 0,
       offset: controller.effectiveMusicOffsetSeconds,
       backgroundImageProvider: controller.backgroundImageProvider,
@@ -159,6 +167,22 @@ class SimaiVideoFrameRenderer {
       RRect.fromRectAndRadius(contentRect, Radius.circular(28 * layout.scale)),
     );
     canvas.drawRect(contentRect, Paint()..color = Colors.black);
+    if (transparentContentBackground) {
+      // 抠出圆形透明窗并叠画背景压暗遮罩，使原生底层的 PV 视频透出。
+      final circleRect = layout.pvCircleRect;
+      canvas.save();
+      canvas.clipPath(Path()..addOval(circleRect));
+      canvas.drawRect(circleRect, Paint()..blendMode = BlendMode.clear);
+      final dimAlpha = (1.0 - controller.backgroundOpacity.clamp(0.0, 1.0))
+          .clamp(0.0, 1.0);
+      if (dimAlpha > 0.0) {
+        canvas.drawRect(
+          circleRect,
+          Paint()..color = Colors.black.withValues(alpha: dimAlpha),
+        );
+      }
+      canvas.restore();
+    }
     canvas.translate(contentRect.left, contentRect.top);
     _game.render(canvas);
     canvas.restore();
