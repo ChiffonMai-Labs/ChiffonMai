@@ -197,14 +197,13 @@ class FeatureRegistry {
           ]),
       FeatureSection(
           title: '数据与机台',
-          subtitle: '成绩刷新、机台数据与 AWMC 查询',
+          subtitle: '成绩刷新与机台数据',
           icon: Icons.refresh_rounded,
           titles: [
             '拉取成绩并更新数据',
             '刷新机台游玩次数',
             cabinetAppearanceTitle,
-            'AWMC 机台查询',
-            'AWMC 资源查询',
+            '机台足迹与道具',
           ]),
       FeatureSection(
           title: '数据与维护',
@@ -493,14 +492,10 @@ class FeatureRegistry {
           icon: Icons.checkroom_outlined,
           title: cabinetAppearanceTitle,
           subtitle: cabinetAppearanceSubtitle),
-      'AWMC 机台查询': const ButtonItem(
+      '机台足迹与道具': const ButtonItem(
           icon: Icons.point_of_sale_outlined,
-          title: 'AWMC 机台查询',
-          subtitle: '账号预览 · 已拥有道具 · 游玩地区'),
-      'AWMC 资源查询': const ButtonItem(
-          icon: Icons.manage_search_rounded,
-          title: 'AWMC 资源查询',
-          subtitle: '资源候选 · 对手资料'),
+          title: '机台足迹与道具',
+          subtitle: '游玩地区 · 已拥有道具'),
       '数据备份': const ButtonItem(
           icon: Icons.backup, title: '数据备份', subtitle: '导入或导出本地数据'),
       '删除账号': const ButtonItem(

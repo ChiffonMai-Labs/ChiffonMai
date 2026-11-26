@@ -234,6 +234,10 @@ class _LibraryHubPageState extends State<LibraryHubPage> {
             runSpacing: 6,
             children: [
               LinkPill(
+                label: context.featureText('乐曲查询'),
+                onTap: () => _open(context, const SongSearchPage()),
+              ),
+              LinkPill(
                 label: context.featureText('非国服乐曲查询'),
                 onTap: () =>
                     _open(context, const SongSearchPage(extraOnly: true)),

@@ -676,13 +676,16 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
     }
 
     // 所需连击和同步：fc 字段里也可能是同步类型，归到所需同步
-    const syncTypes = ['fs', 'fsp', 'fsd', 'fsdp', 'sync'];
+    const syncTypes = {'fs', 'fsp', 'fsd', 'fsdp', 'sync'};
     final fcValues = <String>{};
     final fsValues = <String>{};
     for (final requiredItem in requiredList) {
-      final fc = requiredItem.fc;
-      if (fc != null) (syncTypes.contains(fc) ? fsValues : fcValues).add(fc);
-      if (requiredItem.fs != null) fsValues.add(requiredItem.fs!);
+      final fc = requiredItem.fc?.trim() ?? '';
+      if (fc.isNotEmpty) {
+        (syncTypes.contains(fc.toLowerCase()) ? fsValues : fcValues).add(fc);
+      }
+      final fs = requiredItem.fs?.trim() ?? '';
+      if (fs.isNotEmpty) fsValues.add(fs);
     }
     if (fcValues.isNotEmpty) {
       mergedConditions.add(_buildConditionRow(context.l10n.flowRequiredCombo, [

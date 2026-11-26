@@ -105,12 +105,9 @@ class SongSearchService {
     }
   }
 
-  /// 非国服入口只认 isExtra，不把宴谱或 maidata 的其它判定混入这个范围。
+  /// 非国服入口只认 isExtra；普通查询覆盖全量曲库（含非国服与宴会场）。
   static bool _includeInFilterList(Song song, bool extraOnly) {
     if (extraOnly) return song.isExtra;
-    if (song.id.length == 6 && int.tryParse(song.id) != null) return false;
-    if (song.isExtra) return false;
-    if (song.cids.isNotEmpty && song.cids.every((cid) => cid == 0)) return false;
     return true;
   }
 

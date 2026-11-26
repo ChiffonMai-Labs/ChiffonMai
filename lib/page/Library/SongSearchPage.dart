@@ -177,8 +177,13 @@ class _SongSearchPageState extends State<SongSearchPage> {
   Map<int, String> _tagNameIndex = const {};
   String? _tagNameIndexLocale;
 
+  static String _canonicalVersion(String raw) {
+    final trimmed = raw.trim();
+    return trimmed == 'maimai MiLK PLUS' ? 'MiLK PLUS' : trimmed;
+  }
+
   // 版本列表
-  List<String> _versionList = VersionListConstant.versionOrderList;
+  List<String> _versionList = VersionListConstant.japaneseVersionOrderList;
 
   // 流派列表
   List<String> _genreList = GenreListConstant.genreList;
@@ -313,26 +318,29 @@ class _SongSearchPageState extends State<SongSearchPage> {
           await SongSearchService.getCharterList(extraOnly: widget.extraOnly);
       final artists =
           await SongSearchService.getArtistList(extraOnly: widget.extraOnly);
-      var versions = _versionList;
+      final allSongs = await SongSearchService.loadAllSongs() ?? [];
+      final scopedSongs = widget.extraOnly
+          ? allSongs.where((song) => song.isExtra).toList()
+          : allSongs;
+      var versions = scopedSongs
+          .map((song) => _canonicalVersion(song.basicInfo.from))
+          .where((value) => value.isNotEmpty)
+          .toSet()
+          .toList()
+        ..sort((a, b) {
+          final order =
+              (VersionListConstant.japaneseVersionOrderMap[a.trim()] ?? 999)
+                  .compareTo(
+                      VersionListConstant.japaneseVersionOrderMap[b.trim()] ??
+                          999);
+          return order != 0 ? order : a.compareTo(b);
+        });
+      if (versions.isEmpty && !widget.extraOnly) {
+        versions = VersionListConstant.japaneseVersionOrderList;
+      }
       var genres = _genreList;
       if (widget.extraOnly) {
-        final songs = (await SongSearchService.loadAllSongs() ?? [])
-            .where((song) => song.isExtra)
-            .toList();
-        versions = songs
-            .map((song) => song.basicInfo.from)
-            .where((value) => value.trim().isNotEmpty)
-            .toSet()
-            .toList()
-          ..sort((a, b) {
-            final order =
-                (VersionListConstant.japaneseVersionOrderMap[a.trim()] ?? 999)
-                    .compareTo(
-                        VersionListConstant.japaneseVersionOrderMap[b.trim()] ??
-                            999);
-            return order != 0 ? order : a.compareTo(b);
-          });
-        genres = songs
+        genres = scopedSongs
             .map((song) => song.basicInfo.genre)
             .where((value) => value.trim().isNotEmpty)
             .toSet()
@@ -692,19 +700,18 @@ class _SongSearchPageState extends State<SongSearchPage> {
       // 应用版本筛选
       if (_selectedVersions.isNotEmpty) {
         filteredResults = filteredResults.where((song) {
-          return _selectedVersions.contains(song.basicInfo.from);
+          return _selectedVersions
+              .contains(_canonicalVersion(song.basicInfo.from));
         }).toList();
-        // 普通入口沿用原范围，非国服入口保留已限定的 extra 曲库。
-        if (!widget.extraOnly) {
-          filteredResults =
-              filteredResults.where((song) => !song.isExtra).toList();
-        }
       }
 
-      // 应用流派筛选
+      // 应用流派筛选（普通查询兼容非国服日文流派）
       if (_selectedGenres.isNotEmpty) {
         filteredResults = filteredResults.where((song) {
-          return _selectedGenres.contains(song.basicInfo.genre);
+          final genre = widget.extraOnly
+              ? song.basicInfo.genre
+              : GenreListConstant.normalizeGenre(song.basicInfo.genre);
+          return _selectedGenres.contains(genre);
         }).toList();
       }
 

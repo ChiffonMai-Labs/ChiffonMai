@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../l10n/FeatureLocalizations.dart';
 import '../../l10n/LocalizationsExtension.dart';
+import '../../manager/LuoXue/CollectionsManager.dart';
 import '../../service/AWMC/AwmcApiService.dart';
 import '../../service/AWMC/AwmcCabinetData.dart';
 import '../../utils/AppDesignTokens.dart';
@@ -12,11 +14,12 @@ import '../../widgets/AppToast.dart';
 import '../../widgets/AppUi.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/SmoothLinearProgressIndicator.dart';
+import '../Collection/CollectionInfoPage.dart';
 import 'AwmcUi.dart';
 
-enum _Mode { preview, items, regions }
+enum _Mode { regions, items }
 
-/// AWMC 机台只读查询页面（账号预览、已拥有道具与游玩地区）。
+/// 机台足迹与道具只读查询页面（游玩地区与已拥有道具）。
 class AwmcCabinetPage extends StatefulWidget {
   const AwmcCabinetPage({super.key});
 
@@ -26,7 +29,13 @@ class AwmcCabinetPage extends StatefulWidget {
 
 class _AwmcCabinetPageState extends State<AwmcCabinetPage> {
   static const _pageSize = 24;
-  _Mode _mode = _Mode.preview;
+  static const _collectionTypeBySlugPrefix = <String, String>{
+    'plate': 'plates',
+    'title': 'trophies',
+    'icon': 'icons',
+    'frame': 'frames',
+  };
+  _Mode _mode = _Mode.regions;
   bool _busy = false;
   bool _loaded = false;
   bool _checking = false;
@@ -39,7 +48,6 @@ class _AwmcCabinetPageState extends State<AwmcCabinetPage> {
   String _label(_Mode mode) {
     final l10n = context.l10n;
     return switch (mode) {
-      _Mode.preview => l10n.awmcCabinetPreview,
       _Mode.items => l10n.awmcOwnedItems,
       _Mode.regions => l10n.awmcPlayRegions,
     };
@@ -65,8 +73,7 @@ class _AwmcCabinetPageState extends State<AwmcCabinetPage> {
       final mode = _mode;
       final qr = await AwmcUi.askQrcode(context,
           title: _label(mode),
-          body:
-              '${l10n.flowQrPrivateNotice}\n${mode == _Mode.preview ? 1 : 2} Token');
+          body: '${l10n.flowQrPrivateNotice}\n2 Token');
       if (!mounted || qr == null) return;
       setState(() {
         _loaded = false;
@@ -77,7 +84,6 @@ class _AwmcCabinetPageState extends State<AwmcCabinetPage> {
         _verified.clear();
       });
       final response = await switch (mode) {
-        _Mode.preview => AwmcApiService.userPreview(token: '', qrcode: qr),
         _Mode.items => AwmcApiService.userItemList(token: '', qrcode: qr),
         _Mode.regions => AwmcApiService.userRegion(token: '', qrcode: qr),
       };
@@ -118,10 +124,36 @@ class _AwmcCabinetPageState extends State<AwmcCabinetPage> {
     }
   }
 
-  Future<void> _itemDetails(String slug) async {
+  Future<void> _itemDetails(AwmcOwnedItem item) async {
     final l10n = context.l10n;
+    final slug = item.slug;
+    if (slug == null) return;
     setState(() => _busy = true);
     try {
+      final prefix = slug.split('-').first;
+      final collectionType = _collectionTypeBySlugPrefix[prefix];
+      final numericId = int.tryParse(item.id);
+      if (collectionType != null && numericId != null) {
+        final catalog = await CollectionsManager().fetchCatalog(collectionType);
+        final exists = catalog
+                ?.entriesFor(collectionType)
+                ?.any((c) => c.id == numericId) ==
+            true;
+        if (exists && mounted) {
+          FocusManager.instance.primaryFocus?.unfocus();
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => CollectionInfoPage(
+                collectionId: numericId,
+                collectionType: collectionType,
+              ),
+            ),
+          );
+          return;
+        }
+      }
+
       final info = await AwmcCabinetData.item(slug);
       if (!mounted) return;
       if (info == null) {
@@ -175,14 +207,14 @@ class _AwmcCabinetPageState extends State<AwmcCabinetPage> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final scheme = Theme.of(context).colorScheme;
-    final tokenCost = _mode == _Mode.preview ? 1 : 2;
+    const tokenCost = 2;
     final ownedAll = _loaded && _error == null && _mode == _Mode.items
         ? AwmcCabinetData.ownedItems(_data)
         : const <AwmcOwnedItem>[];
     final ownedPageCount = (ownedAll.length + _pageSize - 1) ~/ _pageSize;
 
     return BackgroundPageScaffold(
-      title: l10n.awmcCabinetTitle,
+      title: context.featureText('机台足迹与道具'),
       contentPadding: EdgeInsets.only(
         bottom: MediaQuery.paddingOf(context).bottom,
       ),
@@ -285,7 +317,6 @@ class _AwmcCabinetPageState extends State<AwmcCabinetPage> {
                     child: !_loaded || _error != null
                         ? const SizedBox.shrink()
                         : switch (_mode) {
-                            _Mode.preview => _preview(context),
                             _Mode.items => _owned(context, ownedAll),
                             _Mode.regions => _regions(context),
                           },
@@ -334,87 +365,6 @@ class _AwmcCabinetPageState extends State<AwmcCabinetPage> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _preview(BuildContext context) {
-    final l10n = context.l10n;
-    final scheme = Theme.of(context).colorScheme;
-    final row = AwmcCabinetData.preview(_data);
-    if (row.name.isEmpty && row.rating.isEmpty && row.playCount.isEmpty) {
-      return _emptyCard(context);
-    }
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (row.name.isNotEmpty)
-            AppSectionHeader(
-              title: row.name,
-              padding: const EdgeInsets.only(bottom: 12),
-              trailing: AppBadge(
-                text: l10n.awmcCabinetPreview,
-                background: AppSurfaces.inset(context),
-                foreground: scheme.onSurfaceVariant,
-                numeric: false,
-              ),
-            ),
-          if (row.rating.isNotEmpty || row.playCount.isNotEmpty)
-            IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (row.rating.isNotEmpty)
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppSurfaces.inset(context),
-                          borderRadius: BorderRadius.circular(
-                              AppDesignTokens.radiusSmall),
-                        ),
-                        child: StatTile(label: 'Rating', value: row.rating),
-                      ),
-                    ),
-                  if (row.rating.isNotEmpty && row.playCount.isNotEmpty)
-                    const SizedBox(width: 10),
-                  if (row.playCount.isNotEmpty)
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppSurfaces.inset(context),
-                          borderRadius: BorderRadius.circular(
-                              AppDesignTokens.radiusSmall),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.confirmation_number_outlined,
-                                size: 18, color: scheme.primary),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                alignment: Alignment.centerLeft,
-                                child: Text(
-                                  l10n.flowPlayedP0Times(row.playCount),
-                                  style: AppTheme.number(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700,
-                                    color: scheme.onSurface,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-        ],
       ),
     );
   }
@@ -584,7 +534,7 @@ class _AwmcCabinetPageState extends State<AwmcCabinetPage> {
       child: InkWell(
         onTap: _busy || _checking || slug == null
             ? null
-            : () => _itemDetails(slug),
+            : () => _itemDetails(item),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Row(

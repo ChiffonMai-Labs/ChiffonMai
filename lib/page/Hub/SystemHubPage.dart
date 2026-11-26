@@ -1,7 +1,6 @@
 import 'package:flutter/cupertino.dart' as ios;
 import '../AwmcNet/PlayerConnectionPage.dart';
 import '../Awmc/AwmcCabinetPage.dart';
-import '../Awmc/AwmcResourcesPage.dart';
 import '../../widgets/AccountAuthorizationDialog.dart';
 import '../../widgets/AccountAuthorizationStatus.dart';
 import '../../widgets/AccountBindingManager.dart';
@@ -1118,7 +1117,7 @@ class SystemHubPageState extends State<SystemHubPage>
         builder: (pageContext) => [
           HubSection(
             title: '机台与 AWMC',
-            subtitle: '游玩次数 · 机台装扮 · 机台查询 · 资源查询',
+            subtitle: '游玩次数 · 机台装扮 · 机台足迹与道具',
             icon: Icons.point_of_sale_outlined,
             children: _buildCabinetTiles(pageContext),
           ),
@@ -1373,25 +1372,14 @@ class SystemHubPageState extends State<SystemHubPage>
           disabled: anyBusy && _cabinetAppearanceProgress == null,
         ),
         HubActionTile(
-          title: 'AWMC 机台查询',
-          subtitle: '账号预览 · 已拥有道具 · 游玩地区',
+          title: '机台足迹与道具',
+          subtitle: '游玩地区 · 已拥有道具',
           icon: Icons.point_of_sale_outlined,
-          isFavorited: _isFavorited('AWMC 机台查询'),
-          onToggleFavorite: () => _toggleFavorite('AWMC 机台查询'),
+          isFavorited: _isFavorited('机台足迹与道具'),
+          onToggleFavorite: () => _toggleFavorite('机台足迹与道具'),
           onTap: () {
             FocusManager.instance.primaryFocus?.unfocus();
             _open(ctx, const AwmcCabinetPage());
-          },
-        ),
-        HubActionTile(
-          title: 'AWMC 资源查询',
-          subtitle: '资源候选 · 对手资料',
-          icon: Icons.manage_search_rounded,
-          isFavorited: _isFavorited('AWMC 资源查询'),
-          onToggleFavorite: () => _toggleFavorite('AWMC 资源查询'),
-          onTap: () {
-            FocusManager.instance.primaryFocus?.unfocus();
-            _open(ctx, const AwmcResourcesPage());
           },
         ),
       ];
@@ -1711,7 +1699,7 @@ class SystemHubPageState extends State<SystemHubPage>
               _buildSettingsTile(context),
               HubActionTile(
                 title: '机台与 AWMC',
-                subtitle: '游玩次数 · 机台装扮 · 机台查询 · 资源查询',
+                subtitle: '游玩次数 · 机台装扮 · 机台足迹与道具',
                 icon: Icons.point_of_sale_outlined,
                 onTap: () => _openCabinetSubPage(context),
                 loading: _cabinetToolBusy,

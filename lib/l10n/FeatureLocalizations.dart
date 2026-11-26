@@ -10,7 +10,8 @@ extension FeatureLocalizationsContext on BuildContext {
 
 String localizeFeatureText(AppLocalizations l10n, String source) =>
     switch (source) {
-      "AWMC 机台查询" => l10n.awmcCabinetTitle,
+      "AWMC 机台查询" || "机台足迹与道具" => l10n.awmcCabinetTitle,
+      "游玩地区 · 已拥有道具" => '${l10n.awmcPlayRegions} · ${l10n.awmcOwnedItems}',
       "账号预览 · 已拥有道具 · 游玩地区" =>
         '${l10n.awmcCabinetPreview} · ${l10n.awmcOwnedItems} · ${l10n.awmcPlayRegions}',
       "AWMC 资源查询" => 'AWMC · ${l10n.awmcUnlockCandidates}',

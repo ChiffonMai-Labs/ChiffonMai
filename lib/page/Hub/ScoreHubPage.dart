@@ -31,6 +31,7 @@ import '../RankingList/FittedRatingRankingListPage.dart';
 import '../RankingList/RatingRankListPage.dart';
 import '../RankingList/SpecialRankingListPage.dart';
 import 'dart:async';
+import 'dart:math' as math;
 import '../../manager/DivingFish/UserBest50Manager.dart';
 import '../../service/History/ChartHistoryStore.dart';
 import '../../utils/AppTheme.dart';
@@ -390,36 +391,98 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
     );
   }
 
+  void _showScoreSearchSheet(BuildContext context) {
+    showHubGroupSheet(
+      context,
+      title: '成绩查询',
+      subtitle: '按曲目与标签筛选你的全部成绩',
+      itemsBuilder: (sheetContext) => [
+        HubActionTile(
+          title: '成绩查询',
+          subtitle: '搜索与筛选你的全部游玩成绩',
+          icon: Icons.search_rounded,
+          isFavorited: _isFavorited('成绩查询'),
+          onToggleFavorite: () => _toggleFavorite('成绩查询'),
+          onTap: () {
+            Navigator.of(sheetContext).pop();
+            _open(context, const UserScoreSearchPage());
+          },
+        ),
+        HubActionTile(
+          title: '个性化成绩查询',
+          subtitle: '按谱面标签筛选成绩',
+          icon: Icons.tune_rounded,
+          isFavorited: _isFavorited('个性化成绩查询'),
+          onToggleFavorite: () => _toggleFavorite('个性化成绩查询'),
+          onTap: () {
+            Navigator.of(sheetContext).pop();
+            _open(context, const PersonalizedScorePage());
+          },
+        ),
+      ],
+    );
+  }
+
   Widget _buildSearchEntry(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return AppCard(
-      radius: AppDesignTokens.radiusMedium,
-      padding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
-      onTap: () => _open(context, const UserScoreSearchPage(openSearch: true)),
-      child: Row(
+      radius: AppDesignTokens.radiusCard,
+      padding: const EdgeInsets.fromLTRB(14, 10, 10, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Icon(Icons.search_rounded, size: 20, color: scheme.onSurfaceVariant),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(context.l10n.featureTitleAliasIDArtistCharterBPM,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style:
-                    TextStyle(fontSize: 15, color: scheme.onSurfaceVariant)),
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => _open(context, const UserScoreSearchPage()),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        Icon(Icons.search_rounded,
+                            size: 20, color: scheme.onSurfaceVariant),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            context.l10n.featureTitleAliasIDArtistCharterBPM,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 15,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              IconButton(
+                tooltip: context.l10n.hubMoreActionsTooltip,
+                visualDensity: VisualDensity.compact,
+                onPressed: () => _showScoreSearchSheet(context),
+                icon: const Icon(Icons.more_horiz_rounded, size: 20),
+              ),
+            ],
           ),
-          IconButton(
-            tooltip: context.featureText('个性化成绩查询'),
-            onPressed: () => _open(context, const PersonalizedScorePage()),
-            style: IconButton.styleFrom(
-              backgroundColor: AppSurfaces.track(context),
-              foregroundColor: scheme.onSurface,
-              fixedSize: const Size(36, 36),
-              minimumSize: const Size(36, 36),
-              shape: RoundedRectangleBorder(
-                  borderRadius:
-                      BorderRadius.circular(AppDesignTokens.radiusSmall)),
-            ),
-            icon: const Icon(Icons.tune_rounded, size: 18),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              LinkPill(
+                label: context.featureText('成绩查询'),
+                onTap: () => _open(context, const UserScoreSearchPage()),
+              ),
+              LinkPill(
+                label: context.featureText('个性化成绩查询'),
+                onTap: () => _open(context, const PersonalizedScorePage()),
+              ),
+            ],
           ),
         ],
       ),
@@ -428,48 +491,74 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
 
   Widget _buildBest50Card(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    Widget strip(String label, List<int> covers) => LayoutBuilder(
-          builder: (context, constraints) {
-            const cell = 30.0; // 26 + 间距 4
-            const labelWidth = 34.0, moreWidth = 26.0;
-            final available =
-                (constraints.maxWidth - labelWidth).clamp(0.0, double.infinity);
-            final maxFull = (available / cell).floor();
-            final fit = covers.length <= maxFull
-                ? maxFull
-                : ((available - moreWidth) / cell).floor().clamp(0, covers.length);
-            final shown = covers.take(fit < 0 ? 0 : fit).toList();
-            return Row(
-              children: [
-                SizedBox(
-                  width: labelWidth,
-                  child: Text(context.featureText(label),
-                      style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: scheme.onSurfaceVariant)),
-                ),
-                for (final (index, id) in shown.indexed)
-                  Padding(
-                    // 同一首歌的不同难度可能同时上榜，Key 要带上位置
-                    key: ValueKey('$label-$index-$id'),
-                    padding: const EdgeInsets.only(right: 4),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: CoverUtil.buildCoverWidgetWithContext(
-                          context, id.toString(), 26),
-                    ),
+    double measureTextWidth(String text, TextStyle style) {
+      final painter = TextPainter(
+        text: TextSpan(
+          text: text,
+          style: DefaultTextStyle.of(context).style.merge(style),
+        ),
+        maxLines: 1,
+        textDirection: Directionality.of(context),
+        textScaler: MediaQuery.textScalerOf(context),
+      )..layout();
+      final width = painter.width;
+      painter.dispose();
+      return width;
+    }
+
+    Widget strip(String label, List<int> covers) {
+      final labelText = context.featureText(label);
+      final labelStyle = TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+        color: scheme.onSurfaceVariant,
+      );
+      final moreStyle = TextStyle(
+        fontSize: 11,
+        color: scheme.onSurfaceVariant,
+      );
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          const coverSize = 26.0, gap = 4.0;
+          final labelWidth =
+              math.max(26.0, measureTextWidth(labelText, labelStyle) + 5.0);
+          final moreReserve =
+              measureTextWidth('+${covers.length}', moreStyle) + 5.0;
+          final available =
+              (constraints.maxWidth - labelWidth).clamp(0.0, double.infinity);
+          final maxFull = ((available + gap) / (coverSize + gap)).floor();
+          final fit = covers.length <= maxFull
+              ? covers.length
+              : ((available - moreReserve + gap) / (coverSize + gap))
+                  .floor()
+                  .clamp(0, covers.length);
+          final shown = covers.take(fit < 0 ? 0 : fit).toList();
+          return Row(
+            children: [
+              SizedBox(
+                width: labelWidth,
+                child: Text(labelText, style: labelStyle),
+              ),
+              for (final (index, id) in shown.indexed)
+                Padding(
+                  // 同一首歌的不同难度可能同时上榜，Key 要带上位置
+                  key: ValueKey('$label-$index-$id'),
+                  padding: EdgeInsets.only(left: index > 0 ? gap : 0),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: CoverUtil.buildCoverWidgetWithContext(
+                        context, id.toString(), coverSize),
                   ),
-                if (covers.length > shown.length) ...[
-                  const Spacer(),
-                  Text('+${covers.length - shown.length}',
-                      style: TextStyle(
-                          fontSize: 11, color: scheme.onSurfaceVariant)),
-                ],
+                ),
+              if (covers.length > shown.length) ...[
+                const Spacer(),
+                Text('+${covers.length - shown.length}', style: moreStyle),
               ],
-            );
-          },
-        );
+            ],
+          );
+        },
+      );
+    }
     return AppCard(
       onTap: () => _open(context, const B50Page()),
       child: Column(

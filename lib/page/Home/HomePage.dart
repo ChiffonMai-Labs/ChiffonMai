@@ -106,7 +106,6 @@ import '../Recognition/ScoreOcrPage.dart';
 import '../System/DataBackupPage.dart';
 import '../Recommend/DailyRecommendPage.dart';
 import '../Awmc/AwmcCabinetPage.dart';
-import '../Awmc/AwmcResourcesPage.dart';
 import '../GuessChartGame/LocalSongQuizPage.dart';
 import '../Score/ScoreInsightsPage.dart';
 import '../../widgets/RefreshDataDialog.dart'
@@ -2506,8 +2505,7 @@ class HomePageState extends State<HomePage> {
       '像素曲绘猜歌' => const GuessChartByBlurredCoverPage(pixelated: true),
       '谱面片段猜歌' => const GuessChartByChartPeekPage(),
       '吃分推荐' => const GainRecommendPage(),
-      'AWMC 机台查询' => const AwmcCabinetPage(),
-      'AWMC 资源查询' => const AwmcResourcesPage(),
+      '机台足迹与道具' || 'AWMC 机台查询' => const AwmcCabinetPage(),
       '离线挑战' => const LocalSongQuizPage(),
       '成绩分析' => const ScoreInsightsPage(),
       _ => null,

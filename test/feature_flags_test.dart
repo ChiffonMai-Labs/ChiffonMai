@@ -32,8 +32,8 @@ void main() {
     expect(titles, contains('加入 QQ 群'));
     expect(titles, contains('数据备份'));
     expect(titles, contains('系统设置'));
-    expect(titles, contains('AWMC 机台查询'));
-    expect(titles, contains('AWMC 资源查询'));
-    expect(titles.length, 30, reason: '我的分类新增 AWMC 机台与资源查询入口，其它入口保留');
+    expect(titles, contains('机台足迹与道具'));
+    expect(titles, isNot(contains('AWMC 资源查询')));
+    expect(titles.length, 29, reason: '我的分类保留机台足迹与道具入口并移除独立 AWMC 资源查询，其它入口保留');
   });
 }
