@@ -551,6 +551,7 @@ class B50GameCardWidget extends StatelessWidget {
                       child: Image.asset(
                         'assets/gamrank/$rate.png',
                         fit: BoxFit.contain,
+                        gaplessPlayback: true,
                         errorBuilder: (context, error, stackTrace) =>
                             const SizedBox.shrink(),
                       ),
@@ -562,6 +563,7 @@ class B50GameCardWidget extends StatelessWidget {
                         'assets/grade/${grade.isNotEmpty ? grade : 'empty'}.png',
                         height: 32 * scale,
                         fit: BoxFit.contain,
+                        gaplessPlayback: true,
                         errorBuilder: (context, error, stackTrace) =>
                             const SizedBox.shrink(),
                       ),
@@ -873,6 +875,7 @@ class B50GameCardWidget extends StatelessWidget {
           'assets/dxstars/${n.toInt()}.png',
           height: fontSize * heightMultiplier,
           fit: BoxFit.contain,
+          gaplessPlayback: true,
           errorBuilder: (ctx, err, st) => SizedBox(
             width: fontSize * heightMultiplier * starsAspect,
             height: fontSize * heightMultiplier,

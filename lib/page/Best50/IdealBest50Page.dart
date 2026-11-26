@@ -432,6 +432,7 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
     return ValueListenableBuilder<Best50DisplayMode>(
       valueListenable: Best50DisplayPreference.instance,
       builder: (context, mode, _) => CustomScrollView(
+        cacheExtent: 600,
         slivers: [
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(AppDesignTokens.gutter, 4,

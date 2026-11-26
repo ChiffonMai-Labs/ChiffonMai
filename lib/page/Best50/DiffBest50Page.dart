@@ -380,6 +380,7 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
     return ValueListenableBuilder<Best50DisplayMode>(
       valueListenable: Best50DisplayPreference.instance,
       builder: (context, mode, _) => CustomScrollView(
+        cacheExtent: 600,
         slivers: [
           SliverPadding(
             padding: EdgeInsets.fromLTRB(

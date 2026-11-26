@@ -618,6 +618,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
                     Expanded(
                       child: CustomScrollView(
                         controller: _scrollController,
+                        cacheExtent: 600,
                         slivers: [
                           // 「搜索区域避让输入法」开启时把可滚动范围抬到输入法上方，背景不动
                           SliverPadding(
@@ -1402,6 +1403,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
           last: index == count - 1,
           child: _buildListRow(_pagedSongs[index], showDivider: index > 0),
         ),
+        maxAnimatedIndex: 10,
         duration: const Duration(milliseconds: 300),
         offset: const Offset(0, 8),
       ),

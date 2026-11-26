@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
@@ -41,20 +42,29 @@ class DxRatingCoverImage extends StatefulWidget {
 }
 
 class _DxRatingCoverImageState extends State<DxRatingCoverImage> {
-  List<String> _urls = const [];
+  static List<String> _collectUrls(String id) => [
+        ...AwmcCoverService.instance.coverUrlsFor(id),
+        if (DxRatingCoverService.instance.coverUrlFor(id) case final url?) url,
+      ];
+
+  late List<String> _urls = _collectUrls(widget.songId);
 
   @override
   void initState() {
     super.initState();
-    _resolve();
+    if (_urls.isEmpty || !DxRatingCoverService.instance.isLoaded) {
+      _resolve();
+    }
   }
 
   @override
   void didUpdateWidget(covariant DxRatingCoverImage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.songId != widget.songId) {
-      _urls = const [];
-      _resolve();
+      _urls = _collectUrls(widget.songId);
+      if (_urls.isEmpty || !DxRatingCoverService.instance.isLoaded) {
+        _resolve();
+      }
     }
   }
 
@@ -64,10 +74,10 @@ class _DxRatingCoverImageState extends State<DxRatingCoverImage> {
     final legacy = DxRatingCoverService.instance;
     await Future.wait([awmc.ensureLoaded(), legacy.ensureLoaded(allowNetwork: false)]);
     if (!mounted || widget.songId != id) return;
-    setState(() => _urls = [
-          ...awmc.coverUrlsFor(id),
-          if (legacy.coverUrlFor(id) case final url?) url,
-        ]);
+    final next = _collectUrls(id);
+    if (!listEquals(_urls, next)) {
+      setState(() => _urls = next);
+    }
   }
 
   @override
@@ -80,6 +90,7 @@ class _DxRatingCoverImageState extends State<DxRatingCoverImage> {
         DxRatingCoverImage.defaultCoverAsset,
         fit: widget.fit,
         cacheWidth: widget.cacheWidth,
+        gaplessPlayback: true,
         errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
       );
     }
@@ -89,7 +100,8 @@ class _DxRatingCoverImageState extends State<DxRatingCoverImage> {
       cacheManager: dxRatingCoverCacheManager,
       memCacheWidth: widget.cacheWidth,
       fit: widget.fit,
-      fadeInDuration: const Duration(milliseconds: 120),
+      fadeInDuration: Duration.zero,
+      fadeOutDuration: Duration.zero,
       placeholder: (context, _) => const ImageLoadingIndicator(),
       errorWidget: (context, _, __) => _coverAt(index + 1),
     );

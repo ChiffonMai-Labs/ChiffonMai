@@ -1188,47 +1188,55 @@ class AppColors {
         : const Color(0xFFFF6B8B);
   }
 
-  /// 成就徽章前景色
-  static Color achievementForeground(String type) {
+  /// 成就徽章前景色（支持浅色/深色主题）
+  static Color achievementForeground(
+    String type, {
+    Brightness brightness = Brightness.light,
+  }) {
+    final isDark = brightness == Brightness.dark;
     switch (type.toUpperCase()) {
       case 'AP':
       case 'AP+':
-        return const Color(0xFFF57C00);
+        return isDark ? const Color(0xFFFFC078) : const Color(0xFFF57C00);
       case 'FC':
       case 'FC+':
-        return const Color(0xFF2E7D32);
+        return isDark ? const Color(0xFFA8E2BA) : const Color(0xFF2E7D32);
       case 'FS':
       case 'FS+':
-        return const Color(0xFF1565C0);
+        return isDark ? const Color(0xFFB8D3F7) : const Color(0xFF1565C0);
       case 'FDX':
       case 'FDX+':
-        return const Color(0xFFF57C00);
+        return isDark ? const Color(0xFFFFC078) : const Color(0xFFF57C00);
       case 'SYNC':
-        return const Color(0xFF0A5C6E);
+        return isDark ? const Color(0xFF8BE0DC) : const Color(0xFF0A5C6E);
       default:
-        return const Color(0xFF666666);
+        return isDark ? const Color(0xFFDCE3E2) : const Color(0xFF666666);
     }
   }
 
-  /// 成就徽章背景色
-  static Color achievementBackground(String type) {
+  /// 成就徽章背景色（支持浅色/深色主题）
+  static Color achievementBackground(
+    String type, {
+    Brightness brightness = Brightness.light,
+  }) {
+    final isDark = brightness == Brightness.dark;
     switch (type.toUpperCase()) {
       case 'AP':
       case 'AP+':
-        return const Color(0xFFFFF3E0);
+        return isDark ? const Color(0xFF432D14) : const Color(0xFFFFF3E0);
       case 'FC':
       case 'FC+':
-        return const Color(0xFFD4F4DD);
+        return isDark ? const Color(0xFF1E3A28) : const Color(0xFFD4F4DD);
       case 'FS':
       case 'FS+':
-        return const Color(0xFFE0F4FF);
+        return isDark ? const Color(0xFF1F3047) : const Color(0xFFE0F4FF);
       case 'FDX':
       case 'FDX+':
-        return const Color(0xFFFFF3E0);
+        return isDark ? const Color(0xFF432D14) : const Color(0xFFFFF3E0);
       case 'SYNC':
-        return const Color(0xFFDFF7F5);
+        return isDark ? const Color(0xFF17353B) : const Color(0xFFDFF7F5);
       default:
-        return const Color(0xFFF0F0F0);
+        return isDark ? const Color(0xFF3A4241) : const Color(0xFFF0F0F0);
     }
   }
 

@@ -423,6 +423,7 @@ class _VersionViewState extends State<VersionView> {
                   .round()
                   .clamp(200, 600);
           return CustomScrollView(
+            cacheExtent: 600,
             slivers: [
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -595,6 +596,7 @@ class _VersionViewState extends State<VersionView> {
                             imagePath,
                             cacheWidth: imageCacheWidth,
                             fit: BoxFit.contain,
+                            gaplessPlayback: true,
                             errorBuilder: (_, __, ___) => Icon(
                               Icons.image_not_supported_outlined,
                               size: 48,

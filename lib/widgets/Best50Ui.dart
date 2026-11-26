@@ -758,7 +758,6 @@ class Best50Grid extends StatelessWidget {
     bool tieCustomized = false,
     Object? contentKey,
   }) {
-    final count = items.length + (remaining.isEmpty ? 0 : 1);
     final showTieBar = onSelectTies != null &&
         remaining.isNotEmpty &&
         tieSelectedCount != null &&
@@ -785,27 +784,43 @@ class Best50Grid extends StatelessWidget {
           ],
         ),
       ),
-      SliverLayoutBuilder(
-        builder: (context, constraints) => SliverGrid.builder(
-          // 换显示模式或换内容时重新入场，不复用上一批的格子。
-          key: ValueKey((mode, contentKey)),
-          gridDelegate:
-              delegate(context, constraints.crossAxisExtent, mode: mode),
-          itemCount: count,
-          itemBuilder: (context, index) => _buildGridItem(
-            context,
-            index: index,
-            mode: mode,
-            items: items,
-            remaining: remaining,
-            remainingLabel: remainingLabel,
-            onSelectTies: onSelectTies,
-            maxIdLength: maxIdLength,
-            animateEntrance: index < 15,
-          ),
-        ),
+      _Best50GridSliver(
+        mode: mode,
+        items: items,
+        remaining: remaining,
+        remainingLabel: remainingLabel,
+        onSelectTies: onSelectTies,
+        maxIdLength: maxIdLength,
+        contentKey: contentKey,
       ),
     ];
+  }
+
+  static int _maxAnimatedIndexFor(Best50DisplayMode mode) => switch (mode) {
+        Best50DisplayMode.oneColumn => 8,
+        Best50DisplayMode.twoColumns => 10,
+        Best50DisplayMode.cover => 12,
+      };
+
+  static Widget _wrapEntrance(
+    ListEntrance entrance,
+    Best50DisplayMode mode,
+    Object? contentKey,
+    int index,
+    Widget child,
+  ) {
+    final isList = mode == Best50DisplayMode.oneColumn;
+    return entrance.wrap(
+      (mode, contentKey),
+      index,
+      child,
+      maxAnimatedIndex: _maxAnimatedIndexFor(mode),
+      duration: isList
+          ? const Duration(milliseconds: 300)
+          : const Duration(milliseconds: 420),
+      offset: isList ? const Offset(0, 8) : const Offset(0, 14),
+      scaleFrom: isList ? 1.0 : 0.96,
+    );
   }
 
   static Widget _buildGridItem(
@@ -905,11 +920,72 @@ class Best50Grid extends StatelessWidget {
                 remainingLabel: remainingLabel,
                 onSelectTies: onSelectTies,
                 maxIdLength: maxIdLength,
-                animateEntrance: index < 15,
+                animateEntrance: index < _maxAnimatedIndexFor(mode),
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _Best50GridSliver extends StatefulWidget {
+  final Best50DisplayMode mode;
+  final List<Best50CardData> items;
+  final List<Best50CardData> remaining;
+  final String? remainingLabel;
+  final VoidCallback? onSelectTies;
+  final int maxIdLength;
+  final Object? contentKey;
+
+  const _Best50GridSliver({
+    required this.mode,
+    required this.items,
+    required this.remaining,
+    required this.remainingLabel,
+    required this.onSelectTies,
+    required this.maxIdLength,
+    required this.contentKey,
+  });
+
+  @override
+  State<_Best50GridSliver> createState() => _Best50GridSliverState();
+}
+
+class _Best50GridSliverState extends State<_Best50GridSliver> {
+  final ListEntrance _entrance = ListEntrance();
+
+  @override
+  Widget build(BuildContext context) {
+    final count = widget.items.length + (widget.remaining.isEmpty ? 0 : 1);
+    return SliverLayoutBuilder(
+      builder: (context, constraints) => SliverGrid.builder(
+        // 换显示模式或换内容时重新入场，不复用上一批的格子。
+        key: ValueKey((widget.mode, widget.contentKey)),
+        gridDelegate: Best50Grid.delegate(context, constraints.crossAxisExtent,
+            mode: widget.mode),
+        itemCount: count,
+        itemBuilder: (context, index) {
+          final card = Best50Grid._buildGridItem(
+            context,
+            index: index,
+            mode: widget.mode,
+            items: widget.items,
+            remaining: widget.remaining,
+            remainingLabel: widget.remainingLabel,
+            onSelectTies: widget.onSelectTies,
+            maxIdLength: widget.maxIdLength,
+            animateEntrance: false,
+          );
+          return Best50Grid._wrapEntrance(
+            _entrance,
+            widget.mode,
+            widget.contentKey,
+            index,
+            card,
+          );
+        },
       ),
     );
   }
@@ -951,191 +1027,191 @@ class Best50StripCard extends StatelessWidget {
         ThemeData.estimateBrightnessForColor(pillColor) == Brightness.dark
             ? Colors.white
             : Colors.black87;
-    return EntranceAnimation(
-      index: entranceIndex,
-      enabled: animateEntrance,
-      offset: const Offset(0, 8),
-      duration: const Duration(milliseconds: 300),
-      child: PressScale(
-        scale: 0.98,
-        child: Semantics(
-          button: true,
-          label: context.l10n.flowRankP0P1RatingP2((rank).toString(),
-              (data.title).toString(), (data.rating).toString()),
-          excludeSemantics: true,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: onTap,
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppSurfaces.card(context),
-                borderRadius:
-                    BorderRadius.circular(AppDesignTokens.radiusMedium),
-                border: outlineColor == null
-                    ? null
-                    : Border.all(color: outlineColor!, width: 2.5),
-              ),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: _coverSize,
-                    height: _coverSize,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        ClipRRect(
+    final pressable = PressScale(
+      scale: 0.98,
+      child: Semantics(
+        button: true,
+        label: context.l10n.flowRankP0P1RatingP2((rank).toString(),
+            (data.title).toString(), (data.rating).toString()),
+        excludeSemantics: true,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppSurfaces.card(context),
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
+              border: outlineColor == null
+                  ? null
+                  : Border.all(color: outlineColor!, width: 2.5),
+            ),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: _coverSize,
+                  height: _coverSize,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      ClipRRect(
+                        borderRadius:
+                            BorderRadius.circular(AppDesignTokens.radiusSmall),
+                        child: CoverUtil.buildCoverWidgetWithContext(
+                            context, songId, _coverSize),
+                      ),
+                      DecoratedBox(
+                        decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(
                               AppDesignTokens.radiusSmall),
-                          child: CoverUtil.buildCoverWidgetWithContext(
-                              context, songId, _coverSize),
-                        ),
-                        DecoratedBox(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(
-                                AppDesignTokens.radiusSmall),
-                            border: Border.all(color: pillColor, width: 2),
-                          ),
-                        ),
-                        Positioned(
-                          left: 3,
-                          top: 3,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 3),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.6),
-                              borderRadius: BorderRadius.circular(5),
-                            ),
-                            child: Text(
-                              '$rank',
-                              style: AppTheme.number(
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 9),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Row(
-                          children: [
-                            Transform.translate(
-                              offset: const Offset(0, 2),
-                              child: SongTypeBadge(
-                                  songId: songId,
-                                  type: data.type,
-                                  fontSize: 9.5),
-                            ),
-                            const SizedBox(width: 5),
-                            Expanded(
-                              child: MarqueeText(
-                                text: data.title,
-                                style: TextStyle(
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: scheme.onSurface,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerLeft,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                data.achievementText,
-                                maxLines: 1,
-                                style: AppTheme.number(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w800,
-                                  color: scheme.onSurface,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              RankBadge(
-                                rank: StringUtil.formatRate(
-                                    StringUtil.rateCodeFromAchievement(
-                                        data.achievement)),
-                                fontSize: 10,
-                              ),
-                              if (data.fc.isNotEmpty) ...[
-                                const SizedBox(width: 3),
-                                ComboLabelBadge(raw: data.fc, fontSize: 10),
-                              ],
-                              if (data.fs.isNotEmpty) ...[
-                                const SizedBox(width: 3),
-                                ComboLabelBadge(raw: data.fs, fontSize: 10),
-                              ],
-                              if (data.stars.isNotEmpty) ...[
-                                const SizedBox(width: 3),
-                                StarBadge(stars: data.stars, fontSize: 10),
-                              ],
-                              if (data.badge != null) ...[
-                                const SizedBox(width: 3),
-                                _CoverPill(text: data.badge!),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        '${data.rating}',
-                        maxLines: 1,
-                        style: AppTheme.number(
-                          fontSize: 18,
-                          height: 1.1,
-                          fontWeight: FontWeight.w800,
-                          color: scheme.onSurface,
+                          border: Border.all(color: pillColor, width: 2),
                         ),
                       ),
-                      const SizedBox(height: 3),
-                      Transform.translate(
-                        offset: const Offset(1.5, 0),
+                      Positioned(
+                        left: 3,
+                        top: 3,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 1),
+                          padding: const EdgeInsets.symmetric(horizontal: 3),
                           decoration: BoxDecoration(
-                            color: pillColor,
-                            borderRadius: BorderRadius.circular(6),
+                            color: Colors.black.withValues(alpha: 0.6),
+                            borderRadius: BorderRadius.circular(5),
                           ),
                           child: Text(
-                            data.dsText,
-                            maxLines: 1,
+                            '$rank',
                             style: AppTheme.number(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              color: pillForeground,
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
                             ),
                           ),
                         ),
                       ),
                     ],
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Transform.translate(
+                            offset: const Offset(0, 2),
+                            child: SongTypeBadge(
+                                songId: songId,
+                                type: data.type,
+                                fontSize: 9.5),
+                          ),
+                          const SizedBox(width: 5),
+                          Expanded(
+                            child: MarqueeText(
+                              text: data.title,
+                              style: TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w700,
+                                color: scheme.onSurface,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              data.achievementText,
+                              maxLines: 1,
+                              style: AppTheme.number(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: scheme.onSurface,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            RankBadge(
+                              rank: StringUtil.formatRate(
+                                  StringUtil.rateCodeFromAchievement(
+                                      data.achievement)),
+                              fontSize: 10,
+                            ),
+                            if (data.fc.isNotEmpty) ...[
+                              const SizedBox(width: 3),
+                              ComboLabelBadge(raw: data.fc, fontSize: 10),
+                            ],
+                            if (data.fs.isNotEmpty) ...[
+                              const SizedBox(width: 3),
+                              ComboLabelBadge(raw: data.fs, fontSize: 10),
+                            ],
+                            if (data.stars.isNotEmpty) ...[
+                              const SizedBox(width: 3),
+                              StarBadge(stars: data.stars, fontSize: 10),
+                            ],
+                            if (data.badge != null) ...[
+                              const SizedBox(width: 3),
+                              _CoverPill(text: data.badge!),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '${data.rating}',
+                      maxLines: 1,
+                      style: AppTheme.number(
+                        fontSize: 18,
+                        height: 1.1,
+                        fontWeight: FontWeight.w800,
+                        color: scheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Transform.translate(
+                      offset: const Offset(1.5, 0),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: pillColor,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          data.dsText,
+                          maxLines: 1,
+                          style: AppTheme.number(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: pillForeground,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ),
       ),
+    );
+    if (!animateEntrance) return pressable;
+    return EntranceAnimation(
+      index: entranceIndex,
+      offset: const Offset(0, 8),
+      duration: const Duration(milliseconds: 300),
+      child: pressable,
     );
   }
 }
@@ -1186,41 +1262,42 @@ class Best50ScoreCard extends StatelessWidget {
       palette: B50CardPalette.of(context),
     );
     final badge = data.badge;
-    return EntranceAnimation(
-      index: entranceIndex,
-      enabled: animateEntrance,
-      scaleFrom: 0.96,
-      child: PressScale(
-        child: Semantics(
-          button: true,
-          label: context.l10n.flowRankP0P1RatingP2((rank).toString(),
-              (data.title).toString(), (data.rating).toString()),
-          excludeSemantics: true,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: onTap,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                badge == null
-                    ? card
-                    : B50GameCardWidget.withBadgeOverlay(
-                        card: card, text: badge),
-                if (outlineColor != null)
-                  IgnorePointer(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        borderRadius:
-                            BorderRadius.circular(AppDesignTokens.radiusSmall),
-                        border: Border.all(color: outlineColor!, width: 2.5),
-                      ),
+    final pressable = PressScale(
+      child: Semantics(
+        button: true,
+        label: context.l10n.flowRankP0P1RatingP2((rank).toString(),
+            (data.title).toString(), (data.rating).toString()),
+        excludeSemantics: true,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              badge == null
+                  ? card
+                  : B50GameCardWidget.withBadgeOverlay(
+                      card: card, text: badge),
+              if (outlineColor != null)
+                IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius:
+                          BorderRadius.circular(AppDesignTokens.radiusSmall),
+                      border: Border.all(color: outlineColor!, width: 2.5),
                     ),
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
         ),
       ),
+    );
+    if (!animateEntrance) return pressable;
+    return EntranceAnimation(
+      index: entranceIndex,
+      scaleFrom: 0.96,
+      child: pressable,
     );
   }
 }
@@ -1361,11 +1438,12 @@ class Best50CoverCard extends StatelessWidget {
         ),
       ),
     );
+    final pressable = PressScale(child: card);
+    if (!animateEntrance) return pressable;
     return EntranceAnimation(
       index: entranceIndex,
-      enabled: animateEntrance,
       scaleFrom: 0.96,
-      child: PressScale(child: card),
+      child: pressable,
     );
   }
 }

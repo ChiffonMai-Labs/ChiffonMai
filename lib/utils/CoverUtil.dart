@@ -12,9 +12,11 @@
  *
  * 本地资源缺失时，曲绘组件依次尝试水鱼、AWMC、旧曲绘索引和默认图。
  */
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/services.dart' show AssetManifest, rootBundle;
 
 import '../service/Media/AwmcCoverService.dart';
 import '../service/Media/DxRatingCoverService.dart';
@@ -201,55 +203,99 @@ class CoverUtil {
   // 曲绘 Widget（带多级 fallback）
   // ===========================================================================
 
+  /// 已随包曲绘资源集合：加载完毕后可 O(1) 同步判断哪条本地路径命中，
+  /// 避免每次被 Sliver 重建时先经历异步解码失败的空白帧再切到下一级兜底。
+  static Set<String>? _bundledCovers;
+  static Future<void>? _bundledCoversLoad;
+
+  static Future<void> _ensureBundledCoversLoaded() {
+    if (_bundledCovers != null) return Future.value();
+    return _bundledCoversLoad ??= () async {
+      try {
+        final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+        _bundledCovers = manifest
+            .listAssets()
+            .where((path) => path.startsWith('assets/cover/'))
+            .toSet();
+      } catch (_) {
+        _bundledCoversLoad = null;
+      }
+    }();
+  }
+
   /// 多级 fallback 链（两个公开方法共用一份，别再各抄一份嵌套 errorBuilder）。
   ///
-  /// 顺序：原始路径 → 主路径 → 备用1 → 备用2 → 水鱼 → AWMC → 旧曲绘索引 → 默认曲绘。
+  /// 顺序：主路径（已剔除前缀）→ 备用1 → 备用2 → 原始路径 → 水鱼 → AWMC → 旧曲绘索引 → 默认曲绘。
   static Widget _buildFallbackChain(String songId, double size) {
     // 原图 256×256。按导出用的 3 倍清晰度解码，小曲绘的列表省下大半解码量，
     // 导出图和高分屏也不会变糊；放大显示时仍用原图。
     final target = size.isFinite ? (size * 3).ceil() : 256;
     final int? cacheWidth = target > 0 && target < 256 ? target : null;
-    return Image.asset(
+    final candidates = <String>{
+      getLocalCoverPath(songId),
+      getLocalCoverPathRetry1(songId),
+      getLocalCoverPathRetry2(songId),
       buildCoverPath(songId),
+    }.toList(growable: false);
+
+    final bundled = _bundledCovers;
+    if (bundled != null) {
+      String? matchedPath;
+      for (final path in candidates) {
+        if (bundled.contains(path)) {
+          matchedPath = path;
+          break;
+        }
+      }
+      if (matchedPath == null) {
+        return _buildNetworkFallback(songId, cacheWidth);
+      }
+      return Image.asset(
+        matchedPath,
+        fit: BoxFit.cover,
+        cacheWidth: cacheWidth,
+        gaplessPlayback: true,
+        errorBuilder: (context, error, stackTrace) =>
+            _buildNetworkFallback(songId, cacheWidth),
+      );
+    }
+
+    unawaited(_ensureBundledCoversLoaded());
+    return _buildAssetFallbackChain(candidates, 0, songId, cacheWidth);
+  }
+
+  static Widget _buildAssetFallbackChain(
+    List<String> candidates,
+    int index,
+    String songId,
+    int? cacheWidth,
+  ) {
+    if (index >= candidates.length) {
+      return _buildNetworkFallback(songId, cacheWidth);
+    }
+    return Image.asset(
+      candidates[index],
       fit: BoxFit.cover,
       cacheWidth: cacheWidth,
+      gaplessPlayback: true,
+      errorBuilder: (context, error, stackTrace) =>
+          _buildAssetFallbackChain(candidates, index + 1, songId, cacheWidth),
+    );
+  }
+
+  static Widget _buildNetworkFallback(String songId, int? cacheWidth) {
+    return Image.network(
+      getNetworkCoverUrl(songId),
+      fit: BoxFit.cover,
+      cacheWidth: cacheWidth,
+      gaplessPlayback: true,
+      loadingBuilder: (context, child, progress) =>
+          progress == null ? child : const ImageLoadingIndicator(),
       errorBuilder: (context, error, stackTrace) {
-        return Image.asset(
-          getLocalCoverPath(songId),
-          fit: BoxFit.cover,
+        // AWMC 曲绘和旧缓存的网络兜底。
+        return DxRatingCoverImage(
+          songId: songId,
           cacheWidth: cacheWidth,
-          errorBuilder: (context, error, stackTrace) {
-            return Image.asset(
-              getLocalCoverPathRetry1(songId),
-              fit: BoxFit.cover,
-              cacheWidth: cacheWidth,
-              errorBuilder: (context, error, stackTrace) {
-                return Image.asset(
-                  getLocalCoverPathRetry2(songId),
-                  fit: BoxFit.cover,
-                  cacheWidth: cacheWidth,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Image.network(
-                      getNetworkCoverUrl(songId),
-                      fit: BoxFit.cover,
-                      cacheWidth: cacheWidth,
-                      loadingBuilder: (context, child, progress) =>
-                          progress == null
-                              ? child
-                              : const ImageLoadingIndicator(),
-                      errorBuilder: (context, error, stackTrace) {
-                        // AWMC 曲绘和旧缓存的网络兜底。
-                        return DxRatingCoverImage(
-                          songId: songId,
-                          cacheWidth: cacheWidth,
-                        );
-                      },
-                    );
-                  },
-                );
-              },
-            );
-          },
         );
       },
     );

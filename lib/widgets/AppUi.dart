@@ -1784,10 +1784,11 @@ class ComboLabelBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final label = comboLabelOf(raw);
     if (label == null) return const SizedBox.shrink();
+    final brightness = Theme.of(context).brightness;
     return AppBadge(
       text: label,
-      background: AppColors.achievementBackground(label),
-      foreground: AppColors.achievementForeground(label),
+      background: AppColors.achievementBackground(label, brightness: brightness),
+      foreground: AppColors.achievementForeground(label, brightness: brightness),
       fontSize: fontSize,
     );
   }
@@ -2140,15 +2141,26 @@ class _EntranceAnimationState extends State<EntranceAnimation>
 
 /// 懒构建列表的首屏入场动画控制器。
 ///
-/// `ListView.builder` / `SliverList.builder` 会在滚动时不断新建或重建条目；
-/// 本控制器只在批次标识 [token] 变化后的短时间窗口内对首屏条目播放一次入场动画，
-/// 向下滚动或滚回顶部时直接渲染，不再出现「边滑边载入」的延迟感。
+/// `ListView.builder` / `SliverList.builder` / `SliverGrid.builder` 会在滚动时不断新建
+/// 或回收重建条目；本控制器**仅对批次切换后首帧内可见的前 [maxAnimatedIndex] 个条目**
+/// 播放一次入场动画，首帧结束后无论向下滚动还是滚回顶部，都保持普通滑动列表直接显示。
 class ListEntrance {
-  static const _window = Duration(milliseconds: 1000);
   static const _defaultMaxAnimatedIndex = 14;
 
   Object? _token;
   DateTime _shownAt = DateTime.now();
+  bool _sealed = false;
+  bool _sealScheduled = false;
+  final Set<int> _initialIndices = <int>{};
+
+  void _scheduleSeal() {
+    if (_sealScheduled || _sealed) return;
+    _sealScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _sealed = true;
+      _sealScheduled = false;
+    });
+  }
 
   Widget wrap(
     Object? token,
@@ -2159,24 +2171,51 @@ class ListEntrance {
     int maxAnimatedIndex = _defaultMaxAnimatedIndex,
     Duration duration = const Duration(milliseconds: 300),
     Offset offset = const Offset(0, 8),
+    double scaleFrom = 1,
   }) {
     if (token != _token) {
       _token = token;
       _shownAt = DateTime.now();
+      _sealed = false;
+      _sealScheduled = false;
+      _initialIndices.clear();
     }
-    final shouldAnimate = enabled &&
-        index < maxAnimatedIndex &&
-        DateTime.now().difference(_shownAt) < _window;
-    // 不需要动画的滚动条目直接透传，避免为屏外重建行分配 AnimationController。
-    if (!shouldAnimate) {
+
+    if (!_sealed) {
+      _scheduleSeal();
+      if (enabled && index >= 0 && index < maxAnimatedIndex) {
+        _initialIndices.add(index);
+        return EntranceAnimation(
+          key: key,
+          index: index,
+          enabled: true,
+          duration: duration,
+          offset: offset,
+          scaleFrom: scaleFrom,
+          child: child,
+        );
+      }
+    }
+
+    // 首帧结束后未纳入首屏集合的条目一律直接透传，滚动滑到时保持普通列表行为。
+    if (!_initialIndices.contains(index)) {
       return key == null ? child : KeyedSubtree(key: key, child: child);
     }
+
+    // 首帧条目在短暂播完窗口内保留 EntranceAnimation，避免父级刷新打断过渡；
+    // 窗口过后再次滚回顶部重建时传 enabled: false 直接显示，不再重播动画。
+    final settleWindow = duration +
+        const Duration(milliseconds: 30) * maxAnimatedIndex +
+        const Duration(milliseconds: 150);
+    final stillSettling =
+        enabled && DateTime.now().difference(_shownAt) < settleWindow;
     return EntranceAnimation(
       key: key,
       index: index,
-      enabled: true,
+      enabled: stillSettling,
       duration: duration,
       offset: offset,
+      scaleFrom: scaleFrom,
       child: child,
     );
   }

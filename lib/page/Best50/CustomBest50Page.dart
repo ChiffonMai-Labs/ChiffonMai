@@ -50,6 +50,7 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
   static const int _dxScoreHardMax = dxScoreHardMax;
 
   final CustomBest50Store _store = CustomBest50Store();
+  final ListEntrance _entrance = ListEntrance();
 
   List<CustomBest50Entry?> _entries =
       List<CustomBest50Entry?>.filled(CustomBest50Store.slotCount, null);
@@ -974,6 +975,7 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
       child: ValueListenableBuilder<Best50DisplayMode>(
         valueListenable: Best50DisplayPreference.instance,
         builder: (context, mode, _) => CustomScrollView(
+          cacheExtent: 600,
           slivers: [
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(AppDesignTokens.gutter, 8,
@@ -1147,12 +1149,11 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
       onOpenSong: () => _showEditSheet(index),
     );
     // 点卡片是编辑这一格，不走详情面板。
-    final animate = index < 15;
-    return mode == Best50DisplayMode.cover
+    final card = mode == Best50DisplayMode.cover
         ? Best50CoverCard(
             rank: index + 1,
             entranceIndex: index,
-            animateEntrance: animate,
+            animateEntrance: false,
             onTap: () => _showEditSheet(index),
             outlineColor: outlineColor,
             data: data,
@@ -1161,7 +1162,7 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
             ? Best50ScoreCard(
                 rank: index + 1,
                 entranceIndex: index,
-                animateEntrance: animate,
+                animateEntrance: false,
                 onTap: () => _showEditSheet(index),
                 outlineColor: outlineColor,
                 data: data,
@@ -1169,11 +1170,24 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
             : Best50StripCard(
                 rank: index + 1,
                 entranceIndex: index,
-                animateEntrance: animate,
+                animateEntrance: false,
                 onTap: () => _showEditSheet(index),
                 outlineColor: outlineColor,
                 data: data,
               );
+    final isList = mode == Best50DisplayMode.oneColumn;
+    return _entrance.wrap(
+      mode,
+      index,
+      card,
+      maxAnimatedIndex:
+          isList ? 8 : (mode == Best50DisplayMode.twoColumns ? 10 : 12),
+      duration: isList
+          ? const Duration(milliseconds: 300)
+          : const Duration(milliseconds: 420),
+      offset: isList ? const Offset(0, 8) : const Offset(0, 14),
+      scaleFrom: isList ? 1.0 : 0.96,
+    );
   }
 }
 

@@ -522,6 +522,7 @@ class _PersonalizedDiffBest50PageState
                     child: ValueListenableBuilder<Best50DisplayMode>(
                       valueListenable: Best50DisplayPreference.instance,
                       builder: (context, mode, _) => CustomScrollView(
+                        cacheExtent: 600,
                         slivers: [
                           SliverToBoxAdapter(
                             child: Column(
