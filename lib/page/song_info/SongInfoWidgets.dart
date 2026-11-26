@@ -110,7 +110,7 @@ extension _SongInfoWidgets on _SongInfoPageState {
     return '$minutes:$wholeSeconds.$fraction';
   }
 
-  /// 平均物量密度：总物量 ÷ 参考时长，与左侧「谱师」同属当前难度核心谱面特征。
+  /// 平均物量密度：总物量 ÷ 参考时长；若 AWMC 提供了 Peak NPS 则同卡双行展示。
   Widget _buildNoteDensityStat(dynamic currentChart) {
     final totalNotes = _getNoteCounts(currentChart).fold<int>(0, (s, n) => s + n);
     final seconds = _referenceDurationSeconds;
@@ -129,6 +129,20 @@ extension _SongInfoWidgets on _SongInfoPageState {
             (totalNotes / seconds).toStringAsFixed(2),
           )
         : display;
+    final peakNps = (_awmcAnalysis?['peakNps'] as num?)?.toDouble();
+    if (peakNps != null && peakNps > 0) {
+      final peakDisplay = '${peakNps.toStringAsFixed(2)} /s';
+      final fullDetail =
+          detail == '-' ? '峰值密度（AWMC）：$peakDisplay' : '$detail\n峰值密度（AWMC）：$peakDisplay';
+      return _buildRegionStat(
+        context.l10n.songAvgNoteDensity,
+        [
+          ('平均', display),
+          ('峰值', peakDisplay),
+        ],
+        onTap: () => _showStatDialog(context.l10n.songAvgNoteDensity, fullDetail),
+      );
+    }
     return _buildStatItem(
       context.l10n.songAvgNoteDensity,
       display,
@@ -180,7 +194,7 @@ extension _SongInfoWidgets on _SongInfoPageState {
 
   /// 分行显示的统计项：每行一个小标签（国服 / 日服、谱面 / 基准）加内容。
   Widget _buildRegionStat(String label, List<(String, String)> rows,
-      {bool scrollable = false}) {
+      {VoidCallback? onTap, bool scrollable = false}) {
     final scheme = Theme.of(context).colorScheme;
     // 内容默认不滚动也不换行，放不下时缩小字号；传 scrollable: true 时保持原字号并用跑马灯滚动。
     // 小标签和文字都按中线摆放：标签在固定行高里居中，文字的字形中线（基线上方约 0.36 个字号，实测）
@@ -288,8 +302,9 @@ extension _SongInfoWidgets on _SongInfoPageState {
         padding: const EdgeInsets.only(right: 12),
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTap: () => _showStatDialog(
-              label, rows.map((row) => '${row.$1}：${row.$2}').join('\n')),
+          onTap: onTap ??
+              () => _showStatDialog(
+                  label, rows.map((row) => '${row.$1}：${row.$2}').join('\n')),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -356,19 +371,28 @@ extension _SongInfoWidgets on _SongInfoPageState {
     );
   }
 
-  /// 解禁条件：国服来自落雪（locked + map），日服来自 DXRating（isLocked）。
+  /// 解禁条件：国服来自落雪（locked + map）与服务端明细，日服来自 DXRating（isLocked）。
   /// 两国服与日服结论一致时合并为单行，不一致时拆成国服 / 日服双行。
   Widget _buildUnlockConditionStat() {
     final l10n = context.l10n;
     String? cnText;
+    SongUnlockInfo? activeUnlockInfo;
     if (_cnSongLocked != null) {
       final cnLocked =
           _cnSongLocked == true || (_cnChartLockedByDiff[_currentDiffIndex] == true);
       if (!cnLocked) {
         cnText = l10n.songUnlockNone;
       } else {
-        cnText = _cnUnlockMap ?? l10n.songUnlockRequired;
+        activeUnlockInfo = _cnUnlockInfo;
+        final summary = activeUnlockInfo?.summary;
+        cnText = (summary != null && summary.isNotEmpty)
+            ? summary
+            : (_cnUnlockMap ?? l10n.songUnlockRequired);
       }
+    } else if (_cnUnlockInfo != null) {
+      activeUnlockInfo = _cnUnlockInfo;
+      final summary = activeUnlockInfo!.summary;
+      cnText = summary.isNotEmpty ? summary : l10n.songUnlockRequired;
     }
 
     final matchedDx = _findMatchedDxEntry();
@@ -380,9 +404,23 @@ extension _SongInfoWidgets on _SongInfoPageState {
             : null;
 
     final label = l10n.songUnlockCondition;
+    VoidCallback? dialogTap;
+    if (activeUnlockInfo != null &&
+        (activeUnlockInfo.detail.isNotEmpty ||
+            activeUnlockInfo.kaleidGateColor != null)) {
+      final unlockInfo = activeUnlockInfo;
+      final cnRow = cnText!;
+      dialogTap = () => _showUnlockConditionDialog(
+            label: label,
+            cnSummary: cnRow,
+            jpText: jpText,
+            unlockInfo: unlockInfo,
+          );
+    }
+
     if (cnText != null && jpText != null) {
       if (cnText == jpText) {
-        return _buildStatItem(label, cnText);
+        return _buildStatItem(label, cnText, onTap: dialogTap);
       }
       return _buildRegionStat(
         label,
@@ -390,13 +428,112 @@ extension _SongInfoWidgets on _SongInfoPageState {
           (l10n.flowChina, cnText),
           (l10n.flowJapan, jpText),
         ],
+        onTap: dialogTap,
         scrollable: true,
       );
     }
     if (cnText != null || jpText != null) {
-      return _buildStatItem(label, (cnText ?? jpText)!);
+      return _buildStatItem(label, (cnText ?? jpText)!, onTap: dialogTap);
     }
     return _buildStatItem(label, '-');
+  }
+
+  /// 解禁条件明细弹窗：展示国服解禁说明，有对应万花镜门时提供直达入口。
+  void _showUnlockConditionDialog({
+    required String label,
+    required String cnSummary,
+    required String? jpText,
+    required SongUnlockInfo unlockInfo,
+  }) {
+    final l10n = context.l10n;
+    final scheme = Theme.of(context).colorScheme;
+    final lines = <String>[
+      if (jpText != null && jpText != cnSummary) ...[
+        '${l10n.flowChina}：$cnSummary',
+        '${l10n.flowJapan}：$jpText',
+      ] else
+        cnSummary,
+      if (unlockInfo.detail.isNotEmpty) unlockInfo.detail,
+    ];
+    final copyText = lines.join('\n\n');
+    final gateColor = unlockInfo.kaleidGateColor;
+    final gateTitle = unlockInfo.kaleidGateTitle ?? unlockInfo.summary;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AppAlertDialog(
+          title: Text(label),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  cnSummary,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: scheme.onSurface,
+                  ),
+                ),
+                if (jpText != null && jpText != cnSummary) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    '${l10n.flowJapan}：$jpText',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+                if (unlockInfo.detail.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    unlockInfo.detail,
+                    style: TextStyle(
+                      fontSize: 14,
+                      height: 1.5,
+                      color: scheme.onSurface,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            if (gateColor != null)
+              TextButton(
+                onPressed: () {
+                  Navigator.of(dialogContext).pop();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => KaleidXScopeGatePage(
+                        color: gateColor,
+                        title: gateTitle,
+                      ),
+                    ),
+                  );
+                },
+                child: Text(l10n.songUnlockOpenKaleidGuide),
+              ),
+            TextButton(
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: copyText));
+                Navigator.of(dialogContext).pop();
+                AppToast.show(l10n.flowCopiedToClipboard,
+                    tone: AppToastTone.success);
+              },
+              child: Text(l10n.flowCopy),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(l10n.featureClose),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Widget _buildRegionBadge(String label, bool active, double screenWidth) {
@@ -472,7 +609,10 @@ extension _SongInfoWidgets on _SongInfoPageState {
   }
 
   Widget _buildStatItem(String label, String value,
-      {Color? valueColor, bool scrollable = true, String? dialogValue}) {
+      {Color? valueColor,
+      bool scrollable = true,
+      String? dialogValue,
+      VoidCallback? onTap}) {
     // 2026-11：数值放在白卡片上，统一用正文色；标签用次要文字色。
     // （难度色只留给头图和难度切换，避免浅色难度色在白底上看不清）
     final scheme = Theme.of(context).colorScheme;
@@ -487,7 +627,7 @@ extension _SongInfoWidgets on _SongInfoPageState {
         padding: const EdgeInsets.only(right: 12),
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTap: () => _showStatDialog(label, dialogValue ?? value),
+          onTap: onTap ?? () => _showStatDialog(label, dialogValue ?? value),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

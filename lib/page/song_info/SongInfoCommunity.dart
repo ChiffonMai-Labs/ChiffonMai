@@ -241,8 +241,35 @@ extension _SongInfoCommunity on _SongInfoPageState {
     );
   }
 
+  Widget _buildCommunitySourceSwitch(
+      int selected, ValueChanged<int> onChanged) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: [
+          for (final (value, label) in const [(0, 'ChiffonMai'), (1, 'AWMC')])
+            FilterPill(
+              label: label,
+              selected: selected == value,
+              selectedColor: scheme.primary,
+              selectedForeground: scheme.onPrimary,
+              onTap: () {
+                if (selected != value) onChanged(value);
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildChartRatingSection(Color accentColor) {
     final brightness = Theme.of(context).brightness;
+    final awmcChartKey =
+        AwmcChartTagService.chartKey(widget.songId, _currentDiffIndex);
+    final showAwmc = _ratingSource == 1 && awmcChartKey != null;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -266,438 +293,556 @@ extension _SongInfoCommunity on _SongInfoPageState {
                   color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (_chartRatingError == null)
-                        Text(
-                          'ChiffonMai · ${context.l10n.flowP0Ratings(_chartTotalVotes.toString())}',
-                          style: TextStyle(
-                              fontSize: 14,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant),
+              if (!showAwmc) ...[
+                const SizedBox(width: 6),
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_chartRatingError == null)
+                          Text(
+                            context.l10n.flowP0Ratings(_chartTotalVotes.toString()),
+                            style: TextStyle(
+                                fontSize: 14,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant),
+                          ),
+                        const SizedBox(width: 4),
+                        if (_chartRatingDistribution != null)
+                          GestureDetector(
+                            onTap: () =>
+                                _showRatingDistributionDialog(accentColor),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: accentColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.bar_chart_rounded,
+                                      size: 14, color: accentColor),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    context.l10n.flowDistribution,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: accentColor,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          if (awmcChartKey != null)
+            _buildCommunitySourceSwitch(
+              _ratingSource,
+              (v) => _update(() => _ratingSource = v),
+            ),
+          AnimatedSize(
+            duration:
+                AppDesignTokens.motion(context, AppDesignTokens.mediumMotion),
+            curve: AppDesignTokens.emphasizedCurve,
+            alignment: Alignment.topCenter,
+            child: AnimatedSwitcher(
+              duration:
+                  AppDesignTokens.motion(context, AppDesignTokens.fastMotion),
+              switchInCurve: AppDesignTokens.emphasizedCurve,
+              switchOutCurve: Curves.easeIn,
+              layoutBuilder: (currentChild, previousChildren) => Stack(
+                alignment: Alignment.topCenter,
+                children: [
+                  ...previousChildren,
+                  if (currentChild != null) currentChild,
+                ],
+              ),
+              child: showAwmc
+                  ? KeyedSubtree(
+                      key: ValueKey('rating-source-awmc-$awmcChartKey'),
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: AwmcChartDetails(
+                          key: ValueKey('awmc-rating-$awmcChartKey'),
+                          chartKey: awmcChartKey,
+                          section: AwmcChartDetailsSection.ratings,
+                          embedded: true,
                         ),
-                      const SizedBox(width: 4),
-                      if (_chartRatingDistribution != null)
-                        GestureDetector(
-                          onTap: () =>
-                              _showRatingDistributionDialog(accentColor),
-                          child: Container(
+                      ),
+                    )
+                  : KeyedSubtree(
+                      key: const ValueKey('rating-source-chiffon'),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const SizedBox(height: 6),
+                          Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
+                                horizontal: 10, vertical: 6),
                             decoration: BoxDecoration(
-                              color: accentColor.withOpacity(0.1),
+                              color: AppColors.linkBlue(brightness)
+                                  .withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Row(
-                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.bar_chart_rounded,
-                                    size: 14, color: accentColor),
-                                const SizedBox(width: 4),
-                                Text(
-                                  context.l10n.flowDistribution,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: accentColor,
-                                    fontWeight: FontWeight.w500,
+                                Icon(Icons.info_outline,
+                                    size: 14,
+                                    color: AppColors.linkBlue(brightness)),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    context.l10n
+                                        .flowRatingsAreForReferencePleaseRateObjectively,
+                                    style: TextStyle(
+                                        fontSize: 11,
+                                        color: AppColors.linkBlue(brightness)),
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.linkBlue(brightness).withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.info_outline,
-                    size: 14, color: AppColors.linkBlue(brightness)),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    context
-                        .l10n.flowRatingsAreForReferencePleaseRateObjectively,
-                    style: TextStyle(
-                        fontSize: 11, color: AppColors.linkBlue(brightness)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          const Divider(height: 1),
-          const SizedBox(height: 12),
-          if (_chartRatingLoading)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(20),
-                child: CircularProgressIndicator(),
-              ),
-            )
-          else if (_chartRatingError != null)
-            Row(
-              children: [
-                Expanded(
-                  child: Text(_chartRatingError!,
-                      style: TextStyle(
-                          color:
-                              Theme.of(context).colorScheme.onSurfaceVariant)),
-                ),
-                const SizedBox(width: 8),
-                TextButton.icon(
-                  onPressed: _loadChartRating,
-                  icon: const Icon(Icons.refresh_rounded, size: 18),
-                  label: Text(context.l10n.flowRetry),
-                ),
-              ],
-            )
-          else ...[
-            // 总评分显示
-            Row(
-              children: [
-                Flexible(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _chartAverageScore != null
-                              ? _chartAverageScore!.toStringAsFixed(2)
-                              : '-',
-                          style: TextStyle(
-                            fontSize: 36,
-                            fontWeight: FontWeight.bold,
-                            color: _chartAverageScore != null
-                                ? _getRatingColor(_chartAverageScore!)
-                                : AppColors.ratingColor("D"),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        if (_chartAverageScore != null)
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: List.generate(
-                              5,
-                              (index) {
-                                final fill = _chartAverageScore! - index;
-                                if (fill >= 1) {
-                                  return Icon(Icons.star_rounded,
-                                      color:
-                                          _getRatingColor(_chartAverageScore!),
-                                      size: 24);
-                                } else if (fill > 0) {
-                                  return Icon(Icons.star_half_rounded,
-                                      color:
-                                          _getRatingColor(_chartAverageScore!),
-                                      size: 24);
-                                } else {
-                                  return Icon(Icons.star_outline_rounded,
-                                      color: AppColors.greyHint(brightness),
-                                      size: 24);
-                                }
-                              },
+                          const SizedBox(height: 12),
+                          const Divider(height: 1),
+                          const SizedBox(height: 12),
+                          if (_chartRatingLoading)
+                            const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(20),
+                                child: CircularProgressIndicator(),
+                              ),
+                            )
+                          else if (_chartRatingError != null)
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(_chartRatingError!,
+                                      style: TextStyle(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurfaceVariant)),
+                                ),
+                                const SizedBox(width: 8),
+                                TextButton.icon(
+                                  onPressed: _loadChartRating,
+                                  icon: const Icon(Icons.refresh_rounded,
+                                      size: 18),
+                                  label: Text(context.l10n.flowRetry),
+                                ),
+                              ],
+                            )
+                          else ...[
+                            // 总评分显示
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.centerLeft,
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          _chartAverageScore != null
+                                              ? _chartAverageScore!
+                                                  .toStringAsFixed(2)
+                                              : '-',
+                                          style: TextStyle(
+                                            fontSize: 36,
+                                            fontWeight: FontWeight.bold,
+                                            color: _chartAverageScore != null
+                                                ? _getRatingColor(
+                                                    _chartAverageScore!)
+                                                : AppColors.ratingColor("D"),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        if (_chartAverageScore != null)
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: List.generate(
+                                              5,
+                                              (index) {
+                                                final fill =
+                                                    _chartAverageScore! - index;
+                                                if (fill >= 1) {
+                                                  return Icon(
+                                                      Icons.star_rounded,
+                                                      color: _getRatingColor(
+                                                          _chartAverageScore!),
+                                                      size: 24);
+                                                } else if (fill > 0) {
+                                                  return Icon(
+                                                      Icons.star_half_rounded,
+                                                      color: _getRatingColor(
+                                                          _chartAverageScore!),
+                                                      size: 24);
+                                                } else {
+                                                  return Icon(
+                                                      Icons
+                                                          .star_outline_rounded,
+                                                      color: AppColors.greyHint(
+                                                          brightness),
+                                                      size: 24);
+                                                }
+                                              },
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                IconButton(
+                                  constraints: const BoxConstraints.tightFor(
+                                      width: 32, height: 32),
+                                  padding: EdgeInsets.zero,
+                                  visualDensity: VisualDensity.compact,
+                                  splashRadius: 18,
+                                  icon: Icon(
+                                    Icons.refresh,
+                                    size: 18,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                  ),
+                                  onPressed: _loadChartRating,
+                                  tooltip: context.l10n.flowRefreshRatings,
+                                ),
+                              ],
                             ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                IconButton(
-                  constraints:
-                      const BoxConstraints.tightFor(width: 32, height: 32),
-                  padding: EdgeInsets.zero,
-                  visualDensity: VisualDensity.compact,
-                  splashRadius: 18,
-                  icon: Icon(
-                    Icons.refresh,
-                    size: 18,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                  onPressed: _loadChartRating,
-                  tooltip: context.l10n.flowRefreshRatings,
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
+                            const SizedBox(height: 16),
 
-            // 我的最近评分卡片（由后端按账号读取）
-            if (_chartUserRatingData != null &&
-                _chartUserRatingData!['score'] != null)
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: accentColor.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: accentColor.withOpacity(0.25)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.history_rounded,
-                            color: accentColor, size: 16),
-                        const SizedBox(width: 6),
-                        Text(
-                          context.l10n.flowMyRecentRatings,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // 星级 + 评分
-                        Expanded(
-                          child: Row(
-                            children: [
-                              Text(
-                                (_chartUserRatingData!['score'] as num)
-                                    .toStringAsFixed(1),
-                                style: TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: _getRatingColor(
-                                      (_chartUserRatingData!['score'] as num)
-                                          .toDouble()),
+                            // 我的最近评分卡片（由后端按账号读取）
+                            if (_chartUserRatingData != null &&
+                                _chartUserRatingData!['score'] != null)
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: accentColor.withOpacity(0.08),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                      color: accentColor.withOpacity(0.25)),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(Icons.history_rounded,
+                                            color: accentColor, size: 16),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          context.l10n.flowMyRecentRatings,
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        // 星级 + 评分
+                                        Expanded(
+                                          child: Row(
+                                            children: [
+                                              Text(
+                                                (_chartUserRatingData!['score']
+                                                        as num)
+                                                    .toStringAsFixed(1),
+                                                style: TextStyle(
+                                                  fontSize: 24,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: _getRatingColor(
+                                                      (_chartUserRatingData![
+                                                              'score'] as num)
+                                                          .toDouble()),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Row(
+                                                children: List.generate(
+                                                  5,
+                                                  (index) {
+                                                    double fill =
+                                                        (_chartUserRatingData![
+                                                                    'score']
+                                                                as num)
+                                                            .toDouble() -
+                                                        index;
+                                                    if (fill >= 1) {
+                                                      return Icon(
+                                                          Icons.star_rounded,
+                                                          color: _getRatingColor(
+                                                              (_chartUserRatingData![
+                                                                      'score']
+                                                                  as num)
+                                                                  .toDouble()),
+                                                          size: 16);
+                                                    } else if (fill > 0) {
+                                                      return Icon(
+                                                          Icons
+                                                              .star_half_rounded,
+                                                          color: _getRatingColor(
+                                                              (_chartUserRatingData![
+                                                                      'score']
+                                                                  as num)
+                                                                  .toDouble()),
+                                                          size: 16);
+                                                    } else {
+                                                      return Icon(
+                                                          Icons
+                                                              .star_outline_rounded,
+                                                          color: AppColors
+                                                              .greyHint(
+                                                                  brightness),
+                                                          size: 16);
+                                                    }
+                                                  },
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        // 时间信息
+                                        if (_chartUserRatingData![
+                                                'createdAt'] !=
+                                            null)
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 8, vertical: 3),
+                                            decoration: BoxDecoration(
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .surface,
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
+                                              border: Border.all(
+                                                  color: AppColors.greyHint(
+                                                      brightness)),
+                                            ),
+                                            child: Text(
+                                              _formatChartRatingTime(
+                                                  _chartUserRatingData![
+                                                      'createdAt']),
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .onSurfaceVariant,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ],
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              Row(
-                                children: List.generate(
-                                  5,
-                                  (index) {
-                                    double fill =
-                                        (_chartUserRatingData!['score'] as num)
-                                                .toDouble() -
-                                            index;
-                                    if (fill >= 1) {
-                                      return Icon(Icons.star_rounded,
-                                          color: _getRatingColor(
-                                              (_chartUserRatingData!['score']
-                                                      as num)
-                                                  .toDouble()),
-                                          size: 16);
-                                    } else if (fill > 0) {
-                                      return Icon(Icons.star_half_rounded,
-                                          color: _getRatingColor(
-                                              (_chartUserRatingData!['score']
-                                                      as num)
-                                                  .toDouble()),
-                                          size: 16);
-                                    } else {
-                                      return Icon(Icons.star_outline_rounded,
-                                          color: AppColors.greyHint(brightness),
-                                          size: 16);
-                                    }
-                                  },
+                            const SizedBox(height: 12),
+
+                            // 用户评分区域
+                            if (_commentDataSource != null) ...[
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.surface,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _chartUserScore != null
+                                          ? context.l10n.flowMyRatingTapToEdit
+                                          : context.l10n.flowRateThisChart,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                            child: _buildChartRatingStars(
+                                                accentColor)),
+                                        Container(
+                                          width: 48,
+                                          alignment: Alignment.center,
+                                          child: Text(
+                                            _selectedRating.toStringAsFixed(1),
+                                            style: TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                              color: accentColor,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Builder(
+                                      builder: (context) {
+                                        final validationMsg =
+                                            _getChartRatingValidationMessage();
+                                        return Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            if (validationMsg != null)
+                                              Padding(
+                                                padding: const EdgeInsets.only(
+                                                    bottom: 8),
+                                                child: Row(
+                                                  children: [
+                                                    Icon(
+                                                        Icons
+                                                            .warning_amber_rounded,
+                                                        size: 16,
+                                                        color:
+                                                            AppColors.errorRed(
+                                                                brightness)),
+                                                    const SizedBox(width: 6),
+                                                    Expanded(
+                                                      child: Text(
+                                                        validationMsg,
+                                                        style: TextStyle(
+                                                          fontSize: 13,
+                                                          color: AppColors
+                                                              .errorRed(
+                                                                  brightness),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.end,
+                                              children: [
+                                                if (_chartUserScore != null)
+                                                  TextButton(
+                                                    onPressed:
+                                                        _deleteChartRating,
+                                                    style: TextButton.styleFrom(
+                                                      foregroundColor:
+                                                          AppColors.errorRed(
+                                                              brightness),
+                                                    ),
+                                                    child: Text(context
+                                                        .l10n.flowDeleteRating),
+                                                  ),
+                                                const SizedBox(width: 8),
+                                                SizedBox(
+                                                  width: 100,
+                                                  child: ElevatedButton(
+                                                    onPressed: validationMsg ==
+                                                            null
+                                                        ? _submitChartRating
+                                                        : null,
+                                                    style: ElevatedButton
+                                                        .styleFrom(
+                                                      backgroundColor:
+                                                          accentColor,
+                                                      foregroundColor:
+                                                          Colors.white,
+                                                      disabledBackgroundColor:
+                                                          AppColors.greyHint(
+                                                              brightness),
+                                                      disabledForegroundColor:
+                                                          brightness ==
+                                                                  Brightness
+                                                                      .dark
+                                                              ? Colors.white54
+                                                              : Colors.white70,
+                                                      padding: const EdgeInsets
+                                                          .symmetric(
+                                                          vertical: 10),
+                                                      shape:
+                                                          RoundedRectangleBorder(
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(8),
+                                                      ),
+                                                    ),
+                                                    child: Text(
+                                                      _chartUserScore != null
+                                                          ? context
+                                                              .l10n.flowUpdate
+                                                          : context
+                                                              .l10n.flowSubmit,
+                                                      style: const TextStyle(
+                                                          fontSize: 14,
+                                                          fontWeight:
+                                                              FontWeight.bold),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        );
+                                      },
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
-                        // 时间信息
-                        if (_chartUserRatingData!['createdAt'] != null)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.surface,
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
-                                  color: AppColors.greyHint(brightness)),
-                            ),
-                            child: Text(
-                              _formatChartRatingTime(
-                                  _chartUserRatingData!['createdAt']),
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            const SizedBox(height: 12),
-
-            // 用户评分区域
-            if (_commentDataSource != null) ...[
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _chartUserScore != null
-                          ? context.l10n.flowMyRatingTapToEdit
-                          : context.l10n.flowRateThisChart,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(child: _buildChartRatingStars(accentColor)),
-                        Container(
-                          width: 48,
-                          alignment: Alignment.center,
-                          child: Text(
-                            _selectedRating.toStringAsFixed(1),
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: accentColor,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Builder(
-                      builder: (context) {
-                        final validationMsg =
-                            _getChartRatingValidationMessage();
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (validationMsg != null)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 8),
+                            ] else
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: AppColors.warningOrange(brightness),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                      color:
+                                          AppColors.warningOrange(brightness)),
+                                ),
                                 child: Row(
                                   children: [
-                                    Icon(Icons.warning_amber_rounded,
-                                        size: 16,
-                                        color: AppColors.errorRed(brightness)),
-                                    const SizedBox(width: 6),
+                                    const Icon(Icons.info_outline,
+                                        size: 16, color: Colors.white),
+                                    const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
-                                        validationMsg,
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          color: AppColors.errorRed(brightness),
-                                        ),
+                                        context.l10n
+                                            .flowRefreshDataOnTheHomePageTo2,
+                                        style: const TextStyle(
+                                            fontSize: 13, color: Colors.white),
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                if (_chartUserScore != null)
-                                  TextButton(
-                                    onPressed: _deleteChartRating,
-                                    style: TextButton.styleFrom(
-                                      foregroundColor:
-                                          AppColors.errorRed(brightness),
-                                    ),
-                                    child: Text(context.l10n.flowDeleteRating),
-                                  ),
-                                const SizedBox(width: 8),
-                                SizedBox(
-                                  width: 100,
-                                  child: ElevatedButton(
-                                    onPressed: validationMsg == null
-                                        ? _submitChartRating
-                                        : null,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: accentColor,
-                                      foregroundColor: Colors.white,
-                                      disabledBackgroundColor:
-                                          AppColors.greyHint(brightness),
-                                      disabledForegroundColor:
-                                          brightness == Brightness.dark
-                                              ? Colors.white54
-                                              : Colors.white70,
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 10),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      _chartUserScore != null
-                                          ? context.l10n.flowUpdate
-                                          : context.l10n.flowSubmit,
-                                      style: const TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.bold),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
                           ],
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ] else
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: AppColors.warningOrange(brightness),
-                  borderRadius: BorderRadius.circular(6),
-                  border:
-                      Border.all(color: AppColors.warningOrange(brightness)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.info_outline,
-                        size: 16, color: Colors.white),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        context.l10n.flowRefreshDataOnTheHomePageTo2,
-                        style:
-                            const TextStyle(fontSize: 13, color: Colors.white),
+                        ],
                       ),
                     ),
-                  ],
-                ),
-              ),
-          ],
+            ),
+          ),
         ],
       ),
     );
@@ -1409,6 +1554,9 @@ extension _SongInfoCommunity on _SongInfoPageState {
 
   Widget _buildCommentsSection() {
     final brightness = Theme.of(context).brightness;
+    final awmcChartKey =
+        AwmcChartTagService.chartKey(widget.songId, _currentDiffIndex);
+    final showAwmc = _commentSource == 1 && awmcChartKey != null;
     return Container(
       key: _commentsSectionKey,
       width: double.infinity,
@@ -1434,378 +1582,488 @@ extension _SongInfoCommunity on _SongInfoPageState {
                   color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
-              const SizedBox(width: 8),
-              Text(
-                '(${_comments.length})',
-                style: TextStyle(
-                    fontSize: 14,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant),
-              ),
-              const Spacer(),
-              IconButton(
-                icon: Icon(Icons.refresh,
-                    size: 20,
-                    color: _commentRefreshCooldown
-                        ? AppColors.greyHint(brightness)
-                        : Theme.of(context).colorScheme.onSurfaceVariant),
-                onPressed: _commentRefreshCooldown
-                    ? null
-                    : () {
-                        _update(() {
-                          _commentRefreshCooldown = true;
-                        });
-                        SongInfoService.clearAllCommentsCache();
-                        _loadComments(serverRefresh: true);
-                        AppToast.show(context.l10n.flowCommentsRefreshed,
-                            tone: AppToastTone.success);
-                        Future.delayed(const Duration(seconds: 3), () {
-                          if (mounted) {
-                            _update(() {
-                              _commentRefreshCooldown = false;
-                            });
-                          }
-                        });
-                      },
-                tooltip: context.l10n.flowRefreshComments,
-              ),
+              if (!showAwmc) ...[
+                const SizedBox(width: 8),
+                Text(
+                  '(${_comments.length})',
+                  style: TextStyle(
+                      fontSize: 14,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: Icon(Icons.refresh,
+                      size: 20,
+                      color: _commentRefreshCooldown
+                          ? AppColors.greyHint(brightness)
+                          : Theme.of(context).colorScheme.onSurfaceVariant),
+                  onPressed: _commentRefreshCooldown
+                      ? null
+                      : () {
+                          _update(() {
+                            _commentRefreshCooldown = true;
+                          });
+                          SongInfoService.clearAllCommentsCache();
+                          _loadComments(serverRefresh: true);
+                          AppToast.show(context.l10n.flowCommentsRefreshed,
+                              tone: AppToastTone.success);
+                          Future.delayed(const Duration(seconds: 3), () {
+                            if (mounted) {
+                              _update(() {
+                                _commentRefreshCooldown = false;
+                              });
+                            }
+                          });
+                        },
+                  tooltip: context.l10n.flowRefreshComments,
+                ),
+              ],
             ],
           ),
-          const SizedBox(height: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.linkBlue(brightness).withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(6),
+          if (awmcChartKey != null)
+            _buildCommunitySourceSwitch(
+              _commentSource,
+              (v) => _update(() => _commentSource = v),
             ),
-            child: Row(
-              children: [
-                Icon(Icons.info_outline,
-                    size: 14, color: AppColors.linkBlue(brightness)),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    context.l10n.flowCommentsAreForReferencePleaseBeRespectful,
-                    style: TextStyle(
-                        fontSize: 11, color: AppColors.linkBlue(brightness)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          const Divider(height: 1),
-          const SizedBox(height: 12),
-
-          // 评论输入框
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Column(
-              children: [
-                // 自动构建的身份信息显示
-                if (_commentDataSource != null) ...[
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.account_circle,
-                        size: 18,
-                        color: AppColors.linkBlue(brightness),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          '$_commentDataSource:$_commentOriginalId${_commentNickname != null ? ' ($_commentNickname)' : ''}',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Theme.of(context).colorScheme.onSurface,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                ] else
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: AppColors.warningOrange(brightness),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                          color: AppColors.warningOrange(brightness)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.info_outline,
-                            size: 16, color: Colors.white),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            context.l10n.flowRefreshDataOnTheHomePageTo3,
-                            style: const TextStyle(
-                                fontSize: 13, color: Colors.white),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                TextField(
-                  controller: _commentInputController,
-                  maxLines: 3,
-                  maxLength: 500,
-                  decoration: InputDecoration(
-                    hintText: context.l10n.flowEnterYourComment,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide:
-                          BorderSide(color: AppColors.tableBorder(brightness)),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide:
-                          BorderSide(color: AppColors.tableBorder(brightness)),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide:
-                          BorderSide(color: AppColors.linkBlue(brightness)),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 10),
-                    isDense: true,
-                    counterStyle: TextStyle(
-                        fontSize: 11, color: AppColors.greyHint(brightness)),
-                  ),
-                  style: const TextStyle(fontSize: 14),
-                ),
-                if (_commentError != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Text(
-                      _commentError!,
-                      style: TextStyle(
-                          fontSize: 12, color: AppColors.errorRed(brightness)),
-                    ),
-                  ),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    SizedBox(
-                      width: 100,
-                      child: ElevatedButton(
-                        onPressed: _commentSubmitting ? null : _submitComment,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.linkBlue(brightness),
-                          foregroundColor:
-                              Theme.of(context).colorScheme.onPrimary,
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: Text(
-                          context.l10n.flowPost,
-                          style: TextStyle(
-                              fontSize: 14, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // 评论列表
-          if (_commentsLoading)
-            Center(
-              child: Padding(
-                padding: EdgeInsets.all(20),
-                child: CircularProgressIndicator(
-                    color: AppColors.linkBlue(brightness)),
-              ),
-            )
-          else if (_comments.isEmpty)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 30),
-              child: Column(
+          AnimatedSize(
+            duration:
+                AppDesignTokens.motion(context, AppDesignTokens.mediumMotion),
+            curve: AppDesignTokens.emphasizedCurve,
+            alignment: Alignment.topCenter,
+            child: AnimatedSwitcher(
+              duration:
+                  AppDesignTokens.motion(context, AppDesignTokens.fastMotion),
+              switchInCurve: AppDesignTokens.emphasizedCurve,
+              switchOutCurve: Curves.easeIn,
+              layoutBuilder: (currentChild, previousChildren) => Stack(
+                alignment: Alignment.topCenter,
                 children: [
-                  Icon(Icons.chat_bubble_outline,
-                      size: 40, color: AppColors.greyHint(brightness)),
-                  const SizedBox(height: 12),
-                  Text(
-                    context.l10n.flowNoCommentsYetBeTheFirstTo,
-                    style: TextStyle(
-                        fontSize: 14, color: AppColors.greyHint(brightness)),
-                  ),
+                  ...previousChildren,
+                  if (currentChild != null) currentChild,
                 ],
               ),
-            )
-          else ...[
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _pageComments.length,
-              separatorBuilder: (ctx, idx) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child:
-                    Divider(color: AppColors.greyHint(brightness), height: 1),
-              ),
-              itemBuilder: (ctx, idx) {
-                final comment = _pageComments[idx];
-                final isOwn = _isOwnComment(comment);
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      CommunityAvatar(avatarId: comment.avatarId, size: 36),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
+              child: showAwmc
+                  ? KeyedSubtree(
+                      key: ValueKey('comments-source-awmc-$awmcChartKey'),
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: AwmcChartDetails(
+                          key: ValueKey('awmc-comments-$awmcChartKey'),
+                          chartKey: awmcChartKey,
+                          section: AwmcChartDetailsSection.comments,
+                          embedded: true,
+                        ),
+                      ),
+                    )
+                  : KeyedSubtree(
+                      key: const ValueKey('comments-source-chiffon'),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const SizedBox(height: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: AppColors.linkBlue(brightness)
+                                  .withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
                               children: [
-                                Flexible(
+                                Icon(Icons.info_outline,
+                                    size: 14,
+                                    color: AppColors.linkBlue(brightness)),
+                                const SizedBox(width: 6),
+                                Expanded(
                                   child: Text(
-                                    comment.displayName,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                                    context.l10n
+                                        .flowCommentsAreForReferencePleaseBeRespectful,
                                     style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.bold,
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onSurface,
-                                    ),
-                                  ),
-                                ),
-                                if (isOwn) ...[
-                                  const SizedBox(width: 6),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 6, vertical: 1),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.linkBlue(brightness)
-                                          .withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      context.l10n.flowMe,
-                                      style: TextStyle(
                                         fontSize: 11,
-                                        color: AppColors.linkBlue(brightness),
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
+                                        color: AppColors.linkBlue(brightness)),
                                   ),
-                                ],
-                                const SizedBox(width: 8),
-                                Text(
-                                  _formatDateTime(comment.createdAt),
-                                  style: TextStyle(
-                                      fontSize: 11,
-                                      color: AppColors.greyHint(brightness)),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 6),
-                            Text(
-                              comment.content,
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Theme.of(context).colorScheme.onSurface,
-                                height: 1.5,
-                              ),
+                          ),
+                          const SizedBox(height: 12),
+                          const Divider(height: 1),
+                          const SizedBox(height: 12),
+
+                          // 评论输入框
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.surface,
+                              borderRadius: BorderRadius.circular(8),
                             ),
-                            if (!isOwn &&
-                                comment.dataSource.isNotEmpty &&
-                                comment.originalId.isNotEmpty) ...[
-                              const SizedBox(height: 4),
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: Wrap(
-                                  spacing: 14,
+                            child: Column(
+                              children: [
+                                // 自动构建的身份信息显示
+                                if (_commentDataSource != null) ...[
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.account_circle,
+                                        size: 18,
+                                        color: AppColors.linkBlue(brightness),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          '$_commentDataSource:$_commentOriginalId${_commentNickname != null ? ' ($_commentNickname)' : ''}',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .onSurface,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 10),
+                                ] else
+                                  Container(
+                                    margin: const EdgeInsets.only(bottom: 10),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color:
+                                          AppColors.warningOrange(brightness),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(
+                                          color: AppColors.warningOrange(
+                                              brightness)),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.info_outline,
+                                            size: 16, color: Colors.white),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            context.l10n
+                                                .flowRefreshDataOnTheHomePageTo3,
+                                            style: const TextStyle(
+                                                fontSize: 13,
+                                                color: Colors.white),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                TextField(
+                                  controller: _commentInputController,
+                                  maxLines: 3,
+                                  maxLength: 500,
+                                  decoration: InputDecoration(
+                                    hintText:
+                                        context.l10n.flowEnterYourComment,
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide(
+                                          color: AppColors.tableBorder(
+                                              brightness)),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide(
+                                          color: AppColors.tableBorder(
+                                              brightness)),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide(
+                                          color:
+                                              AppColors.linkBlue(brightness)),
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 10),
+                                    isDense: true,
+                                    counterStyle: TextStyle(
+                                        fontSize: 11,
+                                        color: AppColors.greyHint(brightness)),
+                                  ),
+                                  style: const TextStyle(fontSize: 14),
+                                ),
+                                if (_commentError != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 6),
+                                    child: Text(
+                                      _commentError!,
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          color:
+                                              AppColors.errorRed(brightness)),
+                                    ),
+                                  ),
+                                const SizedBox(height: 10),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
                                   children: [
-                                    _commentAction(context.l10n.commentReport,
-                                        () => _reportComment(comment)),
-                                    _commentAction(context.l10n.commentBlock,
-                                        () => _toggleBlockCommentAuthor(comment)),
+                                    SizedBox(
+                                      width: 100,
+                                      child: ElevatedButton(
+                                        onPressed: _commentSubmitting
+                                            ? null
+                                            : _submitComment,
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor:
+                                              AppColors.linkBlue(brightness),
+                                          foregroundColor: Theme.of(context)
+                                              .colorScheme
+                                              .onPrimary,
+                                          padding: const EdgeInsets.symmetric(
+                                              vertical: 10),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                          ),
+                                        ),
+                                        child: Text(
+                                          context.l10n.flowPost,
+                                          style: const TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.bold),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          // 评论列表
+                          if (_commentsLoading)
+                            Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(20),
+                                child: CircularProgressIndicator(
+                                    color: AppColors.linkBlue(brightness)),
+                              ),
+                            )
+                          else if (_comments.isEmpty)
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(vertical: 30),
+                              child: Column(
+                                children: [
+                                  Icon(Icons.chat_bubble_outline,
+                                      size: 40,
+                                      color: AppColors.greyHint(brightness)),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    context.l10n.flowNoCommentsYetBeTheFirstTo,
+                                    style: TextStyle(
+                                        fontSize: 14,
+                                        color: AppColors.greyHint(brightness)),
+                                  ),
+                                ],
+                              ),
+                            )
+                          else ...[
+                            ListView.separated(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: _pageComments.length,
+                              separatorBuilder: (ctx, idx) => Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 8),
+                                child: Divider(
+                                    color: AppColors.greyHint(brightness),
+                                    height: 1),
+                              ),
+                              itemBuilder: (ctx, idx) {
+                                final comment = _pageComments[idx];
+                                final isOwn = _isOwnComment(comment);
+                                return Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 4),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      CommunityAvatar(
+                                          avatarId: comment.avatarId, size: 36),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Flexible(
+                                                  child: Text(
+                                                    comment.displayName,
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    style: TextStyle(
+                                                      fontSize: 13,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: Theme.of(context)
+                                                          .colorScheme
+                                                          .onSurface,
+                                                    ),
+                                                  ),
+                                                ),
+                                                if (isOwn) ...[
+                                                  const SizedBox(width: 6),
+                                                  Container(
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                        horizontal: 6,
+                                                        vertical: 1),
+                                                    decoration: BoxDecoration(
+                                                      color: AppColors.linkBlue(
+                                                              brightness)
+                                                          .withOpacity(0.1),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              4),
+                                                    ),
+                                                    child: Text(
+                                                      context.l10n.flowMe,
+                                                      style: TextStyle(
+                                                        fontSize: 11,
+                                                        color:
+                                                            AppColors.linkBlue(
+                                                                brightness),
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                                const SizedBox(width: 8),
+                                                Text(
+                                                  _formatDateTime(
+                                                      comment.createdAt),
+                                                  style: TextStyle(
+                                                      fontSize: 11,
+                                                      color: AppColors.greyHint(
+                                                          brightness)),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Text(
+                                              comment.content,
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .onSurface,
+                                                height: 1.5,
+                                              ),
+                                            ),
+                                            if (!isOwn &&
+                                                comment.dataSource.isNotEmpty &&
+                                                comment
+                                                    .originalId.isNotEmpty) ...[
+                                              const SizedBox(height: 4),
+                                              Align(
+                                                alignment:
+                                                    Alignment.centerRight,
+                                                child: Wrap(
+                                                  spacing: 14,
+                                                  children: [
+                                                    _commentAction(
+                                                        context
+                                                            .l10n.commentReport,
+                                                        () => _reportComment(
+                                                            comment)),
+                                                    _commentAction(
+                                                        context
+                                                            .l10n.commentBlock,
+                                                        () =>
+                                                            _toggleBlockCommentAuthor(
+                                                                comment)),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                            if (isOwn) ...[
+                                              const SizedBox(height: 6),
+                                              Align(
+                                                alignment:
+                                                    Alignment.centerRight,
+                                                child: GestureDetector(
+                                                  onTap: () => _deleteComment(
+                                                      comment.id),
+                                                  child: Text(
+                                                    context.l10n.flowDelete,
+                                                    style: TextStyle(
+                                                        fontSize: 12,
+                                                        color:
+                                                            AppColors.errorRed(
+                                                                brightness)),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                            // 分页控制
+                            if (_totalPages > 1)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 16),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    _buildPageButton(
+                                      icon: Icons.chevron_left,
+                                      onTap: _commentPage > 0
+                                          ? () => _changeCommentPage(
+                                              _commentPage - 1)
+                                          : null,
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 16, vertical: 8),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.linkBlue(brightness)
+                                            .withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        '${_commentPage + 1} / $_totalPages',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.linkBlue(brightness),
+                                        ),
+                                      ),
+                                    ),
+                                    _buildPageButton(
+                                      icon: Icons.chevron_right,
+                                      onTap: _commentPage < _totalPages - 1
+                                          ? () => _changeCommentPage(
+                                              _commentPage + 1)
+                                          : null,
+                                    ),
                                   ],
                                 ),
                               ),
-                            ],
-                            if (isOwn) ...[
-                              const SizedBox(height: 6),
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: GestureDetector(
-                                  onTap: () => _deleteComment(comment.id),
-                                  child: Text(
-                                    context.l10n.flowDelete,
-                                    style: TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.errorRed(brightness)),
-                                  ),
-                                ),
-                              ),
-                            ],
                           ],
-                        ),
+                        ],
                       ),
-                    ],
-                  ),
-                );
-              },
+                    ),
             ),
-            // 分页控制
-            if (_totalPages > 1)
-              Padding(
-                padding: const EdgeInsets.only(top: 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _buildPageButton(
-                      icon: Icons.chevron_left,
-                      onTap: _commentPage > 0
-                          ? () => _changeCommentPage(_commentPage - 1)
-                          : null,
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: AppColors.linkBlue(brightness).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        '${_commentPage + 1} / $_totalPages',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.linkBlue(brightness),
-                        ),
-                      ),
-                    ),
-                    _buildPageButton(
-                      icon: Icons.chevron_right,
-                      onTap: _commentPage < _totalPages - 1
-                          ? () => _changeCommentPage(_commentPage + 1)
-                          : null,
-                    ),
-                  ],
-                ),
-              ),
-          ],
+          ),
         ],
       ),
     );

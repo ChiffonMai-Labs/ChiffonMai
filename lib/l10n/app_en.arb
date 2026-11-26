@@ -4476,6 +4476,7 @@
   "songUnlockCondition": "Unlock Condition",
   "songUnlockNone": "No unlock needed",
   "songUnlockRequired": "Unlock required",
+  "songUnlockOpenKaleidGuide": "View KALEIDXSCOPE Guide",
   "favoriteManagerTitle": "Manage Shortcuts",
   "favoriteManagerSearchHint": "Search feature name or description",
   "favoriteManagerSelectedCount": "{count} pinned",

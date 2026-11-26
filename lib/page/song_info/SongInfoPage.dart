@@ -32,6 +32,8 @@ import 'package:my_first_flutter_app/page/ChartPlay/SongMaidataPage.dart';
 import '../ChartPlay/ChartPlaybackPicker.dart';
 import '../../manager/Song/MaidataManager.dart';
 import 'package:my_first_flutter_app/service/SongInfo/SongInfoService.dart';
+import 'package:my_first_flutter_app/service/SongInfo/SongUnlockService.dart';
+import 'package:my_first_flutter_app/page/KaleidXScope/KaleidXScopeGatePage.dart';
 import 'package:my_first_flutter_app/service/AWMC/AwmcChartTagService.dart';
 import 'package:my_first_flutter_app/service/AWMC/AwmcChartDetailsService.dart';
 import 'package:my_first_flutter_app/widgets/AwmcChartDetails.dart';
@@ -220,12 +222,18 @@ class _SongInfoPageState extends State<_SongInfoView> {
   bool? _cnSongLocked;
   Map<int, bool> _cnChartLockedByDiff = const {};
   String? _cnUnlockMap;
+  SongUnlockInfo? _cnUnlockInfo;
   Map<String, dynamic>? _songData;
   List<dynamic>? _diffData; // 保持为dynamic类型，兼容Map和DiffData
   Map<String, dynamic>? _userData;
   List<dynamic>? _tagData;
   String? _awmcTagChartKey;
   Map<String, List<Map<String, String>>>? _awmcChartTags;
+  String? _awmcDetailChartKey;
+  Map<String, dynamic>? _awmcAnalysis;
+  Map<String, dynamic>? _awmcCommunity;
+  int _ratingSource = 0; // 0 = ChiffonMai, 1 = AWMC
+  int _commentSource = 0; // 0 = ChiffonMai, 1 = AWMC
   List<dynamic>? _tagSongsData;
 
   // 定数历史（dxrating 静态数据）

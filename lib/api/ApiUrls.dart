@@ -20,6 +20,7 @@ class ApiUrls {
   static const String AnnouncementsUrl = '$BackendBaseUrl/api/announcements';
   static const String AnnouncementUrl = '$AnnouncementsUrl/current';
   static const String UpdateCalendarUrl = '$BackendBaseUrl/api/update-calendar';
+  static const String SongUnlocksUrl = '$BackendBaseUrl/api/song-unlocks';
   static const String MaintainerAvatarUrl =
       '$BackendBaseUrl/api/about/maintainer-avatar';
 

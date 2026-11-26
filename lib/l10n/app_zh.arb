@@ -10692,6 +10692,7 @@
   "songUnlockCondition": "解禁条件",
   "songUnlockNone": "无需解禁",
   "songUnlockRequired": "需解禁",
+  "songUnlockOpenKaleidGuide": "查看万花镜攻略",
   "favoriteManagerTitle": "管理常用功能",
   "favoriteManagerSearchHint": "搜索功能名称或说明",
   "favoriteManagerSelectedCount": "已收藏 {count} 项",

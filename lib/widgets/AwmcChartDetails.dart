@@ -10,9 +10,14 @@ import 'AppUi.dart';
 class AwmcChartDetails extends StatefulWidget {
   final String chartKey;
   final AwmcChartDetailsSection section;
+  final bool embedded;
 
-  const AwmcChartDetails(
-      {super.key, required this.chartKey, required this.section});
+  const AwmcChartDetails({
+    super.key,
+    required this.chartKey,
+    required this.section,
+    this.embedded = false,
+  });
 
   @override
   State<AwmcChartDetails> createState() => _AwmcChartDetailsState();
@@ -54,6 +59,62 @@ class _AwmcChartDetailsState extends State<AwmcChartDetails> {
       AwmcChartDetailsSection.community => l10n.awmcChartCommunityScores,
     };
 
+    final body = FutureBuilder<Map<String, dynamic>?>(
+      future: _request,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return Row(
+            children: [
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                l10n.flowLoading2,
+                style:
+                    TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
+              ),
+            ],
+          );
+        }
+        if (snapshot.hasError) {
+          return Row(
+            children: [
+              Expanded(
+                child: Text(
+                  l10n.awmcChartUnavailable,
+                  style: TextStyle(
+                      fontSize: 13, color: scheme.onSurfaceVariant),
+                ),
+              ),
+              LinkPill(
+                label: l10n.flowRetry,
+                onTap: () => setState(() => _load(_page)),
+              ),
+            ],
+          );
+        }
+        final data = snapshot.data;
+        if (data == null) {
+          return Text(
+            l10n.flowNoData,
+            style:
+                TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
+          );
+        }
+        return switch (widget.section) {
+          AwmcChartDetailsSection.analysis => _analysis(data),
+          AwmcChartDetailsSection.ratings => _ratings(data),
+          AwmcChartDetailsSection.comments => _comments(data),
+          AwmcChartDetailsSection.community => _community(data),
+        };
+      },
+    );
+
+    if (widget.embedded) return body;
+
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -62,59 +123,7 @@ class _AwmcChartDetailsState extends State<AwmcChartDetails> {
             title: title,
             padding: const EdgeInsets.only(bottom: 10),
           ),
-          FutureBuilder<Map<String, dynamic>?>(
-            future: _request,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState != ConnectionState.done) {
-                return Row(
-                  children: [
-                    const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      l10n.flowLoading2,
-                      style: TextStyle(
-                          fontSize: 13, color: scheme.onSurfaceVariant),
-                    ),
-                  ],
-                );
-              }
-              if (snapshot.hasError) {
-                return Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        l10n.awmcChartUnavailable,
-                        style: TextStyle(
-                            fontSize: 13, color: scheme.onSurfaceVariant),
-                      ),
-                    ),
-                    LinkPill(
-                      label: l10n.flowRetry,
-                      onTap: () => setState(() => _load(_page)),
-                    ),
-                  ],
-                );
-              }
-              final data = snapshot.data;
-              if (data == null) {
-                return Text(
-                  l10n.flowNoData,
-                  style:
-                      TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
-                );
-              }
-              return switch (widget.section) {
-                AwmcChartDetailsSection.analysis => _analysis(data),
-                AwmcChartDetailsSection.ratings => _ratings(data),
-                AwmcChartDetailsSection.comments => _comments(data),
-                AwmcChartDetailsSection.community => _community(data),
-              };
-            },
-          ),
+          body,
         ],
       ),
     );

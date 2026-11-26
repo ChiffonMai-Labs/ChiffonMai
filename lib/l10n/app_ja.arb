@@ -4476,6 +4476,7 @@
   "songUnlockCondition": "解禁条件",
   "songUnlockNone": "解禁不要",
   "songUnlockRequired": "要解禁",
+  "songUnlockOpenKaleidGuide": "KALEIDXSCOPE攻略を見る",
   "favoriteManagerTitle": "よく使う機能を管理",
   "favoriteManagerSearchHint": "機能名や説明を検索",
   "favoriteManagerSelectedCount": "{count}件を登録済み",

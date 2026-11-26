@@ -333,4 +333,9 @@ class CacheKeyConstant {
 
   /// 界面模式（standard = 常规模式，simple = 简洁模式）。
   static const String appDisplayMode = 'app_display_mode';
+
+  /// 国服歌曲解禁条件明细缓存（来自服务端 `/api/song-unlocks`）。
+  static const String songUnlocksCache = 'song_unlocks_cache';
+  static const String songUnlocksCacheTimestamp =
+      'song_unlocks_cache_timestamp';
 }

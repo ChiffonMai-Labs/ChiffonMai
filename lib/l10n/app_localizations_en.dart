@@ -16326,6 +16326,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get songUnlockRequired => 'Unlock required';
 
   @override
+  String get songUnlockOpenKaleidGuide => 'View KALEIDXSCOPE Guide';
+
+  @override
   String get favoriteManagerTitle => 'Manage Shortcuts';
 
   @override

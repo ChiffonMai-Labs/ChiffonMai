@@ -200,6 +200,14 @@ extension _SongInfoLoaders on _SongInfoPageState {
     _cnSongLocked = null;
     _cnChartLockedByDiff = const {};
     _cnUnlockMap = null;
+    _cnUnlockInfo = null;
+    _awmcTagChartKey = null;
+    _awmcChartTags = null;
+    _awmcDetailChartKey = null;
+    _awmcAnalysis = null;
+    _awmcCommunity = null;
+    _ratingSource = 0;
+    _commentSource = 0;
     // didUpdateWidget 在构建阶段调用，加载里的 setState 要等这一帧结束。
     _pendingCoalescedUpdates.clear();
     scheduleMicrotask(() {
@@ -288,6 +296,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
     unawaited(_checkAlternativeSong(songTitle, songType));
     _loadUniInfo();
     _loadCnReleaseDate();
+    unawaited(_loadCnUnlockInfo());
     _loadChartRating();
     _preloadRatingData();
     _checkBookmarkStatus();
@@ -312,6 +321,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
   Future<void> _loadChartMetadata() async {
     final stopwatch = Stopwatch()..start();
     unawaited(_loadAwmcChartTags());
+    unawaited(_loadAwmcChartSupplements());
     final result =
         await SongInfoService().loadSupplementaryData(widget.songId);
     if (!mounted || _isStaleSongLoad) return;
@@ -339,6 +349,43 @@ extension _SongInfoLoaders on _SongInfoPageState {
       return;
     }
     _updateCoalesced(() => _awmcChartTags = groups);
+  }
+
+  /// 加载 AWMC 谱面分析与社区统计/纠错补充信息（静默失败，不占错误态）。
+  Future<void> _loadAwmcChartSupplements() async {
+    final key = AwmcChartTagService.chartKey(widget.songId, _currentDiffIndex);
+    if (key == null) {
+      if (_awmcDetailChartKey != null ||
+          _awmcAnalysis != null ||
+          _awmcCommunity != null) {
+        _awmcDetailChartKey = null;
+        _updateCoalesced(() {
+          _awmcAnalysis = null;
+          _awmcCommunity = null;
+        });
+      }
+      return;
+    }
+    if (_awmcDetailChartKey == key) return;
+    _awmcDetailChartKey = key;
+    _awmcAnalysis = null;
+    _awmcCommunity = null;
+    final results = await Future.wait<Map<String, dynamic>?>([
+      AwmcChartDetailsService.load(key, AwmcChartDetailsSection.analysis)
+          .catchError((_) => null),
+      AwmcChartDetailsService.load(key, AwmcChartDetailsSection.community)
+          .catchError((_) => null),
+    ]);
+    if (!mounted ||
+        _isStaleSongLoad ||
+        _awmcDetailChartKey != key ||
+        AwmcChartTagService.chartKey(widget.songId, _currentDiffIndex) != key) {
+      return;
+    }
+    _updateCoalesced(() {
+      _awmcAnalysis = results[0];
+      _awmcCommunity = results[1];
+    });
   }
 
   /// 判断当前谱面在理论上能否挤进对应的 Best35 / Best15。
@@ -1101,6 +1148,19 @@ extension _SongInfoLoaders on _SongInfoPageState {
       }
     } catch (e) {
       debugPrint('[SongInfoPage] 读取国服上线日期失败: $e');
+    }
+  }
+
+  /// 读取自家服务端结构化的国服解禁条件明细。
+  Future<void> _loadCnUnlockInfo() async {
+    try {
+      final info = await SongUnlockService().getUnlockInfo(widget.songId);
+      if (!mounted || _isStaleSongLoad) return;
+      if (info != null) {
+        _updateCoalesced(() => _cnUnlockInfo = info);
+      }
+    } catch (e) {
+      debugPrint('[SongInfoPage] 读取国服解禁明细失败: $e');
     }
   }
 

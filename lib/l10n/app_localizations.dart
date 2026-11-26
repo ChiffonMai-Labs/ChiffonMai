@@ -26949,6 +26949,12 @@ abstract class AppLocalizations {
   /// **'需解禁'**
   String get songUnlockRequired;
 
+  /// No description provided for @songUnlockOpenKaleidGuide.
+  ///
+  /// In zh, this message translates to:
+  /// **'查看万花镜攻略'**
+  String get songUnlockOpenKaleidGuide;
+
   /// No description provided for @favoriteManagerTitle.
   ///
   /// In zh, this message translates to:

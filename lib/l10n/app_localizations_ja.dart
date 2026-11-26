@@ -15737,6 +15737,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get songUnlockRequired => '要解禁';
 
   @override
+  String get songUnlockOpenKaleidGuide => 'KALEIDXSCOPE攻略を見る';
+
+  @override
   String get favoriteManagerTitle => 'よく使う機能を管理';
 
   @override

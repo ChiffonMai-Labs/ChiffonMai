@@ -29,6 +29,7 @@ extension _SongInfoLayout on _SongInfoPageState {
     _checkNoteStatus();
     _loadBest50Opportunity();
     _loadAwmcChartTags();
+    _loadAwmcChartSupplements();
   }
 
   /// 点曲绘：放大查看并可保存到相册（与旧版一致）。
@@ -1196,7 +1197,6 @@ extension _SongInfoLayout on _SongInfoPageState {
     required dynamic currentDiffData,
     required Color accentColor,
   }) {
-    final awmcChartKey = AwmcChartTagService.chartKey(widget.songId, _currentDiffIndex);
     final List<Widget> children;
     switch (_detailTab) {
       case 1:
@@ -1204,27 +1204,11 @@ extension _SongInfoLayout on _SongInfoPageState {
         break;
       case 2:
         children = [
-          // 谱面评分
+          // 谱面评分（内置 ChiffonMai / AWMC 切换）
           _buildChartRatingSection(accentColor),
           const SizedBox(height: 12),
-          if (awmcChartKey != null) ...[
-            AwmcChartDetails(
-                chartKey: awmcChartKey,
-                section: AwmcChartDetailsSection.ratings),
-            const SizedBox(height: 12),
-          ],
-          // 评论区
+          // 评论区（内置 ChiffonMai / AWMC 切换）
           _buildCommentsSection(),
-          if (awmcChartKey != null) ...[
-            const SizedBox(height: 12),
-            AwmcChartDetails(
-                chartKey: awmcChartKey,
-                section: AwmcChartDetailsSection.comments),
-            const SizedBox(height: 12),
-            AwmcChartDetails(
-                chartKey: awmcChartKey,
-                section: AwmcChartDetailsSection.community),
-          ],
         ];
         break;
       case 3:
@@ -1417,19 +1401,19 @@ extension _SongInfoLayout on _SongInfoPageState {
     ];
   }
 
-  /// 标签页「数据」：全站评级 / 连击分布、星级与达成率对照表。
+  /// 标签页「数据」：全站评级 / 连击分布、星级与达成率对照表，仅在有数据时附带 AWMC 补充参考与纠错。
   List<Widget> _buildDataTab(dynamic currentDiffData) {
     final scheme = Theme.of(context).colorScheme;
     final hasRating = _hasDistributionData(currentDiffData, false);
     final hasCombo = _hasDistributionData(currentDiffData, true);
-    final awmcChartKey = AwmcChartTagService.chartKey(widget.songId, _currentDiffIndex);
+    final awmcStats = _awmcCommunity?['stats'] as Map?;
+    final awmcCount = (awmcStats?['submissionCount'] as num?)?.toInt() ?? 0;
+    final awmcAvg = awmcStats?['averageAchievement'] as num?;
+    final awmcCorrections = (_awmcCommunity?['corrections'] as List?)
+            ?.whereType<Map>()
+            .toList() ??
+        const <Map>[];
     return [
-      if (awmcChartKey != null) ...[
-        AwmcChartDetails(
-            chartKey: awmcChartKey,
-            section: AwmcChartDetailsSection.analysis),
-        const SizedBox(height: 12),
-      ],
       // 评级分布
       if (hasRating) ...[
         AppCard(child: _buildRatingDistribution(currentDiffData)),
@@ -1449,6 +1433,54 @@ extension _SongInfoLayout on _SongInfoPageState {
         ),
         const SizedBox(height: 12),
       ],
+      if (awmcCount > 0 && awmcAvg != null) ...[
+        AppCard(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  context.l10n.awmcChartCommunityScores,
+                  style: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w700),
+                ),
+              ),
+              Text(
+                '${context.l10n.flowAverageP0('${awmcAvg.toStringAsFixed(2)}%')} · ${context.l10n.awmcSampleCount} $awmcCount',
+                style: AppTheme.number(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+      ],
+      if (awmcCorrections.isNotEmpty) ...[
+        AppCard(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          onTap: () => _showAwmcCorrectionsDialog(awmcCorrections),
+          child: Row(
+            children: [
+              Icon(Icons.fact_check_outlined,
+                  size: 18, color: scheme.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '${context.l10n.awmcChartCorrections}（${awmcCorrections.length}）',
+                  style: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded,
+                  size: 18, color: scheme.onSurfaceVariant),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+      ],
       // 星星等级最低DX分对照表
       AppCard(child: _buildStarScoreTable()),
       const SizedBox(height: 12),
@@ -1460,6 +1492,84 @@ extension _SongInfoLayout on _SongInfoPageState {
         ),
       ),
     ];
+  }
+
+  void _showAwmcCorrectionsDialog(List<Map> corrections) {
+    final l10n = context.l10n;
+    final scheme = Theme.of(context).colorScheme;
+    final locale = MaterialLocalizations.of(context);
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AppAlertDialog(
+        title: Text(l10n.awmcChartCorrections),
+        content: ConstrainedBox(
+          constraints:
+              BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.6),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final (index, item) in corrections.indexed) ...[
+                  if (index > 0) const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppSurfaces.inset(context),
+                      borderRadius:
+                          BorderRadius.circular(AppDesignTokens.radiusSmall),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            if (item['author'] case final String author
+                                when author.isNotEmpty)
+                              Expanded(
+                                child: Text(
+                                  author,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w700),
+                                ),
+                              )
+                            else
+                              const Spacer(),
+                            if (item['createdAt'] case final String created
+                                when DateTime.tryParse(created) != null)
+                              Text(
+                                locale.formatShortDate(
+                                    DateTime.parse(created).toLocal()),
+                                style: TextStyle(
+                                    fontSize: 11.5,
+                                    color: scheme.onSurfaceVariant),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${item['body'] ?? item['description'] ?? item['reason'] ?? item['status'] ?? l10n.awmcChartCorrections}',
+                          style: const TextStyle(fontSize: 13, height: 1.4),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(l10n.featureClose),
+          ),
+        ],
+      ),
+    );
   }
 
   /// 标签页「工具」：容错计算 + 计算工具入口。

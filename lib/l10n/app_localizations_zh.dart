@@ -15421,6 +15421,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get songUnlockRequired => '需解禁';
 
   @override
+  String get songUnlockOpenKaleidGuide => '查看万花镜攻略';
+
+  @override
   String get favoriteManagerTitle => '管理常用功能';
 
   @override
@@ -31107,6 +31110,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get songUnlockRequired => '需解禁';
+
+  @override
+  String get songUnlockOpenKaleidGuide => '查看萬花鏡攻略';
 
   @override
   String get favoriteManagerTitle => '管理常用功能';
