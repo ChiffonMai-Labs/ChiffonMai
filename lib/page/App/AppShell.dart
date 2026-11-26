@@ -7,7 +7,6 @@ import '../../entity/Home/FeatureModels.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../utils/AppModePreferences.dart';
 import '../../utils/NavigationPreferences.dart';
-import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/LiquidGlassNavigationBar.dart';
 import '../../widgets/ExpandingPillNavigationBar.dart';
 import '../../widgets/MainNavigationViewport.dart';
@@ -52,21 +51,20 @@ class _AppShellState extends State<AppShell> {
   final GlobalKey<PlayZoneHubPageState> _playZoneKey =
       GlobalKey<PlayZoneHubPageState>();
   bool _firstFrameNotified = false;
+  bool _lastAppleBar = false;
   double _horizontalDragDistance = 0;
   Timer? _navSelectionDebounce;
   int? _pendingIndex;
+  late final Listenable _navBarListenable = Listenable.merge([
+    NavigationPreferences.instance.barStyleListenable,
+    NavigationPreferences.instance.transitionEnabledListenable,
+  ]);
 
   static const Duration _navDebounceDuration = Duration(milliseconds: 120);
 
   // ===== 5 个主分类标签（2026-11：出勤 + 休闲 合并为「游玩」） =====
   // 下标顺序即页面顺序：首页 0 / 曲库 1 / 成绩 2 / 游玩 3 / 我的 4。
   static const int _playZoneIndex = 3;
-  static const List<int> _standardTabIndices = [0, 1, 2, 3, 4];
-  static const List<int> _simpleTabIndices = [0, 2, 4];
-
-  List<int> get _visibleTabIndices => AppModePreferences.instance.isSimple
-      ? _simpleTabIndices
-      : _standardTabIndices;
 
   static const List<_NavTab> _tabs = [
     _NavTab(
@@ -110,37 +108,21 @@ class _AppShellState extends State<AppShell> {
   @override
   void initState() {
     super.initState();
-    NavigationPreferences.instance.addListener(_onNavigationPreferencesChanged);
+    final nav = NavigationPreferences.instance;
+    nav.swipeEnabledListenable.addListener(_onNavigationPreferencesChanged);
+    nav.transitionEnabledListenable.addListener(_onNavigationPreferencesChanged);
+    nav.barStyleListenable.addListener(_onBarStyleChanged);
     AppModePreferences.instance.addListener(_onAppModeChanged);
-    unawaited(NavigationPreferences.instance.load());
+    unawaited(nav.load());
     unawaited(AppModePreferences.instance.load());
     _pages = [
       HomePage(
         key: _homePageKey,
         activeTask: _activeFeatureTask,
-        onLibraryTap: () {
-          if (AppModePreferences.instance.isSimple) {
-            _openSubHub(
-              title: context.featureText('曲库'),
-              child: const LibraryHubPage(showHeader: false),
-            );
-          } else {
-            _selectIndex(1);
-          }
-        },
+        onLibraryTap: () => _selectIndex(1),
         onEntertainmentTap: () {
-          if (AppModePreferences.instance.isSimple) {
-            _openSubHub(
-              title: context.featureText('游玩'),
-              child: const PlayZoneHubPage(
-                showHeader: false,
-                initialSection: 1,
-              ),
-            );
-          } else {
-            _selectIndex(_playZoneIndex);
-            _playZoneKey.currentState?.showSection(1);
-          }
+          _selectIndex(_playZoneIndex);
+          _playZoneKey.currentState?.showSection(1);
         },
         onSystemFeatureTap: (item) async {
           await _systemPageKey.currentState?.openFeature(item);
@@ -166,8 +148,11 @@ class _AppShellState extends State<AppShell> {
   void dispose() {
     _navSelectionDebounce?.cancel();
     _activeFeatureTask.dispose();
-    NavigationPreferences.instance
+    final nav = NavigationPreferences.instance;
+    nav.swipeEnabledListenable.removeListener(_onNavigationPreferencesChanged);
+    nav.transitionEnabledListenable
         .removeListener(_onNavigationPreferencesChanged);
+    nav.barStyleListenable.removeListener(_onBarStyleChanged);
     AppModePreferences.instance.removeListener(_onAppModeChanged);
     super.dispose();
   }
@@ -176,31 +161,17 @@ class _AppShellState extends State<AppShell> {
     if (mounted) setState(() {});
   }
 
-  void _onAppModeChanged() {
-    if (!mounted) return;
-    // 从简洁模式隐藏掉的标签页切入时，回落到首页并清理未触发的切页防抖。
-    if (!_visibleTabIndices.contains(_index)) {
-      _navSelectionDebounce?.cancel();
-      _pendingIndex = null;
-      _index = 0;
+  void _onBarStyleChanged() {
+    if (!mounted || Theme.of(context).platform != TargetPlatform.iOS) return;
+    final nextAppleBar =
+        NavigationPreferences.instance.barStyle == NavigationBarStyle.standard;
+    if (nextAppleBar != _lastAppleBar) {
+      setState(() {});
     }
-    setState(() {});
   }
 
-  void _openSubHub({required String title, required Widget child}) {
-    FocusManager.instance.primaryFocus?.unfocus();
-    Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (routeContext) => BackgroundPageScaffold(
-          title: title,
-          child: MediaQuery.removePadding(
-            context: routeContext,
-            removeTop: true,
-            child: child,
-          ),
-        ),
-      ),
-    );
+  void _onAppModeChanged() {
+    if (mounted) setState(() {});
   }
 
   void _selectIndex(int index) {
@@ -220,7 +191,7 @@ class _AppShellState extends State<AppShell> {
       if (!mounted || _pendingIndex == null) return;
       final target = _pendingIndex!;
       _pendingIndex = null;
-      if (target == _index || !_visibleTabIndices.contains(target)) return;
+      if (target == _index) return;
       setState(() => _index = target);
     });
   }
@@ -236,12 +207,9 @@ class _AppShellState extends State<AppShell> {
   void _onHorizontalDragEnd(DragEndDetails details) {
     if (NavigationPreferences.instance.swipeEnabled &&
         _horizontalDragDistance.abs() >= 48) {
-      final visible = _visibleTabIndices;
-      final pos = visible.indexOf(_index);
-      final currentPos = pos < 0 ? 0 : pos;
-      final nextPos = (currentPos + (_horizontalDragDistance < 0 ? 1 : -1))
-          .clamp(0, visible.length - 1);
-      _selectIndex(visible[nextPos]);
+      final nextIndex = (_index + (_horizontalDragDistance < 0 ? 1 : -1))
+          .clamp(0, _tabs.length - 1);
+      _selectIndex(nextIndex);
     }
     _horizontalDragDistance = 0;
   }
@@ -250,10 +218,6 @@ class _AppShellState extends State<AppShell> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final isSimple = AppModePreferences.instance.isSimple;
-    final visibleIndices = _visibleTabIndices;
-    final rawNavIndex = visibleIndices.indexOf(_index);
-    final navIndex =
-        (rawNavIndex < 0 ? 0 : rawNavIndex).clamp(0, visibleIndices.length - 1);
     // viewPadding 是窗口当前真实的系统底部 inset：系统导航栏隐藏时为 0，
     // 手势条/三键导航栏出现时则自动变成对应设备的实际高度。
     // 不使用 padding，避免 SafeArea 或键盘状态改变后把系统栏高度算错。
@@ -263,6 +227,7 @@ class _AppShellState extends State<AppShell> {
     // 设备的导航栏高度。这样有无系统栏时，最后一个功能按钮到悬浮栏的视觉距离相同。
     final appleBar = Theme.of(context).platform == TargetPlatform.iOS &&
         NavigationPreferences.instance.barStyle == NavigationBarStyle.standard;
+    _lastAppleBar = appleBar;
     final navigationReserve = systemBottomInset +
         contentBottomGap +
         (appleBar ? 50.0 : barH + navigationBottomGap);
@@ -332,11 +297,11 @@ class _AppShellState extends State<AppShell> {
             bottom: appleBar ? 0 : systemBottomInset + navigationBottomGap,
             child: appleBar
                 ? ios.CupertinoTabBar(
-                    currentIndex: navIndex,
-                    onTap: (i) => _selectIndex(visibleIndices[i]),
+                    currentIndex: _index,
+                    onTap: _selectIndex,
                     activeColor: scheme.primary,
                     items: [
-                      for (final tabIndex in visibleIndices)
+                      for (int i = 0; i < _tabs.length; i++)
                         BottomNavigationBarItem(
                             icon: Icon(const [
                               ios.CupertinoIcons.house,
@@ -344,36 +309,35 @@ class _AppShellState extends State<AppShell> {
                               ios.CupertinoIcons.chart_bar,
                               ios.CupertinoIcons.game_controller,
                               ios.CupertinoIcons.person_crop_circle
-                            ][tabIndex]),
-                            label: context.featureText(_tabs[tabIndex].label))
+                            ][i]),
+                            label: context.featureText(_tabs[i].label))
                     ],
                   )
-                : _buildFloatingNavigation(scheme, visibleIndices, navIndex),
+                : ListenableBuilder(
+                    listenable: _navBarListenable,
+                    builder: (context, _) => _buildFloatingNavigation(scheme),
+                  ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildFloatingNavigation(
-    ColorScheme scheme,
-    List<int> visibleIndices,
-    int navIndex,
-  ) {
+  Widget _buildFloatingNavigation(ColorScheme scheme) {
     final navigation = NavigationPreferences.instance;
     final destinations = [
-      for (final tabIndex in visibleIndices)
+      for (final tab in _tabs)
         LiquidGlassDestination(
-          label: context.featureText(_tabs[tabIndex].label),
-          icon: _tabs[tabIndex].icon,
-          selectedIcon: _tabs[tabIndex].activeIcon,
+          label: context.featureText(tab.label),
+          icon: tab.icon,
+          selectedIcon: tab.activeIcon,
         ),
     ];
     if (navigation.barStyle == NavigationBarStyle.expandingPill) {
       return ExpandingPillNavigationBar(
         height: barH,
-        selectedIndex: navIndex,
-        onSelected: (i) => _selectIndex(visibleIndices[i]),
+        selectedIndex: _index,
+        onSelected: _selectIndex,
         animationEnabled: navigation.transitionEnabled,
         destinations: destinations,
       );
@@ -381,127 +345,147 @@ class _AppShellState extends State<AppShell> {
     if (NavigationPreferences.instance.liquidGlassEnabled) {
       return LiquidGlassNavigationBar(
         height: barH,
-        selectedIndex: navIndex,
-        onSelected: (i) => _selectIndex(visibleIndices[i]),
+        selectedIndex: _index,
+        onSelected: _selectIndex,
         animationEnabled: NavigationPreferences.instance.transitionEnabled,
         destinations: destinations,
       );
     }
     // 「经典悬浮」样式（B 方案）：白色浮条 + 柔和投影 + 常驻文字标签。
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(26),
-        boxShadow: [
-          BoxShadow(
-            color: scheme.shadow.withValues(alpha: 0.10),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Material(
-      color: AppSurfaces.card(context).withValues(alpha: 0.97),
-      borderRadius: BorderRadius.circular(26),
-      clipBehavior: Clip.antiAlias,
-      child: SizedBox(
-        height: barH,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final double tabW = constraints.maxWidth / visibleIndices.length;
-            return Stack(
-              children: [
-                // 滑动的药丸 indicator（核心改动：AnimatedPositioned）
-                AnimatedPositioned(
-                  duration: const Duration(milliseconds: 360),
-                  curve: Curves.easeOutCubic,
-                  left: navIndex * tabW + (tabW - pillW) / 2,
-                  top: iconTop,
-                  width: pillW,
-                  height: pillH,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: scheme.secondaryContainer,
-                      borderRadius: BorderRadius.circular(pillH / 2),
-                    ),
-                  ),
-                ),
-                // Tab row：icon + label，点击切换 _index
-                Row(
-                  children: [
-                    for (int i = 0; i < visibleIndices.length; i++)
-                      Expanded(
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () => _selectIndex(visibleIndices[i]),
-                          child: Padding(
-                            // 图标槽与药丸同高同顶，保证图标在药丸内垂直居中
-                            padding: const EdgeInsets.only(top: iconTop),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                SizedBox(
-                                  height: pillH,
-                                  child: Center(
-                                    child: AnimatedSwitcher(
-                                      duration:
-                                          const Duration(milliseconds: 180),
-                                      switchInCurve: Curves.easeOut,
-                                      switchOutCurve: Curves.easeIn,
-                                      transitionBuilder: (child, animation) =>
-                                          FadeTransition(
-                                        opacity: animation,
-                                        child: child,
-                                      ),
-                                      child: Icon(
-                                        i == navIndex
-                                            ? _tabs[visibleIndices[i]]
-                                                .activeIcon
-                                            : _tabs[visibleIndices[i]].icon,
-                                        key: ValueKey(i == navIndex),
-                                        size: 22,
-                                        color: i == navIndex
-                                            ? scheme.onSecondaryContainer
-                                            : scheme.onSurfaceVariant,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: labelGap),
-                                SizedBox(
-                                  width: tabW,
-                                  child: FittedBox(
-                                    fit: BoxFit.scaleDown,
-                                    child: Text(
-                                    context.featureText(
-                                        _tabs[visibleIndices[i]].label),
-                                    maxLines: 1,
-                                    softWrap: false,
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: i == navIndex
-                                          ? FontWeight.w700
-                                          : FontWeight.w500,
-                                      letterSpacing: 0,
-                                      color: i == navIndex
-                                          ? scheme.onSurface
-                                          : scheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                  ),
-                                ),
-                              ],
+    final pillDuration = navigation.transitionEnabled &&
+            !MediaQuery.disableAnimationsOf(context)
+        ? const Duration(milliseconds: 360)
+        : Duration.zero;
+    return RepaintBoundary(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(26),
+          boxShadow: [
+            BoxShadow(
+              color: scheme.shadow.withValues(alpha: 0.10),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Material(
+          color: AppSurfaces.card(context).withValues(alpha: 0.97),
+          borderRadius: BorderRadius.circular(26),
+          clipBehavior: Clip.antiAlias,
+          child: SizedBox(
+            height: barH,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final double tabW = constraints.maxWidth / _tabs.length;
+                return RepaintBoundary(
+                  child: Stack(
+                    children: [
+                      // 滑动的药丸 indicator：只走 GPU 平移合成层，避免每帧触发 Stack 布局。
+                      Positioned(
+                        left: (tabW - pillW) / 2,
+                        top: iconTop,
+                        width: pillW,
+                        height: pillH,
+                        child: TweenAnimationBuilder<double>(
+                          tween: Tween<double>(end: _index.toDouble()),
+                          duration: pillDuration,
+                          curve: Curves.easeOutCubic,
+                          child: RepaintBoundary(
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: scheme.secondaryContainer,
+                                borderRadius:
+                                    BorderRadius.circular(pillH / 2),
+                              ),
                             ),
+                          ),
+                          builder: (context, pos, child) => Transform.translate(
+                            offset: Offset(pos * tabW, 0),
+                            child: child,
                           ),
                         ),
                       ),
-                  ],
-                ),
-              ],
-            );
-          },
+                      // 标签行：图标 + 文字，点击切换 _index
+                      Row(
+                        children: [
+                          for (int i = 0; i < _tabs.length; i++)
+                            Expanded(
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () => _selectIndex(i),
+                                child: Padding(
+                                  // 图标槽与药丸同高同顶，保证图标在药丸内垂直居中
+                                  padding: const EdgeInsets.only(top: iconTop),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      SizedBox(
+                                        height: pillH,
+                                        child: Center(
+                                          child: AnimatedSwitcher(
+                                            duration:
+                                                navigation.transitionEnabled
+                                                    ? const Duration(
+                                                        milliseconds: 180)
+                                                    : Duration.zero,
+                                            switchInCurve: Curves.easeOut,
+                                            switchOutCurve: Curves.easeIn,
+                                            transitionBuilder:
+                                                (child, animation) =>
+                                                    FadeTransition(
+                                              opacity: animation,
+                                              child: child,
+                                            ),
+                                            child: Icon(
+                                              i == _index
+                                                  ? _tabs[i].activeIcon
+                                                  : _tabs[i].icon,
+                                              key: ValueKey(i == _index),
+                                              size: 22,
+                                              color: i == _index
+                                                  ? scheme.onSecondaryContainer
+                                                  : scheme.onSurfaceVariant,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: labelGap),
+                                      SizedBox(
+                                        width: tabW,
+                                        child: FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          child: Text(
+                                            context.featureText(_tabs[i].label),
+                                            maxLines: 1,
+                                            softWrap: false,
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: i == _index
+                                                  ? FontWeight.w700
+                                                  : FontWeight.w500,
+                                              letterSpacing: 0,
+                                              color: i == _index
+                                                  ? scheme.onSurface
+                                                  : scheme.onSurfaceVariant,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
         ),
-      ),
       ),
     );
   }

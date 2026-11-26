@@ -36,8 +36,6 @@ import '../../utils/AppTheme.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../utils/AppModePreferences.dart';
 import '../../widgets/AppUi.dart';
-import '../../widgets/BackgroundPageScaffold.dart';
-import '../Hub/PlayZoneHubPage.dart';
 import '../../utils/AppConstants.dart';
 import '../../utils/SecureCredentialStore.dart';
 import '../../utils/ExternalLaunchUtil.dart';
@@ -320,7 +318,8 @@ class HomePageState extends State<HomePage> {
     // 同步入口的线路 + 统计（与「系统」hub 页共享同一份状态；重复调用幂等）
     SyncRouteNotifier.instance.addListener(_onSyncRouteChanged);
     widget.activeTask.addListener(_onSyncRouteChanged);
-    NavigationPreferences.instance.addListener(_onSyncRouteChanged);
+    NavigationPreferences.instance.busyHintListenable
+        .addListener(_onSyncRouteChanged);
     unawaited(AppModePreferences.instance.load());
     SyncRouteNotifier.instance.ensureLoaded();
     CommunityAvatarStore.instance.addListener(_pushDesktopProfile);
@@ -485,7 +484,8 @@ class HomePageState extends State<HomePage> {
         .removeListener(_onSearchInteractionChanged);
     SyncRouteNotifier.instance.removeListener(_onSyncRouteChanged);
     widget.activeTask.removeListener(_onSyncRouteChanged);
-    NavigationPreferences.instance.removeListener(_onSyncRouteChanged);
+    NavigationPreferences.instance.busyHintListenable
+        .removeListener(_onSyncRouteChanged);
     _loginStateNotifier.dispose();
     super.dispose();
   }
@@ -683,10 +683,6 @@ class HomePageState extends State<HomePage> {
               const SizedBox(height: 20),
               // 顶层监听保证收藏区跨页面实时刷新。
               _buildFavoriteFeaturesSection(context, favoriteTitles),
-              if (isSimple) ...[
-                const SizedBox(height: 20),
-                _buildSimpleMorePagesSection(context),
-              ],
               if (_isBackgroundInitializing || _isInitializationCompleted) ...[
                 const SizedBox(height: 16),
                 _buildInitializationStatus(context),
@@ -3204,103 +3200,6 @@ class HomePageState extends State<HomePage> {
             ),
           ),
       ],
-    );
-  }
-
-  /// 简洁模式下在首页底部提供「曲库」与「游玩」直达卡片。
-  Widget _buildSimpleMorePagesSection(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
-    final scheme = Theme.of(context).colorScheme;
-    Widget pageCard({
-      required String titleKey,
-      required IconData icon,
-      required VoidCallback? onTap,
-    }) {
-      final tint = AppColors.featureTint(titleKey, brightness);
-      return Expanded(
-        child: AppCard(
-          radius: AppDesignTokens.radiusMedium,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          onTap: onTap,
-          child: Row(
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: tint.background,
-                  borderRadius:
-                      BorderRadius.circular(AppDesignTokens.radiusSmall),
-                ),
-                alignment: Alignment.center,
-                child: Icon(icon, size: 18, color: tint.foreground),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: MarqueeText(
-                  text: context.featureText(titleKey),
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              Icon(
-                Icons.chevron_right_rounded,
-                size: 18,
-                color: scheme.onSurfaceVariant.withValues(alpha: 0.6),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
-          child: Semantics(
-            header: true,
-            child: Text(
-              context.l10n.simpleModeMorePages,
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-            ),
-          ),
-        ),
-        Row(
-          children: [
-            pageCard(
-              titleKey: '曲库',
-              icon: Icons.library_music_rounded,
-              onTap: widget.onLibraryTap,
-            ),
-            const SizedBox(width: AppDesignTokens.cardGap),
-            pageCard(
-              titleKey: '游玩',
-              icon: Icons.sports_esports_rounded,
-              onTap: _openPlayZonePage,
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  void _openPlayZonePage() {
-    FocusManager.instance.primaryFocus?.unfocus();
-    Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (routeContext) => BackgroundPageScaffold(
-          title: routeContext.featureText('游玩'),
-          child: MediaQuery.removePadding(
-            context: routeContext,
-            removeTop: true,
-            child: const PlayZoneHubPage(showHeader: false),
-          ),
-        ),
-      ),
     );
   }
 
