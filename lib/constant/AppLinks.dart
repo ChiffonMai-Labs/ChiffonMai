@@ -20,6 +20,10 @@ class AppLinks {
   static const String simaiFlutterCreditName = 'simai_flutter · Project Fukakai';
   static const String simaiFlutterProjectUrl =
       'https://github.com/Project-Fukakai/simai_flutter';
+  static const String lxnsChartEngineCreditName =
+      '落雪咖啡屋 (@lxns-network/maimai-chart-engine)';
+  static const String lxnsChartEngineProjectUrl =
+      'https://github.com/Lxns-Network/maimai-prober-frontend';
   static const String awmcNetUrl = 'https://net.wmc.pub/';
   static const String awmcNetSettingsUrl = 'https://net.wmc.pub/settings';
 

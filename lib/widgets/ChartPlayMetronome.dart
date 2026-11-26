@@ -161,6 +161,7 @@ class ChartPlayMetronome extends StatefulWidget {
     required this.soundEnabled,
     required this.onEnabledChanged,
     required this.onSoundChanged,
+    this.speed = 1.0,
   });
 
   final SimaiPlayerController controller;
@@ -168,6 +169,9 @@ class ChartPlayMetronome extends StatefulWidget {
   final bool soundEnabled;
   final ValueChanged<bool> onEnabledChanged;
   final ValueChanged<bool> onSoundChanged;
+
+  /// 节拍器轨道滚动流速倍率（合理范围 0.5 ~ 3.0，默认 1.0）。
+  final double speed;
 
   @override
   State<ChartPlayMetronome> createState() => _ChartPlayMetronomeState();
@@ -266,7 +270,8 @@ class _ChartPlayMetronomeState extends State<ChartPlayMetronome>
   void _listen(SimaiPlayerController controller) {
     _wasPlaying = false;
     _lastChartTime = null;
-    _bpm = _timeline.bpmAt(controller.timeNotifier.value);
+    final rawBpm = _timeline.bpmAt(controller.timeNotifier.value);
+    _bpm = rawBpm == null ? null : rawBpm * controller.playbackRate;
     controller.timeNotifier.addListener(_updatePlayback);
     controller.addListener(_updatePlayback);
   }
@@ -280,7 +285,8 @@ class _ChartPlayMetronomeState extends State<ChartPlayMetronome>
     final controller = widget.controller;
     final time = controller.timeNotifier.value;
     if (!time.isFinite) return;
-    final bpm = _timeline.bpmAt(time);
+    final rawBpm = _timeline.bpmAt(time);
+    final bpm = rawBpm == null ? null : rawBpm * controller.playbackRate;
     final now = _clock.elapsedMicroseconds;
     final previousTime = _lastChartTime;
     final playing = _canPlay;
@@ -426,6 +432,13 @@ class _ChartPlayMetronomeState extends State<ChartPlayMetronome>
     return _labelLayout = (labels: labels, edgePadding: edgePadding);
   }
 
+  static String _formatDisplayBpm(double bpm) {
+    final rounded = (bpm * 10).roundToDouble() / 10.0;
+    return (rounded - rounded.roundToDouble()).abs() < 1e-6
+        ? rounded.round().toString()
+        : rounded.toStringAsFixed(1);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
@@ -483,7 +496,7 @@ class _ChartPlayMetronomeState extends State<ChartPlayMetronome>
                     fit: BoxFit.scaleDown,
                     alignment: AlignmentDirectional.centerEnd,
                     child: Text(
-                      'BPM ${bpm.toStringAsFixed(bpm == bpm.roundToDouble() ? 0 : 1)}',
+                      'BPM ${_formatDisplayBpm(bpm)}',
                       style: AppTheme.number(
                         fontSize: 13,
                         color: scheme.onSurfaceVariant,
@@ -520,6 +533,7 @@ class _ChartPlayMetronomeState extends State<ChartPlayMetronome>
                   frames: _frames,
                   scheme: scheme,
                   layoutLabels: _layoutLabels,
+                  speed: widget.speed,
                 ),
               ),
             ),
@@ -536,6 +550,7 @@ class _RhythmTrackPainter extends CustomPainter {
     required this.frames,
     required this.scheme,
     required this.layoutLabels,
+    required this.speed,
   }) : super(repaint: Listenable.merge([frames, controller.timeNotifier]));
 
   final _RhythmTimeline timeline;
@@ -543,6 +558,14 @@ class _RhythmTrackPainter extends CustomPainter {
   final AnimationController frames;
   final ColorScheme scheme;
   final _RhythmLabelLayout Function(double) layoutLabels;
+  final double speed;
+
+  // 复用静态画笔实例，消除 120Hz 重绘时每帧新建 3 个 Paint 的堆分配。
+  final Paint _notePaint = Paint();
+  final Paint _guidePaint = Paint()..strokeWidth = 1;
+  final Paint _headPaint = Paint()
+    ..strokeWidth = 1.4
+    ..style = PaintingStyle.stroke;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -552,11 +575,10 @@ class _RhythmTrackPainter extends CustomPainter {
     if (!time.isFinite || size.width < 32) return;
     const noteY = 23.0;
     final headX = math.min(36.0, size.width * 0.14);
-    final scale = (size.width - headX) / 2.1;
-    final paint = Paint();
-    final guide = Paint()
-      ..color = scheme.outlineVariant
-      ..strokeWidth = 1;
+    final safeSpeed = speed.isFinite ? speed.clamp(0.5, 3.0).toDouble() : 1.0;
+    final scale = (size.width - headX) * safeSpeed / 2.1;
+    final paint = _notePaint..style = PaintingStyle.fill;
+    final guide = _guidePaint..color = scheme.outlineVariant;
     canvas.save();
     canvas.clipRect(Offset.zero & size);
     canvas.drawLine(const Offset(0, noteY), Offset(size.width, noteY), guide);
@@ -604,10 +626,8 @@ class _RhythmTrackPainter extends CustomPainter {
         );
       }
     }
-    final headPaint = Paint()
-      ..color = hit ? scheme.primary : scheme.onSurfaceVariant
-      ..strokeWidth = 1.4
-      ..style = PaintingStyle.stroke;
+    final headPaint = _headPaint
+      ..color = hit ? scheme.primary : scheme.onSurfaceVariant;
     canvas.drawLine(Offset(headX, 8), Offset(headX, 38), headPaint);
     canvas.drawCircle(Offset(headX, noteY), 9, headPaint);
     canvas.restore();
@@ -618,5 +638,6 @@ class _RhythmTrackPainter extends CustomPainter {
       timeline != oldDelegate.timeline ||
       controller != oldDelegate.controller ||
       scheme != oldDelegate.scheme ||
-      layoutLabels != oldDelegate.layoutLabels;
+      layoutLabels != oldDelegate.layoutLabels ||
+      speed != oldDelegate.speed;
 }

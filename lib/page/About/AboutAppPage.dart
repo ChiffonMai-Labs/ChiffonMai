@@ -255,7 +255,14 @@ class _AboutAppPageState extends State<AboutAppPage> {
                             _buildCreditGroup(
                               title: context.l10n.flowDesignInspiration,
                               icon: Icons.lightbulb_outline_rounded,
-                              credits: _designCredits,
+                              credits: [
+                                ..._designCredits,
+                                _Credit(
+                                  AppLinks.lxnsChartEngineCreditName,
+                                  context.l10n.lxnsNoteStyleCreditDetails,
+                                  AppLinks.lxnsChartEngineProjectUrl,
+                                ),
+                              ],
                               personal: false,
                             ),
                             const SizedBox(height: 28),

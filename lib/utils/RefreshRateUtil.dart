@@ -66,4 +66,22 @@ class RefreshRateUtil {
       return null;
     }
   }
+
+  /// 开启或关闭横屏游玩时的左右边缘系统返回手势保护（仅 Android 生效）。
+  ///
+  /// 开启后会在左右边缘中段设置系统手势排除区域，降低滑星贴边误触侧滑返回
+  /// 触发取消事件的概率；退出游玩时务必传 `false` 清空。
+  static Future<void> setGameplayEdgeProtection(bool enabled) async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _channel.invokeMethod<void>(
+        'setGameplayEdgeProtection',
+        {'enabled': enabled},
+      );
+    } on MissingPluginException {
+      debugPrint('[RefreshRate] 边沿手势保护通道不存在，忽略');
+    } catch (e) {
+      debugPrint('[RefreshRate] 设置边沿手势保护($enabled)失败: $e');
+    }
+  }
 }

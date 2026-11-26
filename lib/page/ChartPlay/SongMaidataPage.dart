@@ -53,6 +53,7 @@ class SongMaidataPage extends StatefulWidget {
 class _SongMaidataPageState extends State<SongMaidataPage> {
   bool _isLoading = true;
   bool _isExporting = false;
+  bool _openingChartPlayback = false;
   String _maidataContent = '';
   String? _errorMessage;
   AppError? _loadError;
@@ -553,13 +554,19 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
     }
   }
 
-  void _navigateToChartPlay() {
-    showChartPlayback(
-      context,
-      song: _service,
-      content: _maidataContent,
-      inotes: _inoteList,
-    );
+  Future<void> _navigateToChartPlay() async {
+    if (_openingChartPlayback || _maidataContent.isEmpty) return;
+    _openingChartPlayback = true;
+    try {
+      await showChartPlayback(
+        context,
+        song: _service,
+        content: _maidataContent,
+        inotes: _inoteList,
+      );
+    } finally {
+      _openingChartPlayback = false;
+    }
   }
 
   String _getInoteDifficulty(String inote) =>

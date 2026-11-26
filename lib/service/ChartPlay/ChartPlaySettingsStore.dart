@@ -10,20 +10,25 @@ import 'package:simai_flutter/simai_flutter.dart';
 /// 避免在创建控制器前读取整份设置时产生耦合。
 class ChartPlayAudioPreference {
   static const String _key = 'chart_play_load_audio';
+  static bool? _cached;
 
   static Future<bool> load() async {
+    if (_cached != null) return _cached!;
     try {
       final prefs = await SharedPreferences.getInstance();
-      return prefs.getBool(_key) ?? true;
+      // 若读取落盘期间用户已通过 save() 改过值，则保留最新内存值。
+      return _cached ??= prefs.getBool(_key) ?? true;
     } catch (_) {
-      return true;
+      return _cached ?? true;
     }
   }
 
   static Future<void> save(bool value) async {
+    _cached = value;
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_key, value);
+      // 落盘始终写入最新内存值，防止快点切换时旧写入覆盖新值。
+      await prefs.setBool(_key, _cached ?? value);
     } catch (e) {
       debugPrint('[ChartPlayAudioPreference] 保存失败: $e');
     }
@@ -33,20 +38,25 @@ class ChartPlayAudioPreference {
 /// 播放前“加载 PV 背景”选项的记忆化。
 class ChartPlayPvPreference {
   static const String _key = 'chart_play_load_pv';
+  static bool? _cached;
 
   static Future<bool> load() async {
+    if (_cached != null) return _cached!;
     try {
       final prefs = await SharedPreferences.getInstance();
-      return prefs.getBool(_key) ?? true;
+      // 若读取落盘期间用户已通过 save() 改过值，则保留最新内存值。
+      return _cached ??= prefs.getBool(_key) ?? true;
     } catch (_) {
-      return true;
+      return _cached ?? true;
     }
   }
 
   static Future<void> save(bool value) async {
+    _cached = value;
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_key, value);
+      // 落盘始终写入最新内存值，防止快点切换时旧写入覆盖新值。
+      await prefs.setBool(_key, _cached ?? value);
     } catch (e) {
       debugPrint('[ChartPlayPvPreference] 保存失败: $e');
     }
@@ -62,6 +72,7 @@ class ChartPlaySettings {
   // ---- 显示设置 ----
   final SimaiMirrorMode mirrorMode;
   final SimaiBackgroundMode backgroundMode;
+  final double backgroundOpacity;
   final double speed;
   final double playbackRate;
   final bool rotateSlideStar;
@@ -69,12 +80,15 @@ class ChartPlaySettings {
   final bool standardBreakSlide;
   final bool showApproachLine;
   final bool showHitEffects;
+  final SimaiNoteStyle noteStyle;
   final SimaiCenterDisplayMode centerDisplayMode;
+  final SimaiCenterDisplayMode topRightDisplayMode;
   final bool showAchievementRate;
   final bool highlightExNotes;
   final bool showCornerInfo;
   final bool showDetailedPerformanceInfo;
   final bool metronomeEnabled;
+  final double metronomeSpeed;
 
   // ---- 音频设置 ----
   final bool hitSoundEnabled;
@@ -89,6 +103,8 @@ class ChartPlaySettings {
   const ChartPlaySettings({
     this.mirrorMode = SimaiMirrorMode.none,
     this.backgroundMode = SimaiBackgroundMode.judgeLine,
+    // 与 SimaiGame.defaultBackgroundOpacity 保持一致。
+    this.backgroundOpacity = 0.35,
     this.speed = 8.0,
     this.playbackRate = 1.0,
     this.rotateSlideStar = true,
@@ -96,12 +112,15 @@ class ChartPlaySettings {
     this.standardBreakSlide = false,
     this.showApproachLine = true,
     this.showHitEffects = true,
-    this.centerDisplayMode = SimaiCenterDisplayMode.achievement,
+    this.noteStyle = SimaiNoteStyle.arcade,
+    this.centerDisplayMode = SimaiCenterDisplayMode.achievementAdd,
+    this.topRightDisplayMode = SimaiCenterDisplayMode.combo,
     this.showAchievementRate = true,
     this.highlightExNotes = true,
     this.showCornerInfo = true,
     this.showDetailedPerformanceInfo = false,
     this.metronomeEnabled = true,
+    this.metronomeSpeed = 1.0,
     this.hitSoundEnabled = false,
     this.metronomeSoundEnabled = false,
     this.musicVolume = 0.8,
@@ -115,11 +134,16 @@ class ChartPlaySettings {
   factory ChartPlaySettings.capture(
     SimaiPlayerController c, {
     bool metronomeEnabled = true,
+    double metronomeSpeed = 1.0,
     bool metronomeSoundEnabled = false,
   }) {
+    final safeMetronomeSpeed = metronomeSpeed.isFinite
+        ? metronomeSpeed.clamp(0.5, 3.0).toDouble()
+        : 1.0;
     return ChartPlaySettings(
       mirrorMode: c.mirrorMode,
       backgroundMode: c.backgroundMode,
+      backgroundOpacity: c.backgroundOpacity,
       speed: c.speed,
       playbackRate: c.playbackRate,
       rotateSlideStar: c.rotateSlideStar,
@@ -127,12 +151,15 @@ class ChartPlaySettings {
       standardBreakSlide: c.standardBreakSlide,
       showApproachLine: c.showApproachLine,
       showHitEffects: c.showHitEffects,
+      noteStyle: c.noteStyle,
       centerDisplayMode: c.centerDisplayMode,
+      topRightDisplayMode: c.topRightDisplayMode,
       showAchievementRate: c.showAchievementRate,
       highlightExNotes: c.highlightExNotes,
       showCornerInfo: c.showCornerInfo,
       showDetailedPerformanceInfo: c.showDetailedPerformanceInfo,
       metronomeEnabled: metronomeEnabled,
+      metronomeSpeed: safeMetronomeSpeed,
       hitSoundEnabled: c.hitSoundEnabled,
       metronomeSoundEnabled: metronomeSoundEnabled,
       musicVolume: c.musicVolume,
@@ -149,6 +176,7 @@ class ChartPlaySettings {
   void apply(SimaiPlayerController c) {
     c.mirrorMode = mirrorMode;
     c.backgroundMode = backgroundMode;
+    c.backgroundOpacity = backgroundOpacity;
     c.speed = speed;
     c.playbackRate = playbackRate;
     c.rotateSlideStar = rotateSlideStar;
@@ -156,7 +184,9 @@ class ChartPlaySettings {
     c.standardBreakSlide = standardBreakSlide;
     c.showApproachLine = showApproachLine;
     c.showHitEffects = showHitEffects;
+    c.noteStyle = noteStyle;
     c.centerDisplayMode = centerDisplayMode;
+    c.topRightDisplayMode = topRightDisplayMode;
     c.showAchievementRate = showAchievementRate;
     c.highlightExNotes = highlightExNotes;
     c.showCornerInfo = showCornerInfo;
@@ -172,6 +202,7 @@ class ChartPlaySettings {
   Map<String, dynamic> toJson() => {
         'mirrorMode': mirrorMode.name,
         'backgroundMode': backgroundMode.name,
+        'backgroundOpacity': backgroundOpacity,
         'speed': speed,
         'playbackRate': playbackRate,
         'rotateSlideStar': rotateSlideStar,
@@ -179,12 +210,15 @@ class ChartPlaySettings {
         'standardBreakSlide': standardBreakSlide,
         'showApproachLine': showApproachLine,
         'showHitEffects': showHitEffects,
+        'noteStyle': noteStyle.name,
         'centerDisplayMode': centerDisplayMode.name,
+        'topRightDisplayMode': topRightDisplayMode.name,
         'showAchievementRate': showAchievementRate,
         'highlightExNotes': highlightExNotes,
         'showCornerInfo': showCornerInfo,
         'showDetailedPerformanceInfo': showDetailedPerformanceInfo,
         'metronomeEnabled': metronomeEnabled,
+        'metronomeSpeed': metronomeSpeed,
         'hitSoundEnabled': hitSoundEnabled,
         'metronomeSoundEnabled': metronomeSoundEnabled,
         'musicVolume': musicVolume,
@@ -205,6 +239,8 @@ class ChartPlaySettings {
           SimaiMirrorMode.values, json['mirrorMode'], fallback.mirrorMode),
       backgroundMode: _enumByName(SimaiBackgroundMode.values,
           json['backgroundMode'], fallback.backgroundMode),
+      backgroundOpacity: _clampDouble(
+          json['backgroundOpacity'], 0.0, 1.0, fallback.backgroundOpacity),
       speed: _clampDouble(json['speed'], 3.0, 9.0, fallback.speed),
       playbackRate:
           _clampDouble(json['playbackRate'], 0.1, 3.0, fallback.playbackRate),
@@ -215,8 +251,18 @@ class ChartPlaySettings {
       showApproachLine:
           _bool(json['showApproachLine'], fallback.showApproachLine),
       showHitEffects: _bool(json['showHitEffects'], fallback.showHitEffects),
-      centerDisplayMode: _enumByName(SimaiCenterDisplayMode.values,
-          json['centerDisplayMode'], fallback.centerDisplayMode),
+      noteStyle: SimaiNoteStyle.fromName(
+        json['noteStyle'],
+        fallback: fallback.noteStyle,
+      ),
+      centerDisplayMode: SimaiCenterDisplayMode.fromNameOrLegacy(
+        json['centerDisplayMode'],
+        fallback: fallback.centerDisplayMode,
+      ),
+      topRightDisplayMode: SimaiCenterDisplayMode.fromNameOrLegacy(
+        json['topRightDisplayMode'],
+        fallback: fallback.topRightDisplayMode,
+      ),
       showAchievementRate:
           _bool(json['showAchievementRate'], fallback.showAchievementRate),
       highlightExNotes:
@@ -226,13 +272,15 @@ class ChartPlaySettings {
           fallback.showDetailedPerformanceInfo),
       metronomeEnabled:
           _bool(json['metronomeEnabled'], fallback.metronomeEnabled),
+      metronomeSpeed: _clampDouble(
+          json['metronomeSpeed'], 0.5, 3.0, fallback.metronomeSpeed),
       hitSoundEnabled: _bool(json['hitSoundEnabled'], fallback.hitSoundEnabled),
       metronomeSoundEnabled:
           _bool(json['metronomeSoundEnabled'], fallback.metronomeSoundEnabled),
       musicVolume:
           _clampDouble(json['musicVolume'], 0.0, 1.0, fallback.musicVolume),
-      hitSoundVolume: _clampDouble(
-          json['hitSoundVolume'], 0.0, 1.0, fallback.hitSoundVolume),
+      hitSoundVolume: _clampDouble(json['hitSoundVolume'], 0.0,
+          simaiMaxHitSoundVolume, fallback.hitSoundVolume),
       musicOffsetMs:
           _clampInt(json['musicOffsetMs'], -2000, 2000, fallback.musicOffsetMs),
       hitSoundOffsetMs: _clampInt(
@@ -356,6 +404,7 @@ class ChartPlaySettingsStore {
     await save(ChartPlaySettings.capture(
       controller,
       metronomeEnabled: _settings.metronomeEnabled,
+      metronomeSpeed: _settings.metronomeSpeed,
       metronomeSoundEnabled: _settings.metronomeSoundEnabled,
     ));
   }
@@ -470,7 +519,9 @@ class ChartVideoExportSettingsStore {
         'standardBreakSlide': s.standardBreakSlide,
         'showApproachLine': s.showApproachLine,
         'showHitEffects': s.showHitEffects,
+        'noteStyle': s.noteStyle.name,
         'centerDisplayMode': s.centerDisplayMode.name,
+        'topRightDisplayMode': s.topRightDisplayMode.name,
         'showAchievementRate': s.showAchievementRate,
         'highlightExNotes': s.highlightExNotes,
         'showCornerInfo': s.showCornerInfo,
@@ -504,10 +555,18 @@ class ChartVideoExportSettingsStore {
           json['showApproachLine'], fallback.showApproachLine),
       showHitEffects: ChartPlaySettings._bool(
           json['showHitEffects'], fallback.showHitEffects),
-      centerDisplayMode: ChartPlaySettings._enumByName(
-          SimaiCenterDisplayMode.values,
-          json['centerDisplayMode'],
-          fallback.centerDisplayMode),
+      noteStyle: SimaiNoteStyle.fromName(
+        json['noteStyle'],
+        fallback: fallback.noteStyle,
+      ),
+      centerDisplayMode: SimaiCenterDisplayMode.fromNameOrLegacy(
+        json['centerDisplayMode'],
+        fallback: fallback.centerDisplayMode,
+      ),
+      topRightDisplayMode: SimaiCenterDisplayMode.fromNameOrLegacy(
+        json['topRightDisplayMode'],
+        fallback: fallback.topRightDisplayMode,
+      ),
       showAchievementRate: ChartPlaySettings._bool(
           json['showAchievementRate'], fallback.showAchievementRate),
       highlightExNotes: ChartPlaySettings._bool(
@@ -526,5 +585,106 @@ class ChartVideoExportSettingsStore {
       hitSoundOffsetMs: ChartPlaySettings._clampInt(
           json['hitSoundOffsetMs'], -200, 200, fallback.hitSoundOffsetMs),
     );
+  }
+}
+
+/// 游玩模式配置的本地持久化。
+///
+/// 首次未保存过时 [savedSettings] 返回 null，使播放页从当前预览控制器继承核心参数；
+/// 一旦用户在游玩设置或结算校准中修改任意选项，后续再次进入均恢复上次配置。
+class ChartGameplaySettingsStore {
+  static final ChartGameplaySettingsStore _instance =
+      ChartGameplaySettingsStore._internal();
+  factory ChartGameplaySettingsStore() => _instance;
+  ChartGameplaySettingsStore._internal();
+
+  static const String _key = 'chart_gameplay_settings_v1';
+
+  SimaiGameplaySettings? _settings;
+  bool _loaded = false;
+  Future<SimaiGameplaySettings?>? _loading;
+  int _loadGen = 0;
+
+  SimaiGameplaySettings? get savedSettings => _settings;
+
+  bool get isLoaded => _loaded;
+
+  /// 从本地读取。可重复调用，并发调用会复用同一个 Future。
+  Future<SimaiGameplaySettings?> load() {
+    if (_loaded) return Future.value(_settings);
+    return _loading ??= _doLoad();
+  }
+
+  Future<SimaiGameplaySettings?> _doLoad() async {
+    final gen = ++_loadGen;
+    SimaiGameplaySettings? loaded;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (gen != _loadGen) return _settings;
+      final raw = prefs.getString(_key);
+      if (raw != null && raw.isNotEmpty) {
+        final decoded = json.decode(raw);
+        if (decoded is Map<String, dynamic>) {
+          loaded = SimaiGameplaySettings.fromJson(decoded);
+        } else if (decoded is Map) {
+          loaded = SimaiGameplaySettings.fromJson(
+            Map<String, dynamic>.from(decoded),
+          );
+        }
+      }
+    } catch (e) {
+      if (gen != _loadGen) return _settings;
+      debugPrint('[ChartGameplaySettings] 读取失败，使用默认继承: $e');
+      loaded = null;
+    }
+    if (gen != _loadGen) return _settings;
+    _settings = loaded;
+    _loaded = true;
+    _loading = null;
+    return _settings;
+  }
+
+  /// 强制重新从本地读取（用于「导入备份」后让新设置立刻生效）。
+  Future<SimaiGameplaySettings?> reload() {
+    _loadGen++;
+    _loaded = false;
+    _loading = null;
+    _settings = null;
+    return load();
+  }
+
+  /// 同步记入内存，避免防抖写盘前退出或重建丢失最新修改。
+  void remember(SimaiGameplaySettings settings) {
+    _loadGen++;
+    _settings = settings.normalized();
+    _loaded = true;
+    _loading = null;
+  }
+
+  /// 把内存中的当前值写盘。
+  Future<void> persist() async {
+    final current = _settings;
+    if (current == null) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_key, json.encode(current.toJson()));
+    } catch (e) {
+      debugPrint('[ChartGameplaySettings] 保存失败: $e');
+    }
+  }
+
+  Future<void> saveNow() => persist();
+
+  Future<void> reset() async {
+    _loadGen++;
+    _settings = null;
+    _loaded = true;
+    _loading = null;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_key);
+    } catch (e) {
+      debugPrint('[ChartGameplaySettings] 重置失败: $e');
+    }
   }
 }

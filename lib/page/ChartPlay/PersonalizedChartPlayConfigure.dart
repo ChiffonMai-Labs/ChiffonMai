@@ -207,6 +207,7 @@ class _PersonalizedChartPlayConfigureState
   String? _bgImagePath; // 已复制到应用内部目录的路径
   String? _audioFilePath; // 已复制到应用内部目录的路径
   bool _loadAudio = true;
+  bool _loadAudioTouched = false;
   List<String> _inoteList = [];
   Directory? _workDir;
 
@@ -228,7 +229,8 @@ class _PersonalizedChartPlayConfigureState
 
   Future<void> _loadAudioPreference() async {
     final value = await ChartPlayAudioPreference.load();
-    if (mounted) setState(() => _loadAudio = value);
+    // 防止异步偏好回调覆盖用户已手动修改的开关状态。
+    if (mounted && !_loadAudioTouched) setState(() => _loadAudio = value);
   }
 
   Future<void> _loadHistory() async {
@@ -712,6 +714,7 @@ class _PersonalizedChartPlayConfigureState
     final songTitle = MaidataDecodeUtil.quickExtractTitle(_maidataContent!) ??
         context.l10n.flowCustomChart2;
 
+    Future<void>? pendingAudioSave;
     final choice = await showChartDifficultyDialog(
       context,
       songTitle: songTitle,
@@ -721,13 +724,21 @@ class _PersonalizedChartPlayConfigureState
       colorBuilder: (_, inote) => Color(inoteColorMap[inote] ?? 0xFF9E9E9E),
       initialLoadAudio: _loadAudio,
       onLoadAudioChanged: (value) {
+        _loadAudioTouched = true;
         _loadAudio = value;
-        ChartPlayAudioPreference.save(value);
+        pendingAudioSave = ChartPlayAudioPreference.save(value);
       },
       showPvOption: false,
       showCredit: false,
     );
+    if (pendingAudioSave != null) {
+      await pendingAudioSave;
+    }
     if (choice == null || !mounted) return;
+    final hasLocalAudio =
+        _audioFilePath != null && _audioFilePath!.trim().isNotEmpty;
+    // 本地谱面未选择音频文件时关闭音频加载，避免远端误查 custom。
+    final shouldLoadAudio = choice.loadAudio && hasLocalAudio;
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -738,8 +749,8 @@ class _PersonalizedChartPlayConfigureState
           songType: 'custom',
           selectedInote: choice.inote,
           bgImagePath: _bgImagePath,
-          audioFilePath: choice.loadAudio ? _audioFilePath : null,
-          loadAudio: choice.loadAudio,
+          audioFilePath: shouldLoadAudio ? _audioFilePath : null,
+          loadAudio: shouldLoadAudio,
         ),
       ),
     );
