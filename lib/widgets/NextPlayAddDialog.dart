@@ -2,7 +2,7 @@ import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 
-import '../service/NextPlayQueueStore.dart';
+import '../service/Attendance/NextPlayQueueStore.dart';
 import '../utils/AppTheme.dart';
 import '../widgets/AppDialogs.dart';
 import '../utils/AppDesignTokens.dart';

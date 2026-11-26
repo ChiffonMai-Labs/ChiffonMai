@@ -6,7 +6,7 @@ import 'package:my_first_flutter_app/utils/CoverUtil.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/UserPlayDataManager.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.dart';
 import 'package:my_first_flutter_app/entity/DivingFish/Song.dart';
-import 'package:my_first_flutter_app/page/SongInfoPage.dart';
+import 'package:my_first_flutter_app/page/song_info/SongInfoPage.dart';
 import 'package:my_first_flutter_app/widgets/BackgroundPageScaffold.dart';
 import '../../service/RankTable/RankCompletionStore.dart';
 import '../../widgets/EmptyState.dart';

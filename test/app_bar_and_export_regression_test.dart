@@ -54,7 +54,7 @@ void main() {
     });
 
     test('导出走固定后缀（不再读任何可变量）', () {
-      final src = _read('lib/service/FavoriteTransferService.dart');
+      final src = _read('lib/service/Favorite/FavoriteTransferService.dart');
       expect(
           src.contains(r'${ExportSettings.favoriteExtensionWithDot}'), isTrue,
           reason: '文件名后缀必须来自固定常量');
@@ -63,7 +63,8 @@ void main() {
     });
 
     test('导入仍然按内容识别、不按后缀过滤（老备份要能导回来）', () {
-      final transfer = _read('lib/service/FavoriteTransferService.dart');
+      final transfer =
+          _read('lib/service/Favorite/FavoriteTransferService.dart');
       expect(transfer.contains('FileType.any'), isTrue,
           reason: '限定后缀会让用户以前的自定义后缀备份选不中');
       expect(transfer.contains('chiffonmai.favorites'), isTrue,
@@ -71,7 +72,7 @@ void main() {
     });
 
     test('设置页不再提供后缀输入框，只展示固定值', () {
-      final src = _read('lib/page/SettingsPage.dart');
+      final src = _read('lib/page/System/SettingsPage.dart');
       expect(src.contains('_favExtController'), isFalse, reason: '输入框已移除');
       expect(src.contains('_saveFavExtension'), isFalse);
       expect(src.contains('ExportSettings.favoriteExtensionWithDot'), isTrue,
@@ -111,7 +112,7 @@ void main() {
     });
 
     test('歌曲详情页的标题也不再单独放大', () {
-      final src = _read('lib/page/SongInfoPage.dart');
+      final src = _read('lib/page/song_info/SongInfoPage.dart');
       final idx = src.indexOf("AppHeader(\n                title: '歌曲详情'");
       expect(idx, greaterThan(0), reason: '找不到歌曲详情页的标题栏');
       // 标题栏参数区里不该再有 fontSize: 24

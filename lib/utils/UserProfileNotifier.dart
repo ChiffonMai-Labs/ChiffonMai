@@ -5,7 +5,7 @@ import '../constant/CacheKeyConstant.dart';
 import 'SecureCredentialStore.dart';
 import 'DivingFishMaskStatus.dart';
 import 'CurrentDataSourceNotifier.dart';
-import '../service/AccountSwitchService.dart';
+import '../service/Account/AccountSwitchService.dart';
 
 /// 未登录 / 未写入昵称时显示的占位文案：
 /// `displayNickname` 工具方法使用，便于首页 / 我的页等保持一致。

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 
 import '../../service/AWMC/AwmcQrSyncService.dart';
-import '../../service/SyncStatsService.dart';
+import '../../service/Sync/SyncStatsService.dart';
 import '../../widgets/RefreshDataDialog.dart'
     show RefreshDataRequest, RefreshDataSource;
 import '../../widgets/SyncDialogUi.dart';

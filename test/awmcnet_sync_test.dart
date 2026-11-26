@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:my_first_flutter_app/page/AwmcNet/AwmcNetSyncFlow.dart';
-import 'package:my_first_flutter_app/service/AwmcNetScoreUploadService.dart';
+import 'package:my_first_flutter_app/service/Sync/AwmcNetScoreUploadService.dart';
 
 /// AWMC NET「同步成绩到 AWMC NET」的响应解析与错误映射。
 ///

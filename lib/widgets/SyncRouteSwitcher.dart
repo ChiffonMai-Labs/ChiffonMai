@@ -3,7 +3,7 @@ import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'AnimatedChoiceBar.dart';
 import 'package:flutter/material.dart';
 
-import '../service/SyncRouteStore.dart';
+import '../service/Sync/SyncRouteStore.dart';
 
 /// 「同步成绩」的线路切换器：**线路1 AWMC 网关**（机台二维码 + 用户平台凭据，
 /// 开发者令牌由服务端代理注入）/ **线路2 maimai Score Hub**（原有流程，走 maimai.bakapiano.com）。

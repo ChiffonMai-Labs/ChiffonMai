@@ -6,10 +6,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
-import '../../service/AccountStore.dart';
+import '../../service/Account/AccountStore.dart';
 import '../../service/History/ChartHistoryStore.dart';
 import '../../service/History/ScoreImprovementCore.dart';
-import '../../service/SongSearchService.dart';
+import '../../service/Library/SongSearchService.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../utils/AppTheme.dart';
 import '../../utils/CurrentDataSourceNotifier.dart';
@@ -26,7 +26,7 @@ import '../../widgets/AppToast.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/ScoreImprovementCard.dart';
 import '../../widgets/SongSearchEntry.dart';
-import '../SongInfoPage.dart';
+import '../song_info/SongInfoPage.dart';
 import '../../widgets/AppDialogs.dart';
 
 enum _GrowthPeriod { day, week, month, year }

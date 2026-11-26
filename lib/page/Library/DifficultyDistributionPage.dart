@@ -1,0 +1,495 @@
+import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
+import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
+import 'package:my_first_flutter_app/widgets/AnimatedChoiceLabel.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/material.dart';
+import '../../entity/DivingFish/Song.dart';
+import '../../entity/DivingFish/UserPlayDataEntity.dart';
+import '../../manager/DivingFish/MaimaiMusicDataManager.dart';
+import '../../manager/DivingFish/UserPlayDataManager.dart';
+import '../../service/Library/DifficultyDistributionService.dart';
+import '../../utils/AppTheme.dart';
+import '../../utils/CoverUtil.dart';
+import '../../utils/StringUtil.dart';
+import '../song_info/SongInfoPage.dart';
+import '../../widgets/BackgroundPageScaffold.dart';
+
+/// 谱面定数分布柱状图页面
+class DifficultyDistributionPage extends StatefulWidget {
+  const DifficultyDistributionPage({super.key});
+
+  @override
+  State<DifficultyDistributionPage> createState() =>
+      _DifficultyDistributionPageState();
+}
+
+class _DifficultyDistributionPageState
+    extends State<DifficultyDistributionPage> {
+  int _selectedLevelIndex = -1;
+  List<DistributionBucket> _buckets = [];
+  final Map<int, List<DistributionBucket>> _distributionCache = {};
+  bool _isLoading = true;
+  int _loadRequest = 0;
+  static const _chartTransitionDuration = Duration(milliseconds: 420);
+  static const _chartTransitionCurve = Curves.easeInOutCubic;
+
+  static const _levelNames = ChartDifficulty.standardLabels;
+  static const _levelColors = [
+    Colors.green,
+    Colors.orange,
+    Colors.red,
+    Colors.purple,
+    Colors.purple,
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    final request = ++_loadRequest;
+    setState(() => _isLoading = true);
+    try {
+      final songs = await MaimaiMusicDataManager().getCachedSongs();
+      if (!mounted || request != _loadRequest) return;
+      if (songs == null || songs.isEmpty) {
+        setState(() => _isLoading = false);
+        return;
+      }
+      UserPlayDataEntity? userData;
+      try {
+        final raw = await UserPlayDataManager().getCachedUserPlayData();
+        if (raw != null) userData = UserPlayDataEntity.fromJson(raw);
+      } catch (_) {}
+      if (!mounted || request != _loadRequest) return;
+      // 一次读取后备好各难度，切换时直接更新图表，避免加载圈销毁动画状态。
+      final distributions = {
+        for (var level = -1; level < _levelNames.length; level++)
+          level: DifficultyDistributionService.calculateDistribution(
+            levelIndex: level,
+            allSongs: songs,
+            userPlayData: userData,
+          ),
+      };
+      if (mounted && request == _loadRequest) {
+        setState(() {
+          _distributionCache
+            ..clear()
+            ..addAll(distributions);
+          _buckets = distributions[_selectedLevelIndex] ?? [];
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('加载定数分布数据失败: $e');
+      if (mounted && request == _loadRequest) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _onLevelChanged(int index) {
+    if (index == _selectedLevelIndex) return;
+    final buckets = _distributionCache[index];
+    setState(() {
+      _selectedLevelIndex = index;
+      if (buckets != null) _buckets = buckets;
+    });
+    if (buckets == null) _loadData();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final brightness = Theme.of(context).brightness;
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    return BackgroundPageScaffold(
+      title: context.l10n.featureChartConstantDistribution,
+      contentPadding: EdgeInsets.only(
+        bottom: MediaQuery.paddingOf(context).bottom,
+      ),
+      child: Column(
+        children: [
+          // 难度分段控件
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildLevelChip(context.l10n.flowAll, -1,
+                      Theme.of(context).colorScheme.primary),
+                  for (int i = 0; i < _levelNames.length; i++)
+                    _buildLevelChip(_levelNames[i], i, _levelColors[i]),
+                ],
+              ),
+            ),
+          ),
+          // 图表区域直接铺在背景上，保留内部留白以维持图表可读性。
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 20, 12, 12),
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _buckets.isEmpty
+                      ? Center(
+                          child: Text(context.l10n.flowNoData,
+                              style: TextStyle(color: textColor)))
+                      : _buildChart(brightness),
+            ),
+          ),
+          // 图例
+          if (!_isLoading && _buckets.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _legendItem(_getBarColor(), context.l10n.flowPlayed),
+                  const SizedBox(width: 20),
+                  _legendItem(AppColors.greyHint(brightness),
+                      context.l10n.flowUnplayed),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _legendItem(Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AnimatedContainer(
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : _chartTransitionDuration,
+          curve: _chartTransitionCurve,
+          width: 14,
+          height: 14,
+          decoration: BoxDecoration(
+              color: color, borderRadius: BorderRadius.circular(3)),
+        ),
+        const SizedBox(width: 4),
+        Text(label, style: const TextStyle(fontSize: 12)),
+      ],
+    );
+  }
+
+  Widget _buildLevelChip(String label, int index, Color color) {
+    final isSelected = _selectedLevelIndex == index;
+    final isReMaster = index == ChartDifficulty.reMaster;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: AnimatedChoiceLabel(
+        label: label,
+        selected: isSelected,
+        selectedColor: isReMaster ? Colors.purple.shade200 : color,
+        unselectedColor: color.withValues(alpha: 0.12),
+        selectedTextColor: Colors.white,
+        unselectedTextColor: color,
+        borderColor: color.withValues(alpha: 0.4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        textStyle: AppTheme.font(fontSize: 12, fontWeight: FontWeight.w600),
+        onTap: () => _onLevelChanged(index),
+      ),
+    );
+  }
+
+  Widget _buildChart(Brightness brightness) {
+    final transitionDuration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : _chartTransitionDuration;
+    final barWidth = 28.0;
+    final count = _buckets.length;
+    // 图表宽度根据柱子数量动态计算，最少填满屏幕
+    final chartWidth = (count * (barWidth + 20) + 60)
+        .clamp(MediaQuery.of(context).size.width - 50, 1200.0);
+
+    final maxY = _buckets
+        .map((b) => b.totalCount.toDouble())
+        .reduce((a, b) => a > b ? a : b);
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: AnimatedContainer(
+        duration: transitionDuration,
+        curve: _chartTransitionCurve,
+        width: chartWidth,
+        child: BarChart(
+          BarChartData(
+            alignment: BarChartAlignment.center,
+            maxY: maxY * 1.12,
+            minY: 0,
+            barGroups: _buckets.asMap().entries.map((entry) {
+              final idx = entry.key;
+              final bucket = entry.value;
+              return BarChartGroupData(
+                x: idx,
+                barRods: [
+                  // 总计（灰色底）
+                  BarChartRodData(
+                    toY: bucket.totalCount.toDouble(),
+                    color: AppColors.greyHint(brightness),
+                    width: barWidth,
+                    borderRadius:
+                        const BorderRadius.vertical(top: Radius.circular(5)),
+                    // 透明背景柱只扩展命中区域，矮柱上方也可以点击。
+                    backDrawRodData: BackgroundBarChartRodData(
+                      show: true,
+                      toY: maxY * 1.12,
+                      color: Colors.transparent,
+                    ),
+                  ),
+                  // 已游玩（彩色柱）
+                  // 保留零高度的已游玩柱，让两种柱形始终一一对应并连续插值。
+                  BarChartRodData(
+                    toY: bucket.playedCount.toDouble(),
+                    color: _getBarColor(),
+                    width: bucket.playedCount > 0 ? barWidth : 0,
+                    borderRadius: bucket.unplayedCount > 0
+                        ? BorderRadius.zero
+                        : const BorderRadius.vertical(top: Radius.circular(5)),
+                    backDrawRodData: BackgroundBarChartRodData(
+                      show: true,
+                      toY: maxY * 1.12,
+                      color: Colors.transparent,
+                    ),
+                  ),
+                ],
+              );
+            }).toList(),
+            titlesData: FlTitlesData(
+              show: true,
+              bottomTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  reservedSize: 32,
+                  interval: 1,
+                  getTitlesWidget: (value, meta) {
+                    final i = value.toInt();
+                    if (i < 0 || i >= _buckets.length) {
+                      return const SizedBox.shrink();
+                    }
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(
+                        _buckets[i].label,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: Theme.of(context).textTheme.bodySmall?.color,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              leftTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  reservedSize: 36,
+                  interval: (maxY / 5).ceilToDouble().clamp(1, double.infinity),
+                  getTitlesWidget: (value, meta) => Text(
+                    value.toInt().toString(),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Theme.of(context).textTheme.bodySmall?.color,
+                    ),
+                  ),
+                ),
+              ),
+              topTitles:
+                  const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              rightTitles:
+                  const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            ),
+            gridData: FlGridData(
+              show: true,
+              horizontalInterval:
+                  (maxY / 6).ceilToDouble().clamp(1, double.infinity),
+              getDrawingHorizontalLine: (value) => FlLine(
+                color: AppColors.tableBorder(brightness).withValues(alpha: 0.4),
+                strokeWidth: 0.5,
+              ),
+            ),
+            borderData: FlBorderData(show: false),
+            barTouchData: BarTouchData(
+              enabled: true,
+              allowTouchBarBackDraw: true,
+              touchExtraThreshold:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              touchTooltipData: BarTouchTooltipData(
+                getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                  if (groupIndex >= _buckets.length) return null;
+                  final bucket = _buckets[groupIndex];
+                  return BarTooltipItem(
+                    context.l10n.flowLvP0P1SongsP2Played(
+                        (bucket.label).toString(),
+                        (bucket.totalCount).toString(),
+                        (bucket.playedCount).toString()),
+                    const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  );
+                },
+              ),
+              touchCallback: (event, response) {
+                if (response?.spot != null && event is FlTapUpEvent) {
+                  final idx = response!.spot!.touchedBarGroupIndex;
+                  if (idx >= 0 && idx < _buckets.length) {
+                    _showBucketDetail(_buckets[idx]);
+                  }
+                }
+              },
+            ),
+          ),
+          duration: transitionDuration,
+          curve: _chartTransitionCurve,
+        ),
+      ),
+    );
+  }
+
+  Color _getBarColor() {
+    if (_selectedLevelIndex == ChartDifficulty.reMaster) {
+      return Colors.purple.shade200;
+    }
+    if (_selectedLevelIndex >= 0 && _selectedLevelIndex < _levelColors.length) {
+      return _levelColors[_selectedLevelIndex];
+    }
+    return Theme.of(context).colorScheme.primary;
+  }
+
+  void _showBucketDetail(DistributionBucket bucket) {
+    final suffix = _selectedLevelIndex >= 0
+        ? ' (${_levelNames[_selectedLevelIndex.clamp(0, 4)]})'
+        : '';
+
+    // ALL 模式下按 song.id 去重，选落在该定数桶范围内的难度
+    final List<_BucketEntry> entries;
+    if (_selectedLevelIndex < 0) {
+      final seen = <String, int>{}; // songId -> dsIdx (matching bucket range)
+      final songMap = <String, Song>{};
+      for (final s in bucket.songs) {
+        songMap[s.id] = s;
+        // 找到落在 bucket.dsMin..bucket.dsMax 范围内的难度
+        for (int idx = 0; idx < s.ds.length; idx++) {
+          if (s.ds[idx] >= bucket.dsMin && s.ds[idx] <= bucket.dsMax) {
+            seen[s.id] = idx;
+            break;
+          }
+        }
+        // 没找到匹配的则保留已有（或默认最高）
+        if (!seen.containsKey(s.id)) {
+          seen[s.id] = s.ds.length - 1;
+        }
+      }
+      entries = seen.entries
+          .map((e) => _BucketEntry(song: songMap[e.key]!, dsIdx: e.value))
+          .toList()
+        ..sort(
+            (a, b) => a.song.basicInfo.title.compareTo(b.song.basicInfo.title));
+    } else {
+      entries = bucket.songs
+          .map((s) => _BucketEntry(
+                song: s,
+                dsIdx: _selectedLevelIndex < s.ds.length
+                    ? _selectedLevelIndex
+                    : (s.ds.length - 1),
+              ))
+          .toList();
+    }
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.5,
+          minChildSize: 0.3,
+          maxChildSize: 0.85,
+          expand: false,
+          builder: (ctx, scrollController) {
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Theme.of(ctx).colorScheme.outlineVariant,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    context.l10n.flowLvP0P1P2Songs((bucket.label).toString(),
+                        (suffix).toString(), (entries.length).toString()),
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                const Divider(),
+                Expanded(
+                  child: ListView.builder(
+                    controller: scrollController,
+                    itemCount: entries.length,
+                    itemBuilder: (_, i) {
+                      final entry = entries[i];
+                      final song = entry.song;
+                      final dsIdx = entry.dsIdx;
+                      return ListTile(
+                        leading: CoverUtil.buildCoverWidgetWithContextRRect(
+                            ctx, song.id, 40),
+                        title: Text(song.basicInfo.title,
+                            style: const TextStyle(fontSize: 14),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis),
+                        subtitle: Text(
+                            '${song.basicInfo.artist} | ${StringUtil.getTypeDisplay(song.type)}',
+                            style: const TextStyle(fontSize: 11)),
+                        trailing: Text(
+                          dsIdx >= 0 ? song.ds[dsIdx].toStringAsFixed(1) : '',
+                          style: const TextStyle(
+                              fontSize: 14, fontWeight: FontWeight.w600),
+                        ),
+                        onTap: () {
+                          Navigator.of(ctx).pop();
+                          Navigator.of(context).push(MaterialPageRoute(
+                            builder: (_) => SongInfoPage(
+                              songId: song.id,
+                              initialLevelIndex: _selectedLevelIndex >= 0
+                                  ? _selectedLevelIndex
+                                  : dsIdx,
+                            ),
+                          ));
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+/// 曲目条目（song + 难度索引）
+class _BucketEntry {
+  final Song song;
+  final int dsIdx;
+  _BucketEntry({required this.song, required this.dsIdx});
+}

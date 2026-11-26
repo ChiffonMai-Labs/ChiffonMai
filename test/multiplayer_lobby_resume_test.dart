@@ -17,7 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:my_first_flutter_app/entity/Multiplayer/RoomEntity.dart';
-import 'package:my_first_flutter_app/manager/MultiplayerManager.dart';
+import 'package:my_first_flutter_app/manager/Multiplayer/MultiplayerManager.dart';
 import 'package:my_first_flutter_app/page/Multiplayer/GameRoomPage.dart';
 import 'package:my_first_flutter_app/page/Multiplayer/MultiplayerLobbyPage.dart';
 

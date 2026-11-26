@@ -17,7 +17,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:my_first_flutter_app/page/History/RatingHistoryPage.dart';
 import 'package:my_first_flutter_app/service/History/ChartHistoryCore.dart';
 import 'package:my_first_flutter_app/service/History/ChartHistoryStore.dart';
-import 'package:my_first_flutter_app/service/SongInfoService.dart';
+import 'package:my_first_flutter_app/service/SongInfo/SongInfoService.dart';
 import 'package:my_first_flutter_app/utils/ScoreInputValidator.dart';
 import 'package:my_first_flutter_app/widgets/AppDialogs.dart';
 

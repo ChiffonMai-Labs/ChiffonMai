@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../entity/FeatureModels.dart';
+import '../entity/Home/FeatureModels.dart';
 import '../l10n/LocalizationsExtension.dart';
 import '../manager/DivingFish/DivingFishOAuthManager.dart';
-import '../manager/DivingFishProbeManager.dart';
+import '../manager/DivingFish/DivingFishProbeManager.dart';
 import '../manager/LuoXue/LuoXueOAuthManager.dart';
-import '../service/AccountAuthorizationStore.dart';
+import '../service/Account/AccountAuthorizationStore.dart';
 import '../service/AWMC/AwmcQuickIdentityStore.dart';
 import '../utils/LoginStateNotifier.dart';
 import '../utils/MaimaiHubLoginNotifier.dart';

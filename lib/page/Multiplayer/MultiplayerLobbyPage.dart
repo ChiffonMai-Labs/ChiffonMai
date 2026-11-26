@@ -3,7 +3,7 @@ import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:my_first_flutter_app/manager/MultiplayerManager.dart';
+import 'package:my_first_flutter_app/manager/Multiplayer/MultiplayerManager.dart';
 import 'package:my_first_flutter_app/page/Multiplayer/RoomCreatePage.dart';
 import 'package:my_first_flutter_app/page/Multiplayer/RoomJoinPage.dart';
 import 'package:my_first_flutter_app/page/Multiplayer/GameRoomPage.dart';

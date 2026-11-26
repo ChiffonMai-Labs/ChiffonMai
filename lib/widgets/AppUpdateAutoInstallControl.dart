@@ -3,8 +3,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../service/AppUpdateAutoInstallSettings.dart';
-import '../service/BackgroundAppUpdateService.dart';
+import '../service/AppUpdate/AppUpdateAutoInstallSettings.dart';
+import '../service/AppUpdate/BackgroundAppUpdateService.dart';
 import 'AppSwitch.dart';
 import 'AppUi.dart';
 

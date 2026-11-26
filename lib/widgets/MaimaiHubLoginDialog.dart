@@ -1,7 +1,7 @@
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 
-import '../manager/DivingFishProbeManager.dart';
+import '../manager/DivingFish/DivingFishProbeManager.dart';
 import '../utils/AppTheme.dart';
 import 'QrQuickFillButtons.dart';
 import '../widgets/AppDialogs.dart';

@@ -7,7 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:my_first_flutter_app/service/AnnouncementService.dart';
+import 'package:my_first_flutter_app/service/About/AnnouncementService.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
 import 'package:my_first_flutter_app/widgets/AnnouncementDialog.dart';
 import 'package:my_first_flutter_app/widgets/AppDialogs.dart';

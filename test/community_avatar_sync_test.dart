@@ -9,7 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:my_first_flutter_app/constant/CacheKeyConstant.dart';
-import 'package:my_first_flutter_app/service/CommunityAvatarStore.dart';
+import 'package:my_first_flutter_app/service/Community/CommunityAvatarStore.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
 
 void main() {

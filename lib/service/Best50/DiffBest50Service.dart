@@ -7,7 +7,7 @@ import '../../manager/DivingFish/MaimaiMusicDataManager.dart';
 import '../../utils/SongFilterUtil.dart';
 import '../../utils/Best50Tie.dart';
 import '../../utils/Best50Order.dart';
-import '../AccountStore.dart';
+import '../Account/AccountStore.dart';
 
 class DiffBest50Service {
   // 单例模式

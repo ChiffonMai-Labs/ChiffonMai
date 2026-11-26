@@ -7,7 +7,7 @@ import 'ExternalLaunchUtil.dart';
 import '../widgets/ErrorMessageDialog.dart';
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
-import '../service/AccountSwitchService.dart';
+import '../service/Account/AccountSwitchService.dart';
 import '../service/RankingList/RankingUploadGuard.dart';
 
 /// 刷新水鱼成绩失败时，统一给用户的交代。

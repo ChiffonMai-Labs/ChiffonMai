@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../service/CommunityAvatarStore.dart';
+import '../service/Community/CommunityAvatarStore.dart';
 
 /// 按落笔顺序描出状态图标；状态不变时不会因页面重建而重播。
 class CommunitySyncStatusIcon extends StatelessWidget {

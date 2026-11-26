@@ -1,0 +1,855 @@
+import 'dart:math' as math;
+
+import 'package:flutter/cupertino.dart' as ios;
+import '../../l10n/FeatureLocalizations.dart';
+import 'package:flutter/material.dart';
+import '../../widgets/AnimatedReveal.dart';
+import '../../widgets/BackgroundPageScaffold.dart';
+import '../../widgets/FavoriteStarButton.dart';
+import '../../widgets/MainNavigationInsets.dart';
+import '../../widgets/SmoothLinearProgressIndicator.dart';
+import '../../utils/AppDesignTokens.dart';
+import '../../utils/AppModePreferences.dart';
+import '../../utils/AppTheme.dart';
+import '../../utils/FavoriteFeaturesNotifier.dart';
+import '../../utils/NavigationPreferences.dart';
+import '../../widgets/MarqueeText.dart';
+
+/// Hub 页面通用组件库：Section、ActionTile、Scaffold。
+/// UI 设计原则：留白克制、平面分组、主题色仅作点缀。
+
+/// 「快捷入口」那种方形小按钮（图标 + 标题 + 副标题）。
+///
+/// ⚠️ 底色与描边**必须**画在自己这层 [Material] 上，不能用 [Ink]：
+/// [Ink] 的 decoration 是交给**最近的 Material**（滚动页里通常是 Scaffold 那层）
+/// 的 ink 层去画的，而那一层在 ListView/Scrollable 的滚动（以及 Android 的
+/// 拉伸回弹 `StretchingOverscrollIndicator`）变换之外 —— 表现就是
+/// 「上下滑动时只有文字被拉伸、按钮不动」。自带一层 Material 后，
+/// 底色、描边、水波纹都在列表内部绘制，跟文字一起动。
+class HubQuickAction extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const HubQuickAction({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: Colors.transparent,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: scheme.outlineVariant),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(10, 15, 10, 13),
+          child: Column(children: [
+            Icon(icon, color: scheme.primary, size: 25),
+            const SizedBox(height: 9),
+            MarqueeText(
+                text: context.featureText(title),
+                style:
+                    const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+            const SizedBox(height: 3),
+            MarqueeText(
+                text: context.featureText(subtitle),
+                style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 10)),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+class HubSection extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  final IconData icon;
+  final List<Widget> children;
+  final int? badgeCount;
+  final Widget? trailing;
+  final EdgeInsetsGeometry contentPadding;
+
+  /// 是否强制使用紧凑样式（隐藏副标题与数量徽章）；为 null 时跟随界面模式。
+  final bool? compact;
+
+  const HubSection({
+    super.key,
+    required this.title,
+    required this.icon,
+    required this.children,
+    this.subtitle,
+    this.badgeCount,
+    this.trailing,
+    this.contentPadding = EdgeInsets.zero,
+    this.compact,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isCompact = compact ?? AppModeScope.isSimpleOf(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ===== Section 标题栏（B 方案：去掉图标徽章，标题 + 数量 + 说明） =====
+        Padding(
+          padding: EdgeInsets.fromLTRB(6, 2, 4, isCompact ? 6 : 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Flexible(
+                          child: Semantics(
+                            header: true,
+                            child: Text(
+                              context.featureText(title),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 15,
+                                    letterSpacing: 0.2,
+                                  ),
+                              overflow: TextOverflow.visible,
+                            ),
+                          ),
+                        ),
+                        if (badgeCount != null && !isCompact) ...[
+                          const SizedBox(width: 6),
+                          Text(
+                            '$badgeCount',
+                            style: AppTheme.number(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    if (subtitle != null && !isCompact) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        context.featureText(subtitle!),
+                        softWrap: true,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: scheme.onSurfaceVariant),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (trailing != null) ...[
+                const SizedBox(width: 8),
+                trailing!,
+              ],
+            ],
+          ),
+        ),
+        // ===== 内容卡片 =====
+        // 白卡片、无描边（B 方案）。用 Material 承载底色，子项的水波纹裁在圆角内。
+        if (Theme.of(context).platform == TargetPlatform.iOS &&
+            children.isNotEmpty)
+          Padding(
+            padding: contentPadding,
+            child: ios.CupertinoListSection.insetGrouped(
+              margin: EdgeInsets.zero,
+              topMargin: 0,
+              backgroundColor: Colors.transparent,
+              decoration: BoxDecoration(
+                color: AppSurfaces.card(context),
+                borderRadius:
+                    BorderRadius.circular(AppDesignTokens.radiusCard),
+              ),
+              dividerMargin: isCompact ? 58 : 66,
+              additionalDividerMargin: 0,
+              separatorColor: scheme.outlineVariant,
+              children: children,
+            ),
+          )
+        else
+          Material(
+            color: AppSurfaces.card(context),
+            clipBehavior: Clip.antiAlias,
+            shape: RoundedRectangleBorder(
+              borderRadius:
+                  BorderRadius.circular(AppDesignTokens.radiusCard),
+            ),
+            child: Padding(
+              padding: contentPadding,
+              child: Column(children: children),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class HubActionTile extends StatelessWidget {
+  final String title;
+
+  /// 可变状态标题，仅用于显示；配色和功能身份仍按 [title]。
+  final String? displayTitle;
+  final String subtitle;
+  final IconData icon;
+  final VoidCallback onTap;
+  final Color? iconColor;
+  final bool dense;
+
+  /// 是否已收藏（为 null 时不显示星标）
+  final bool? isFavorited;
+
+  /// 收藏切换回调
+  final VoidCallback? onToggleFavorite;
+
+  /// 是否处于进行中（刷新 / 同步）。为 true 时：
+  /// trailing 的箭头换成转圈、标题置灰并禁用点击，避免重复触发。
+  final bool loading;
+
+  /// 进行中的状态文案，为空时回落到 [subtitle]。
+  /// 例："正在并行刷新数据... 45%"
+  final String? loadingText;
+
+  /// 仅禁用（不显示 spinner / 不换文案）。用于「别的按钮在跑、暂时不让点」
+  /// 的互斥场景。
+  final bool disabled;
+  final String? disabledReason;
+  final Widget? trailingOverride;
+  final bool sorting;
+
+  /// 处于「待二次确认」状态：标题 / 图标变 error 色（醒目提示），
+  /// 但点击仍生效（onTap 触发父组件的确认逻辑）。5 秒内未再点会自动复位。
+  final bool awaitingConfirm;
+
+  /// 进度计数（与 [loading] 配合使用）。非 null 且 >0 时，
+  /// subtitle 改为「(current / total)」，下方追加一条 SmoothLinearProgressIndicator，
+  /// 用于「曲绘索引构建」「maidata 全量拉取」这类长任务的可视化。
+  final int? progressCurrent;
+  final int? progressTotal;
+
+  /// 百分比任务的进度（0～1）；没有数值的等待阶段显示不定进度。
+  final bool showProgress;
+  final double? progressValue;
+
+  /// 可选：贴在 tile 下方的附加内容（例如「同步成绩」的线路切换器）。
+  /// 它是独立的一行，点击不会触发本 tile 的 [onTap]。
+  final Widget? footer;
+
+  /// [footer] 相对 tile 底边**上提**多少像素（0 = 贴着 tile 底边，默认）。
+  ///
+  /// 为什么需要它：两行 tile 的最小高度是 72px，内容撑不满时底部本来就空着
+  /// 一截（实测副标题下面还有约 23px）。footer 里如果只有一行小字（统计行），
+  /// 那截空白就会变成「离按钮有点远」的观感。
+  ///
+  /// 上提是**只改绘制位置**（`Transform`，命中测试一起走），同时把 footer 自己的
+  /// 底部内边距减掉同样多 —— 所以「footer 到下一个 tile」的间距和整体高度都不变，
+  /// 只有「按钮 ↔ footer」这一段变紧。取值 0~10（底部内边距是 10，再大就贴死了）。
+  final double footerLift;
+
+  /// 可选：完全替换左侧的图标容器。
+  ///
+  /// 默认左侧是「圆角方块 + [icon]」；给「发现新版本」这类需要在图标上做额外
+  /// 装饰（绿色圆环箭头）的场景用。传了它之后 [icon] 只作为语义占位，不再渲染。
+  final Widget? leading;
+
+  /// 可选：标题颜色。默认跟随主题（未禁用时用 `onSurface`）。
+  final Color? titleColor;
+
+  /// 可选：单独调整标题字号。
+  ///
+  /// 不传时按 [titleFontSizeFor] 自动取：长标题 13、其余 [defaultTitleFontSize]。
+  /// 特殊字号只在 [specialTitleFontSizes] 里定义一份，不要在调用点各写各的。
+  final double? titleFontSize;
+
+  /// 默认标题字号。
+  static const double defaultTitleFontSize = 14.5;
+
+  /// 少数长标题的专用字号，避免在窄列里频繁换行。
+  ///
+  /// 首页「收藏的功能」区和各 hub 页显示的是同一个功能，字号必须共用这一份：
+  /// 之前 hub 页单独传 13、收藏区走默认 14.5，同一个标题在两处观感不一致。
+  static const Map<String, double> specialTitleFontSizes = {
+    '登录 maimai Score Hub': 13,
+    '平均DX分数达成率排行榜': 13,
+  };
+
+  static double titleFontSizeFor(String title) =>
+      specialTitleFontSizes[title] ?? defaultTitleFontSize;
+
+  const HubActionTile({
+    super.key,
+    required this.title,
+    this.displayTitle,
+    required this.subtitle,
+    required this.icon,
+    required this.onTap,
+    this.iconColor,
+    this.dense = false,
+    this.isFavorited,
+    this.onToggleFavorite,
+    this.loading = false,
+    this.loadingText,
+    this.disabled = false,
+    this.disabledReason,
+    this.trailingOverride,
+    this.sorting = false,
+    this.awaitingConfirm = false,
+    this.progressCurrent,
+    this.progressTotal,
+    this.showProgress = false,
+    this.progressValue,
+    this.footer,
+    this.footerLift = 0,
+    this.leading,
+    this.titleColor,
+    this.titleFontSize,
+  }) : assert(footerLift >= 0 && footerLift <= 10,
+            'footerLift 只能是 0~10：底部内边距一共就 10，再多就贴死了');
+
+  bool get _showStar => isFavorited != null && onToggleFavorite != null;
+
+  @override
+  Widget build(BuildContext context) {
+    final isSimple = AppModeScope.isSimpleOf(context);
+    final isDense = dense || isSimple;
+    final scheme = Theme.of(context).colorScheme;
+    final apple = Theme.of(context).platform == TargetPlatform.iOS;
+    final bool _isInactive = loading || disabled;
+    // 二次确认态：用 error 色覆盖默认 primary tint，让按钮视觉上"危险"且醒目
+    final Color activeTint =
+        awaitingConfirm ? scheme.error : (iconColor ?? scheme.primary);
+    // 是否进入「带进度条」模式：loading 状态下若给了 progressTotal，
+    // 用 SmoothLinearProgressIndicator + 计数替代默认 spinner/loadingText。
+    final bool _hasProgress =
+        loading && (progressTotal ?? 0) > 0 && progressCurrent != null;
+    final hasProgressBar = loading && (_hasProgress || showProgress);
+    final showSubtitle = !isSimple || loading || hasProgressBar;
+    final effectiveFooterLift = showSubtitle ? footerLift : 0.0;
+    final double iconBoxSize = isSimple ? 34 : 40;
+    final double iconSize = isSimple ? 18 : 20;
+    final trailing = trailingOverride ??
+        (loading
+            ? hasProgressBar
+                ? const SizedBox(width: 20, height: 20) // 进度条替代 spinner
+                : apple
+                    ? const ios.CupertinoActivityIndicator()
+                    : SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.2,
+                          color: scheme.primary,
+                        ),
+                      )
+            : _showStar
+                // B 方案：有星标时不再叠一个箭头，整行本身就是可点的
+                ? FavoriteStarButton(
+                    isFavorited: isFavorited!,
+                    onTap: onToggleFavorite!,
+                  )
+                : apple
+                    ? const ios.CupertinoListTileChevron()
+                    : Icon(
+                        Icons.chevron_right,
+                        color: scheme.onSurfaceVariant.withValues(alpha: 0.55),
+                        size: 20,
+                      ));
+    final trailingAnimationDuration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 260);
+    final tileLeading = leading != null
+        ? (isSimple
+            ? SizedBox(
+                width: iconBoxSize,
+                height: iconBoxSize,
+                child: FittedBox(child: leading!),
+              )
+            : leading!)
+        : Builder(builder: (context) {
+            // 没指定颜色时按标题取功能色，与首页「常用」的图标块同色。
+            final tint =
+                AppColors.featureTint(title, Theme.of(context).brightness);
+            final useTint = iconColor == null && !awaitingConfirm;
+            final fg = useTint ? tint.foreground : activeTint;
+            final bg =
+                useTint ? tint.background : activeTint.withValues(alpha: 0.12);
+            return Opacity(
+              opacity: _isInactive ? 0.5 : 1,
+              child: Container(
+                width: iconBoxSize,
+                height: iconBoxSize,
+                decoration: BoxDecoration(
+                  color: bg,
+                  borderRadius:
+                      BorderRadius.circular(AppDesignTokens.radiusSmall),
+                ),
+                alignment: Alignment.center,
+                child: Icon(icon, color: fg, size: iconSize),
+              ),
+            );
+          });
+    final tileTitle = Text(
+      context.featureText(displayTitle ?? title),
+      softWrap: true,
+      overflow: TextOverflow.visible,
+      style: TextStyle(
+        fontWeight: FontWeight.w600,
+        fontSize: titleFontSize ?? (apple ? 16 : titleFontSizeFor(title)),
+        color: _isInactive
+            ? scheme.onSurface.withValues(alpha: 0.6)
+            : (awaitingConfirm ? scheme.error : titleColor),
+      ),
+    );
+    final Widget? tileSubtitle = !showSubtitle
+        ? null
+        : hasProgressBar
+            ? Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (_hasProgress)
+                      Text(
+                        '(${progressCurrent!} / $progressTotal)',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: scheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    if (!_hasProgress)
+                      _MarqueeSubtitle(
+                        text: context.featureText(loadingText ?? subtitle),
+                        color: scheme.primary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
+                    const SizedBox(height: 4),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(2),
+                      child: SmoothLinearProgressIndicator(
+                        value: _hasProgress
+                            ? (progressCurrent! / progressTotal!).clamp(0.0, 1.0)
+                            : progressValue?.clamp(0.0, 1.0),
+                        minHeight: 4,
+                        backgroundColor: scheme.primary.withValues(alpha: 0.12),
+                        color: scheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            : Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: _MarqueeSubtitle(
+                  text: context.featureText(
+                      loading ? (loadingText ?? subtitle) : subtitle),
+                  color: loading ? scheme.primary : scheme.onSurfaceVariant,
+                  fontWeight: loading ? FontWeight.w600 : FontWeight.normal,
+                  fontSize: 12,
+                ),
+              );
+    final tileTrailing = AnimatedSwitcher(
+      duration: trailingAnimationDuration,
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) =>
+          FadeTransition(opacity: animation, child: child),
+      layoutBuilder: (currentChild, previousChildren) => Stack(
+        alignment: Alignment.centerRight,
+        fit: StackFit.passthrough,
+        children: [
+          ...previousChildren,
+          if (currentChild != null) currentChild,
+        ],
+      ),
+      child: KeyedSubtree(
+        key: ValueKey(sorting),
+        child: trailing,
+      ),
+    );
+    final activate = _isInactive || sorting ? null : onTap;
+    final tile = apple
+        ? ios.CupertinoListTile(
+            leadingSize: iconBoxSize,
+            leadingToTitle: isSimple ? 10 : 12,
+            padding:
+                EdgeInsets.symmetric(horizontal: 14, vertical: isDense ? 4 : 8),
+            backgroundColorActivated: Colors.transparent,
+            leading: tileLeading,
+            title: tileTitle,
+            subtitle: tileSubtitle,
+            trailing: tileTrailing,
+            onTap: activate,
+          )
+        : ListTile(
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: isDense ? 0 : 8,
+            ),
+            minVerticalPadding: isDense ? 4 : 8,
+            visualDensity:
+                isDense ? VisualDensity.compact : VisualDensity.standard,
+            horizontalTitleGap: isSimple ? 12 : null,
+            leading: tileLeading,
+            title: tileTitle,
+            subtitle: tileSubtitle,
+            trailing: tileTrailing,
+            onTap: activate,
+          );
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        tile,
+        // 仅传入忙态提示文案时才订阅设置并构造展开动画，减少普通条目开销。
+        if (disabledReason != null)
+          Transform.translate(
+            offset: showSubtitle ? const Offset(0, -10) : Offset.zero,
+            // 红字原因是否显示由「系统设置」里的开关决定（默认关闭），
+            // 这里就地订阅偏好，调用方不用逐个透传。
+            child: ListenableBuilder(
+              listenable: NavigationPreferences.instance,
+              builder: (context, _) => AnimatedReveal(
+                visible: disabled &&
+                    !loading &&
+                    NavigationPreferences.instance.busyHintEnabled,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: Text(context.featureText(disabledReason ?? ''),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 11, color: scheme.error)),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        // 排序时也保留同步/自动同步的状态摘要，但禁用点击避免误触。
+        if (footer != null)
+          Padding(
+            // 上提多少，底部内边距就减多少：footer 下方留白与整体高度都不变
+            padding: EdgeInsets.fromLTRB(14, 0, 14, 10 - effectiveFooterLift),
+            child: IgnorePointer(
+              ignoring: sorting,
+              child: effectiveFooterLift == 0
+                  ? footer!
+                  : Transform.translate(
+                      offset: Offset(0, -effectiveFooterLift),
+                      child: footer!,
+                    ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// 「发现新版本」用的图标：一枚**绿色圆环包着的向上箭头**。
+///
+/// 直接用 [Icon] 没有「箭头 + 圆环」这个组合（`Icons.arrow_circle_up` 的圆环是
+/// 实心填充的，和需求要的「被圆环包起来」不是一个观感），所以自绘：
+/// 外层一个描边圆环，内层一个向上箭头，两者同色。
+///
+/// 绿色**刻意写死**而不是取主题色：它表达的是「有新东西可用」这个状态色，
+/// 如果跟随用户的主题色（比如用户把主题设成红色），这个提示就不再是「绿的」了。
+/// 数值取 Material 的绿色 600/700，深浅色主题下都够醒目（对浅底对比度 3.4:1，
+/// 对深底 6.3:1）。
+class UpdateAvailableIcon extends StatelessWidget {
+  /// 图标整体尺寸（与默认 leading 的 40×40 对齐）。
+  final double size;
+
+  /// 圆环描边宽度。
+  final double ringWidth;
+
+  const UpdateAvailableIcon({
+    super.key,
+    this.size = 40,
+    this.ringWidth = 2,
+  });
+
+  /// 提示色（绿色）。深浅色主题共用一套。
+  static const Color green = Color(0xFF1B9E4B);
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: green.withValues(alpha: 0.10),
+          border: Border.all(color: green, width: ringWidth),
+        ),
+        child: Center(
+          // 箭头比圆环小一圈，保证四周留白均匀
+          child: Icon(
+            Icons.arrow_upward_rounded,
+            size: size * 0.5,
+            color: green,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 副标题：宽度够就静态显示；超长才自动横向滚动，
+/// 短文本不会被无意义的循环动画干扰。
+///
+/// 滚动实现走 [MarqueeText]（**不是** `marquee` 包）：
+/// 这里的文案会逐秒变化（`已等待 12 秒`），而 marquee 包的轮末停顿位置
+/// 会随文案宽度漂移，实测会停在「第一个字前面空 18~40px」的地方。
+/// 细节与回归测试见 `lib/widgets/MarqueeText.dart`。
+class _MarqueeSubtitle extends StatelessWidget {
+  final String text;
+  final Color color;
+  final FontWeight fontWeight;
+  final double fontSize;
+
+  const _MarqueeSubtitle({
+    required this.text,
+    required this.color,
+    required this.fontWeight,
+    required this.fontSize,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      // 1.35 会把 Latin 字母的下行（例如 g）裁掉约 1~2px，
+      // 尤其在副标题使用 12px 字号时很明显；给默认行高留出完整下行空间。
+      height: fontSize * 1.5 * MediaQuery.textScalerOf(context).scale(1),
+      child: MarqueeText(
+        text: text,
+        style: TextStyle(
+          fontSize: fontSize,
+          color: color,
+          fontWeight: fontWeight,
+        ),
+      ),
+    );
+  }
+}
+
+/// Hub 页面顶层 Scaffold：标题 + 副标题 + 可选 hero + 区块列表
+/// Hub 页顶部大标题（B 方案：只保留大标题）。
+class HubPageTitle extends StatelessWidget {
+  final String title;
+
+  const HubPageTitle({super.key, required this.title});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Semantics(
+          header: true,
+          child: Text(
+            context.featureText(title),
+            style: Theme.of(context).platform == TargetPlatform.iOS
+                ? ios.CupertinoTheme.of(context)
+                    .textTheme
+                    .navLargeTitleTextStyle
+                : Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontSize: 30,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.2,
+                    ),
+          ),
+        ),
+      );
+}
+
+class HubPageScaffold extends StatelessWidget {
+  final String title;
+  final String subtitle;
+
+  /// 旧版页头左侧的图标。B 方案的页头只保留大标题，参数保留以兼容调用方。
+  final IconData icon;
+  final List<Widget> children;
+  final Widget? hero;
+
+  /// 为 false 时不画页头，由外层固定显示（「游玩」页，见 PlayZoneHubPage）。
+  final bool showHeader;
+
+  const HubPageScaffold({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.children,
+    this.hero,
+    this.showHeader = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = math.max(
+      MainNavigationInsets.bottomOf(context),
+      MediaQuery.paddingOf(context).bottom,
+    );
+    return Scaffold(
+      resizeToAvoidBottomInset: false,
+      backgroundColor: Colors.transparent,
+      body: SafeArea(
+        bottom: false,
+        child: ListView(
+          padding: AppDesignTokens.pagePadding
+              .copyWith(
+                top: showHeader
+                    ? null
+                    : hero != null
+                        ? 4
+                        : AppDesignTokens.sectionGap - 8,
+              )
+              .add(
+                EdgeInsets.only(bottom: bottomInset),
+              ),
+          children: [
+            if (showHeader) ...[
+              HubPageTitle(title: title),
+              if (hero != null) const SizedBox(height: 12),
+            ],
+            if (hero != null) hero!,
+            if (showHeader || hero != null)
+              const SizedBox(height: AppDesignTokens.sectionGap),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 弹出二级聚合功能面板：顶部展示标题与可选副标题，内容支持实时刷新收藏星标与任务状态。
+Future<void> showHubGroupSheet(
+  BuildContext context, {
+  required String title,
+  String? subtitle,
+  Listenable? listenable,
+  required List<Widget> Function(BuildContext sheetContext) itemsBuilder,
+}) {
+  FocusManager.instance.primaryFocus?.unfocus();
+  final merged = listenable == null
+      ? FavoriteFeaturesNotifier.instance
+      : Listenable.merge([FavoriteFeaturesNotifier.instance, listenable]);
+  return showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (sheetContext) {
+      final scheme = Theme.of(sheetContext).colorScheme;
+      final maxHeight = MediaQuery.sizeOf(sheetContext).height * 0.78;
+      return SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxHeight),
+          child: ListenableBuilder(
+            listenable: merged,
+            builder: (sheetContext, _) => Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        sheetContext.featureText(title),
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      if (subtitle != null && subtitle.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          sheetContext.featureText(subtitle),
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: itemsBuilder(sheetContext),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}
+
+/// Hub 聚合入口对应的标准二级页：复用主题背景、顶部标题栏，并实时监听收藏与外部状态。
+class HubSubPage extends StatelessWidget {
+  final String title;
+  final List<Widget> actions;
+  final Listenable? listenable;
+  final List<Widget> Function(BuildContext context) builder;
+
+  const HubSubPage({
+    super.key,
+    required this.title,
+    this.actions = const <Widget>[],
+    this.listenable,
+    required this.builder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final merged = listenable == null
+        ? FavoriteFeaturesNotifier.instance
+        : Listenable.merge([FavoriteFeaturesNotifier.instance, listenable!]);
+    return BackgroundPageScaffold(
+      title: context.featureText(title),
+      actions: actions,
+      child: ListenableBuilder(
+        listenable: merged,
+        builder: (context, _) => ListView(
+          padding: AppDesignTokens.pagePadding
+              .copyWith(top: 4)
+              .add(EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + 24)),
+          children: builder(context),
+        ),
+      ),
+    );
+  }
+}

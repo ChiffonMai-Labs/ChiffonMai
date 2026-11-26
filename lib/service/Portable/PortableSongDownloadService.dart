@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 
 import '../../entity/Portable/PortableSong.dart';
 import '../../utils/ExportPathUtil.dart';
-import '../SongMediaCache.dart';
+import '../Media/SongMediaCache.dart';
 
 typedef AudioFileWriter = Future<File> Function(String fileName,
     Stream<List<int>> stream, void Function(String)? onFallback);

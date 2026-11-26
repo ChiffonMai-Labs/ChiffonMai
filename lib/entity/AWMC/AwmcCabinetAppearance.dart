@@ -1,4 +1,4 @@
-import '../../service/CommunityTravelAppearanceStore.dart';
+import '../../service/Community/CommunityTravelAppearanceStore.dart';
 
 /// 只读取机台当前选中的装扮，不读取图鉴库存或账号进度。
 class AwmcCabinetAppearance {

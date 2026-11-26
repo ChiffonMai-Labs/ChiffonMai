@@ -10,7 +10,7 @@ import 'package:my_first_flutter_app/entity/DivingFish/Song.dart';
 import 'package:my_first_flutter_app/entity/KaleidXScope/KaleidXScopeGate.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.dart';
 import 'package:my_first_flutter_app/page/Collection/CollectionInfoPage.dart';
-import 'package:my_first_flutter_app/page/SongInfoPage.dart';
+import 'package:my_first_flutter_app/page/song_info/SongInfoPage.dart';
 import 'package:my_first_flutter_app/service/KaleidXScope/KaleidXScopeGateService.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';

@@ -7,7 +7,7 @@ import 'package:flutter/foundation.dart';
 
 import '../service/AWMC/AwmcQuickIdentityStore.dart';
 import '../service/AWMC/AwmcQuickSyncService.dart';
-import '../service/SyncStatsService.dart';
+import '../service/Sync/SyncStatsService.dart';
 import '../utils/AppDesignTokens.dart';
 import '../utils/AppTheme.dart';
 import 'AccountBindingManager.dart' show StatusChip;

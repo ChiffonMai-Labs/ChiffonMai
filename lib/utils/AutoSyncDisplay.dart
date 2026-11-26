@@ -1,5 +1,5 @@
 import 'package:my_first_flutter_app/l10n/AppMessages.dart';
-import '../service/AutoSyncService.dart';
+import '../service/Sync/AutoSyncService.dart';
 
 /// 自动同步状态的统一展示文案：时间、耗时、等待原因、进度与结果摘要。
 ///

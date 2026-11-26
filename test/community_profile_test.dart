@@ -7,7 +7,7 @@ import 'package:my_first_flutter_app/service/RankingList/AvgRankingListService.d
 import 'package:my_first_flutter_app/service/RankingList/FittedRatingRankingListService.dart';
 import 'package:my_first_flutter_app/service/RankingList/RatingRankListService.dart';
 import 'package:my_first_flutter_app/service/RankingList/SongRankingService.dart';
-import 'package:my_first_flutter_app/service/SongInfoService.dart';
+import 'package:my_first_flutter_app/service/SongInfo/SongInfoService.dart';
 import 'package:my_first_flutter_app/utils/CommunityProfileUtil.dart';
 import 'package:my_first_flutter_app/widgets/CommunityAvatar.dart';
 

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../l10n/LocalizationsExtension.dart';
-import '../service/SyncStatsService.dart' show SyncPlatform;
+import '../service/Sync/SyncStatsService.dart' show SyncPlatform;
 import '../utils/AppDesignTokens.dart';
 import '../utils/AppTheme.dart';
 import 'AnimatedReveal.dart';

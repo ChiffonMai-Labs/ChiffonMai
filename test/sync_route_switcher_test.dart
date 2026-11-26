@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:my_first_flutter_app/page/HubComponents.dart';
-import 'package:my_first_flutter_app/service/SyncRouteStore.dart';
+import 'package:my_first_flutter_app/page/Hub/HubComponents.dart';
+import 'package:my_first_flutter_app/service/Sync/SyncRouteStore.dart';
 import 'package:my_first_flutter_app/widgets/SyncRouteSwitcher.dart';
 
 /// 同步线路切换器 + HubActionTile.footer 的行为测试。

@@ -8,7 +8,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../../entity/DivingFish/Song.dart';
 import '../../manager/DivingFish/MaimaiMusicDataManager.dart';
-import '../../service/AccountStore.dart';
+import '../../service/Account/AccountStore.dart';
 import '../../service/Best50/Best50ConvertToImgService.dart';
 import '../../service/Best50/IdealBest50Service.dart';
 import '../../utils/Best50Order.dart';
@@ -16,13 +16,13 @@ import '../../utils/Best50Tie.dart';
 import '../../utils/ExportQualitySelector.dart';
 import '../../utils/ImageEncodeUtil.dart';
 import '../../utils/StringUtil.dart';
-import '../SongInfoPage.dart';
+import '../song_info/SongInfoPage.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/AppUi.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../widgets/Best50Ui.dart';
 import '../../widgets/AppDialogs.dart';
-import 'package:my_first_flutter_app/service/BackgroundExportService.dart';
+import 'package:my_first_flutter_app/service/System/BackgroundExportService.dart';
 
 /// 理想 Best50：把全部游玩记录里非 SSS+ 的成绩升一档（100.4 → 100.5），
 /// 重算 RA 后重新取 B35 + B15，并列出相对原榜的新进榜歌曲。

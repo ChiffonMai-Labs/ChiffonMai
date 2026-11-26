@@ -5,7 +5,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/widgets.dart';
 
-import '../service/LogExportService.dart';
+import '../service/System/LogExportService.dart';
 
 /// 仅在导出任务期间记录阶段、内存与帧响应；嵌套调用共用任务编号。
 class ExportDiagnostics {

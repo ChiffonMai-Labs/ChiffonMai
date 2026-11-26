@@ -3,13 +3,13 @@ import 'package:flutter/services.dart';
 
 import '../../l10n/LocalizationsExtension.dart';
 import '../../service/AWMC/AwmcApiService.dart';
-import '../../service/SongSearchService.dart';
+import '../../service/Library/SongSearchService.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../utils/AppTheme.dart';
 import '../../widgets/AnimatedChoiceBar.dart';
 import '../../widgets/AppUi.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
-import '../SongInfoPage.dart';
+import '../song_info/SongInfoPage.dart';
 import 'AwmcCabinetPage.dart';
 
 enum _Resource { music, rival }

@@ -1,4 +1,4 @@
-part of '../SongInfoPage.dart';
+part of 'SongInfoPage.dart';
 
 /// SongInfoPage · 小部件：统计项、物量格、徽章、别名
 ///

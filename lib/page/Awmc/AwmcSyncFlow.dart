@@ -7,14 +7,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../constant/CacheKeyConstant.dart';
 import '../../manager/DivingFish/DivingFishOAuthManager.dart';
-import '../../manager/DivingFishProbeManager.dart';
+import '../../manager/DivingFish/DivingFishProbeManager.dart';
 import '../../service/AWMC/AwmcApiService.dart';
 import '../../service/AWMC/AwmcGatewaySettings.dart';
 import '../../service/AWMC/AwmcQrSyncService.dart';
 import '../../service/AWMC/AwmcQuickSyncService.dart';
 import '../../service/AWMC/AwmcStore.dart';
-import '../../service/PostSyncRefreshService.dart';
-import '../../service/SyncStatsService.dart';
+import '../../service/Sync/PostSyncRefreshService.dart';
+import '../../service/Sync/SyncStatsService.dart';
 import '../../utils/AppError.dart';
 import '../../utils/SecureCredentialStore.dart';
 import '../../widgets/AccountAuthorizationDialog.dart';

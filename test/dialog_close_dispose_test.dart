@@ -23,9 +23,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:my_first_flutter_app/constant/CacheKeyConstant.dart';
-import 'package:my_first_flutter_app/page/FavoriteFolderPage.dart';
-import 'package:my_first_flutter_app/page/PersonalizedScorePage.dart';
-import 'package:my_first_flutter_app/service/FavoriteFolderService.dart';
+import 'package:my_first_flutter_app/page/Attendance/FavoriteFolderPage.dart';
+import 'package:my_first_flutter_app/page/Score/PersonalizedScorePage.dart';
+import 'package:my_first_flutter_app/service/Favorite/FavoriteFolderService.dart';
 import 'package:my_first_flutter_app/utils/CurrentDataSourceNotifier.dart';
 import 'package:my_first_flutter_app/widgets/SearchPickerDialog.dart';
 

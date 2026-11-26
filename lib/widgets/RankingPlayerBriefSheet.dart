@@ -4,7 +4,7 @@ import 'TrophyTitleBadge.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../api/ApiUrls.dart';
-import '../service/CommunityTravelAppearanceStore.dart';
+import '../service/Community/CommunityTravelAppearanceStore.dart';
 import '../utils/ApiClient.dart';
 import '../utils/ChartDifficulty.dart';
 import '../utils/CurrentDataSourceNotifier.dart';

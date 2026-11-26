@@ -25,7 +25,7 @@ import '../../entity/Portable/PortableSong.dart';
 import '../../service/Portable/PortablePlayerController.dart';
 import '../../service/Portable/PortableSongLibrary.dart';
 import '../../service/Portable/PortableSongDownloadService.dart';
-import '../NextPlayQueuePage.dart';
+import '../Attendance/NextPlayQueuePage.dart';
 import '../../widgets/NextPlayAddDialog.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../utils/ExportPathUtil.dart';

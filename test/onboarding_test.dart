@@ -3,12 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:my_first_flutter_app/page/OnboardingPage.dart';
+import 'package:my_first_flutter_app/page/App/OnboardingPage.dart';
 import 'package:my_first_flutter_app/main.dart';
-import 'package:my_first_flutter_app/page/AppEntryPage.dart';
+import 'package:my_first_flutter_app/page/App/AppEntryPage.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/widgets/PortablePlayerBadge.dart';
-import 'package:my_first_flutter_app/service/OnboardingStateStore.dart';
+import 'package:my_first_flutter_app/service/System/OnboardingStateStore.dart';
 import 'package:my_first_flutter_app/widgets/AppDialogs.dart';
 
 void main() {

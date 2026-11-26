@@ -4,8 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:my_first_flutter_app/entity/DivingFish/Song.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.dart';
-import 'package:my_first_flutter_app/manager/SongAliasManager.dart';
-import 'package:my_first_flutter_app/service/SongSearchService.dart';
+import 'package:my_first_flutter_app/manager/Song/SongAliasManager.dart';
+import 'package:my_first_flutter_app/service/Library/SongSearchService.dart';
 
 class GuessSongByOpenLettersService {
   // 随机选择指定数量的歌曲

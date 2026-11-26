@@ -10,7 +10,7 @@ import '../../utils/SongFilterUtil.dart';
 import '../../constant/CacheKeyConstant.dart';
 import '../../constant/CacheTimestampConstant.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../MaidataManager.dart';
+import '../Song/MaidataManager.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
 
 class MaimaiMusicDataManager {

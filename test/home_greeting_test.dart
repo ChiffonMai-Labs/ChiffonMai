@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:my_first_flutter_app/page/HomePage.dart';
+import 'package:my_first_flutter_app/page/Home/HomePage.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 
 /// 首页页头「欢迎回来，xxx」的排版回归。

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../entity/LuoXue/Collection.dart';
 import '../l10n/LocalizationsExtension.dart';
-import '../service/CommunityTravelAppearanceStore.dart';
+import '../service/Community/CommunityTravelAppearanceStore.dart';
 import '../utils/AppDesignTokens.dart';
 import '../utils/AppTheme.dart';
 import 'AppUi.dart';

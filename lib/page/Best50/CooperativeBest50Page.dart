@@ -10,7 +10,7 @@ import '../../utils/CoverUtil.dart';
 import '../../widgets/AppUi.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/Best50Ui.dart';
-import '../SongInfoPage.dart';
+import '../song_info/SongInfoPage.dart';
 
 /// 好友合作 Best50 页面：同谱取双方最高成绩重排 B35 + B15。
 class CooperativeBest50Page extends StatefulWidget {

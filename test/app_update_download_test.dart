@@ -9,13 +9,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:my_first_flutter_app/manager/LZYCheckUpdateManager.dart';
+import 'package:my_first_flutter_app/manager/AppUpdate/LZYCheckUpdateManager.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:my_first_flutter_app/service/AppUpdateDownloadService.dart';
-import 'package:my_first_flutter_app/service/BackgroundAppUpdateService.dart';
-import 'package:my_first_flutter_app/service/AppUpdateAutoInstallSettings.dart';
+import 'package:my_first_flutter_app/service/AppUpdate/AppUpdateDownloadService.dart';
+import 'package:my_first_flutter_app/service/AppUpdate/BackgroundAppUpdateService.dart';
+import 'package:my_first_flutter_app/service/AppUpdate/AppUpdateAutoInstallSettings.dart';
 
 class _Adapter implements HttpClientAdapter {
   final ResponseBody Function(RequestOptions) respond;

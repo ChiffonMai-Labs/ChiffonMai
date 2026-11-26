@@ -2,7 +2,7 @@ import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 
-import '../service/CacheManagementService.dart';
+import '../service/System/CacheManagementService.dart';
 import 'SmoothLinearProgressIndicator.dart';
 import '../widgets/AppDialogs.dart';
 

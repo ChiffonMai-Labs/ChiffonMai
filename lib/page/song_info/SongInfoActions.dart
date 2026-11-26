@@ -1,4 +1,4 @@
-part of '../SongInfoPage.dart';
+part of 'SongInfoPage.dart';
 
 /// SongInfoPage · 操作：分享 / 导出 / 跳转 / 收藏 / 笔记 / 上传 BV
 ///

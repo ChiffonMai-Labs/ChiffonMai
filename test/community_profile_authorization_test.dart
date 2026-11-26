@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:my_first_flutter_app/constant/CacheKeyConstant.dart';
-import 'package:my_first_flutter_app/service/CommunityProfileAuthorization.dart';
+import 'package:my_first_flutter_app/service/Community/CommunityProfileAuthorization.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

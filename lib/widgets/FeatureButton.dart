@@ -1,6 +1,6 @@
 import '../l10n/FeatureLocalizations.dart';
 import 'package:flutter/material.dart';
-import '../entity/FeatureModels.dart';
+import '../entity/Home/FeatureModels.dart';
 import '../utils/AppConstants.dart';
 import 'FavoriteStarButton.dart';
 import 'MarqueeText.dart';

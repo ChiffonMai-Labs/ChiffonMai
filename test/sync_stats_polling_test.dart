@@ -13,7 +13,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:my_first_flutter_app/service/SyncStatsService.dart';
+import 'package:my_first_flutter_app/service/Sync/SyncStatsService.dart';
 import 'package:my_first_flutter_app/utils/SyncRouteNotifier.dart';
 
 const SyncStats _sample = SyncStats(

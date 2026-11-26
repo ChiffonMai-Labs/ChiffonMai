@@ -10,7 +10,7 @@ import '../../service/History/ScoreImprovementCore.dart';
 import 'ProberException.dart';
 import '../../utils/CurrentDataSourceNotifier.dart';
 import '../../utils/QuotaRetryHint.dart';
-import '../../service/AccountSwitchService.dart';
+import '../../service/Account/AccountSwitchService.dart';
 import 'MaimaiMusicDataManager.dart';
 import 'UserBest50Manager.dart';
 import '../../utils/JsonIsolate.dart';

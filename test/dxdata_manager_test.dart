@@ -14,7 +14,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:my_first_flutter_app/manager/DXDataManager.dart';
+import 'package:my_first_flutter_app/manager/DXRating/DXDataManager.dart';
 
 /// 造一份最小可解析的目录 JSON（字段与真实 dxdata 对齐，
 /// 见 `test/dxrating_cover_test.dart` 里更完整的那份）。

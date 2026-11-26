@@ -1,7 +1,7 @@
 import 'package:my_first_flutter_app/l10n/FeatureLocalizations.dart';
 import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
-import '../../service/CommunityAvatarStore.dart';
+import '../../service/Community/CommunityAvatarStore.dart';
 import '../../widgets/RankingPlayerBriefSheet.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
@@ -11,7 +11,7 @@ import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/service/RankingList/SongRankingService.dart';
 import 'package:my_first_flutter_app/utils/CoverUtil.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
-import 'package:my_first_flutter_app/service/SongInfoService.dart';
+import 'package:my_first_flutter_app/service/SongInfo/SongInfoService.dart';
 import 'package:my_first_flutter_app/widgets/BackgroundPageScaffold.dart';
 import 'package:my_first_flutter_app/widgets/CommunityAvatar.dart';
 import 'package:my_first_flutter_app/utils/RankingRowExtent.dart';

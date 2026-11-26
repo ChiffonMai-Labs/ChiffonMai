@@ -1,5 +1,5 @@
 import 'dart:async';
-import '../service/LoadingTipsStore.dart';
+import '../service/System/LoadingTipsStore.dart';
 
 /// 兼容旧调用点的加载语录门面。内容来自服务端，显示偏好由 [LoadingTipsStore] 管理。
 class LoadingTipsConstant {

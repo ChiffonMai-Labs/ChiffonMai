@@ -6,10 +6,10 @@ import '../widgets/AnimatedChoiceBar.dart';
 import 'package:flutter/material.dart';
 
 import '../constant/CacheKeyConstant.dart';
-import '../manager/DivingFishProbeManager.dart';
+import '../manager/DivingFish/DivingFishProbeManager.dart';
 import '../manager/DivingFish/DivingFishOAuthManager.dart';
 import '../manager/LuoXue/LuoXueOAuthManager.dart';
-import '../service/AccountStore.dart';
+import '../service/Account/AccountStore.dart';
 import '../utils/AppTheme.dart';
 import '../utils/ApiClient.dart';
 import '../utils/CacheSourceRegistry.dart';

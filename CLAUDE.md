@@ -88,13 +88,13 @@ final file = await ExportPathUtil.writeExportFile(
 
 **写入 maidata 必须用 `utf8.encode`，不能用 `codeUnits`。** `codeUnits` 返回 UTF-16 码元，日文/中文曲名会被写成乱码字节，导出到别的工具里全是问号。
 
-实现见 `lib/page/SongMaidataPage.dart` 的 `_exportAstroDx()` / `_exportToZip()`。
+实现见 `lib/page/ChartPlay/SongMaidataPage.dart` 的 `_exportAstroDx()` / `_exportToZip()`。
 
 ---
 
 ## 4. 收藏夹交换格式
 
-`lib/service/FavoriteTransferService.dart`
+`lib/service/Favorite/FavoriteTransferService.dart`
 
 - JSON，自描述带版本：`format = "chiffonmai.favorites"`，`formatVersion = 1`
 - `lib/utils/ExportSettings.dart` 固定导出后缀为 `.cmf`。
@@ -115,7 +115,7 @@ Flutter 引擎**从不**调用 Android 的 `Surface.setFrameRate()`（[flutter/f
 
 ### 5.2 侧边栏设置持久化
 
-`lib/service/ChartPlaySettingsStore.dart`
+`lib/service/ChartPlay/ChartPlaySettingsStore.dart`
 
 - 控制器是 `ChangeNotifier`，侧边栏每改一次都会 `notifyListeners` → 挂监听 + 600ms 防抖落盘
 - **防抖只推迟写盘，不推迟记录**：改动要同步 `remember()` 进内存，否则中途重建控制器会读到过期值
@@ -139,7 +139,7 @@ await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 | 修复位置 | manifest + AppTheme 两处都要 | 必须在用户层绕过 immersive 模式 |
 | 表现 | 部分时间卡死 | 一直没用 |
 
-**修复**（`lib/page/ChartPlayPage.dart`）：`initState` 里锁竖屏、`dispose` 里恢复全部方向，让 `SimaiPlayerPage` 永远走非全屏分支：
+**修复**（`lib/page/ChartPlay/ChartPlayPage.dart`）：`initState` 里锁竖屏、`dispose` 里恢复全部方向，让 `SimaiPlayerPage` 永远走非全屏分支：
 
 ```dart
 // initState
@@ -178,10 +178,10 @@ android:launchMode="singleTask"   <!-- 全局单实例，后续启动走 onNewIn
 | `com.example.app/media_store` | 保存图片到相册（`saveImage`）、用相册大图界面查看图片（`viewImage`） |
 | `com.example.app/open_file` | 收藏夹文件「一键导入」（`getInitialImportPath` / `onFileOpened`） |
 | `com.example.app/display` | 屏幕刷新率（`setHighRefreshRate` / `restoreRefreshRate` / `queryRefreshRate`） |
-| `com.example.app/crash_report` | 上次崩溃的记录（`takePendingCrash`）和通知（`notifyCrashReport`），见 `CrashReporter.kt` 与 `lib/service/CrashReportService.dart` |
-| `com.example.app/export_notification` | 图片导出完成的系统通知（`notifyExportDone`），见 `lib/service/BackgroundExportService.dart` |
-| `com.example.app/home_widget` | 桌面小组件（`update` 推数据，`takePendingAction` / `onAction` 传点击），见 `HomeWidgets.kt` 与 `lib/service/HomeWidgetService.dart` |
-| `com.example.app/app_update` | App 内更新（发布信息、后台下载状态与安装），见 `AppUpdateInstaller.kt`、`AppUpdateDownloads.kt` 和 `BackgroundAppUpdateService.dart`；只允许更新私有目录中的同包名、同签名、指定版本 APK |
+| `com.example.app/crash_report` | 上次崩溃的记录（`takePendingCrash`）和通知（`notifyCrashReport`），见 `CrashReporter.kt` 与 `lib/service/System/CrashReportService.dart` |
+| `com.example.app/export_notification` | 图片导出完成的系统通知（`notifyExportDone`），见 `lib/service/System/BackgroundExportService.dart` |
+| `com.example.app/home_widget` | 桌面小组件（`update` 推数据，`takePendingAction` / `onAction` 传点击），见 `HomeWidgets.kt` 与 `lib/service/Home/HomeWidgetService.dart` |
+| `com.example.app/app_update` | App 内更新（发布信息、后台下载状态与安装），见 `AppUpdateInstaller.kt`、`AppUpdateDownloads.kt` 和 `lib/service/AppUpdate/BackgroundAppUpdateService.dart`；只允许更新私有目录中的同包名、同签名、指定版本 APK |
 
 Android 的更新版本、构建号、更新日志和下载页以 `app_version.json` 的 `version` / `buildNumber` / `updateLog` / `downloadUrl` 为准；配置获取失败就报告检查失败，不用 GitHub 发布内容或 APK 清单覆盖。GitHub 只在用户选择 App 内下载后，根据配置的 `githubReleaseTag`（未配置时取 `v<version>`）提供对应 APK 附件和下载分流；安装时必须匹配配置中的构建号，不得自动套用 GitHub 包的版本号。版本先按语义比较，同版本才比较构建号；恢复后台任务时也会取消低于当前版本的过期任务。
 
@@ -275,7 +275,7 @@ pageTransitionsTheme: _backGestureSafeTransitions(),
 静态文本（没溢出）时**必须停掉 ticker**。一直 `repeat()` 的 `AnimationController` 会持续
 请求新帧，整页都别想进入空闲。
 
-`lib/page/SongInfoPage.dart` 与 `lib/page/FriendLinksPage.dart` 里还有两处直接用
+`lib/page/song_info/SongInfoPage.dart` 与 `lib/page/About/FriendLinksPage.dart` 里还有两处直接用
 `marquee` 包的地方（歌名 / 友链），它们的文案基本不变所以没暴露这个问题；
 哪天要给它们加会变化的文案，一并换到 `MarqueeText`。
 
@@ -339,7 +339,7 @@ build/app/intermediates/merged_manifests/release/processReleaseManifest/AndroidM
 - release 构建用**正式 keystore** 签名：`android/key.properties` + `android/app/chiffonmai-release.jks`，两者都已被 `android/.gitignore` 忽略。**缺 `key.properties` 时 `assembleRelease` / `bundleRelease` 会直接失败**——绝不退回 debug 签名：debug keystore 是每台机器各自的，用它签出来的包一旦装机就永远无法覆盖更新，应用商店也不收。keystore 与口令**必须离线备份**，丢了等于这个 App 再也无法更新。
 - `applicationId` = `cloud.chiffonmai.app`（原为 `com.example.my_first_flutter_app`，为 APP 备案 / 上架而改）；`namespace` 仍保持 `com.example.my_first_flutter_app`——它只决定 R 类与资源解析，跟 App 身份无关，不动它是为了不挪 `MainActivity.kt` 的包目录。App 显示名仍是 `ChiffonMai`。
   - ⚠️ **applicationId 是 App 的永久身份**：APP 备案的「安卓平台软件包名称」填的就是它，**备案通过后再改要走变更备案**；改包名还会让老用户装成第二个 App、本地数据（账号/设置/收藏夹）不迁移。
-  - 改 applicationId 时要同步改 `lib/page/GlobalArcadeMapPage.dart` 的 `userAgentPackageName`。
+  - 改 applicationId 时要同步改 `lib/page/Attendance/GlobalArcadeMapPage.dart` 的 `userAgentPackageName`。
   - **MethodChannel 名**（`com.example.app/*`）与**通知渠道 ID**（`com.example.my_first_flutter_app.channel.*`）**不是包名**，不要跟着改：前者要 Kotlin + Dart 两边同步改，后者一改就等于新建通知渠道、用户的渠道设置会被重置。
 - 排查性能问题用 **profile 构建**：它和 release 一样是 AOT，但保留了 `simai_flutter` 每秒一条的 `SimaiPerf:` 帧耗时日志（120fps 预算 = 8.33ms/帧）。
 
@@ -377,8 +377,8 @@ AppHeader(
 
 | 文件 | 原因 |
 |---|---|
-| [lib/page/CoverRecognitionPage.dart](lib/page/CoverRecognitionPage.dart)、[lib/page/ScoreOcrPage.dart](lib/page/ScoreOcrPage.dart) 的裁剪工具栏和 [lib/page/WallpaperCropPage.dart](lib/page/WallpaperCropPage.dart) | **深色全屏图片裁剪 UI**，跟标准顶部区域观感完全不同 |
-| [lib/page/FavoriteFolderPage.dart](lib/page/FavoriteFolderPage.dart) 的 `_buildBatchAppBar()` | **批量操作工具栏**（取消 / 已选 N 项 / 移动 / 删除），不是标题栏 |
+| [lib/page/Recognition/CoverRecognitionPage.dart](lib/page/Recognition/CoverRecognitionPage.dart)、[lib/page/Recognition/ScoreOcrPage.dart](lib/page/Recognition/ScoreOcrPage.dart) 的裁剪工具栏和 [lib/page/System/WallpaperCropPage.dart](lib/page/System/WallpaperCropPage.dart) | **深色全屏图片裁剪 UI**，跟标准顶部区域观感完全不同 |
+| [lib/page/Attendance/FavoriteFolderPage.dart](lib/page/Attendance/FavoriteFolderPage.dart) 的 `_buildBatchAppBar()` | **批量操作工具栏**（取消 / 已选 N 项 / 移动 / 删除），不是标题栏 |
 
 > `HomePage` / `AppShell` / `HubComponents.HubPageScaffold` 是首页 / 主壳 / 枢纽布局，`SongInfoPage` 的头图自带返回键，都跟本约定无关。
 
@@ -488,12 +488,12 @@ AppHeader(
 - `lib/widgets/AppToast.dart`：全 App 唯一的轻提示 `AppToast.show(文案, {tone, actionLabel, onAction, duration})`，不需要 context；不传 `tone` 时按文案判断语气。不要再写 SnackBar 或引入 toast 包。
 - `lib/widgets/AppDialogs.dart`：`AppAlertDialog`（参数与 `AlertDialog` 一致，另有 `subtitle`；全 App 对话框都用它，不要再写 `AlertDialog`，内容里的 ListTile、单选、复选和底部按钮样式都由它统一）、`AppDialogOption`（可点选项）、`AppDialogEmpty`（空状态）、`AppDialogCodeBlock`（路径等长文本）、`AppDialog` 和 `showAppNoticeDialog` / `showAppProgressDialog`。
 - `lib/widgets/ExportStatsUi.dart`：导出图片共用的根（`ExportPage`）、头部（`ExportPosterHeader`、`ExportHeroSurface`）、分区标题（`ExportSectionTitle`）、面板和统计区域。导出图片的主题在导出抽屉里选（浅色 / 深色 / 纯黑，默认浅色，记住上次选的），不跟随 App 和系统：颜色从 `ExportPalette`（`lib/utils/ExportImageTheme.dart`）取，根部用 `ExportPage` 传主题，新导出图不要写死颜色。
-- `lib/service/BackgroundExportService.dart`：导出图片一律走 `BackgroundExport.run`，不弹阻塞对话框，用户可以继续操作或离开页面，结束后顶部提示。任务里不能再读页面的 `widget`，需要的值在调用前取好。
-- `lib/page/UpdateCalendarPage.dart`：更新日历，按落雪谱面级 `release_date` 把国服更新整理到月历上，落雪的 DX 谱 ID 要加 10000 才是项目内 ID。
+- `lib/service/System/BackgroundExportService.dart`：导出图片一律走 `BackgroundExport.run`，不弹阻塞对话框，用户可以继续操作或离开页面，结束后顶部提示。任务里不能再读页面的 `widget`，需要的值在调用前取好。
+- `lib/page/Library/UpdateCalendarPage.dart`：更新日历，按落雪谱面级 `release_date` 把国服更新整理到月历上，落雪的 DX 谱 ID 要加 10000 才是项目内 ID。
 - `lib/widgets/ImageLoadingIndicator.dart`：网络图片的加载占位（延迟淡入的小转圈，本地命中时看不到），新的网络图片都用它。
 - `lib/widgets/Best50Ui.dart`：`Best50Hero`、`Best50Grid` / `Best50CoverCard`（三列曲绘卡）、`showBest50SongSheet`（推分面板）、`Best50AveragesCard`、`Best50IconAction` 等。
 
-新组件加在这些文件里，别在页面里各写一份。Hub 页继续用 `HubComponents.dart`。
+新组件加在这些文件里，别在页面里各写一份。Hub 页继续用 `lib/page/Hub/HubComponents.dart`。
 
 - `AnimatedChoiceBar`（老页面的等宽切换）与 `SegmentedTabs` 同一观感：凹槽底 + 白色滑块。选项放不下时缩小字号，不截断。
 
@@ -521,7 +521,7 @@ AppHeader(
 
 ### 22.9 `SongInfoPage` 的拆分方式
 
-`lib/page/SongInfoPage.dart` 只保留：字段、`initState` / `dispose` / `build`。其余方法按功能放在 `lib/page/song_info/` 下的 part 文件里，写成 `extension _Xxx on _SongInfoPageState`：
+主文件 `lib/page/song_info/SongInfoPage.dart` 与其余 part 文件同在 `lib/page/song_info/` 下：主文件只保留字段、`initState` / `dispose` / `build`，其余方法按功能放在各 part 文件里，写成 `extension _Xxx on _SongInfoPageState`：
 
 | 文件 | 内容 |
 |---|---|

@@ -1,7 +1,7 @@
 import '../l10n/LocalizationsExtension.dart';
 import '../l10n/FeatureLocalizations.dart';
 import 'package:flutter/material.dart';
-import '../service/PlayerExperienceService.dart';
+import '../service/Community/PlayerExperienceService.dart';
 import 'SmoothLinearProgressIndicator.dart';
 import '../widgets/AppDialogs.dart';
 

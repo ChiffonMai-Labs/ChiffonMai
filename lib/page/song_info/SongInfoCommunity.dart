@@ -1,4 +1,4 @@
-part of '../SongInfoPage.dart';
+part of 'SongInfoPage.dart';
 
 /// SongInfoPage · 谱面评分与评论区
 ///

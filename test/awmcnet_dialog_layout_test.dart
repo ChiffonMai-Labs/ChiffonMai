@@ -3,7 +3,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:my_first_flutter_app/constant/CacheKeyConstant.dart';
 import 'package:my_first_flutter_app/page/AwmcNet/SyncToAwmcNetPage.dart';
-import 'package:my_first_flutter_app/service/SyncStatsService.dart';
+import 'package:my_first_flutter_app/service/Sync/SyncStatsService.dart';
 import 'package:my_first_flutter_app/utils/SyncRouteNotifier.dart';
 import 'package:my_first_flutter_app/utils/SecureCredentialStore.dart';
 import 'package:my_first_flutter_app/widgets/SyncRouteSwitcher.dart';

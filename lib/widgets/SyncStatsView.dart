@@ -2,7 +2,7 @@ import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'AnimatedChoiceBar.dart';
 import 'package:flutter/material.dart';
 
-import '../service/SyncStatsService.dart';
+import '../service/Sync/SyncStatsService.dart';
 import '../utils/AppDesignTokens.dart';
 import '../utils/AppTheme.dart';
 import '../widgets/AppDialogs.dart';

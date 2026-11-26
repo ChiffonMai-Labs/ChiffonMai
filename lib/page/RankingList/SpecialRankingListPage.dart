@@ -6,7 +6,7 @@ import '../../widgets/EmptyState.dart';
 import 'package:my_first_flutter_app/service/RankingList/SpecialRankingListService.dart';
 import 'package:my_first_flutter_app/utils/CoverUtil.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
-import '../SongInfoPage.dart';
+import '../song_info/SongInfoPage.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../utils/ChartDifficulty.dart';

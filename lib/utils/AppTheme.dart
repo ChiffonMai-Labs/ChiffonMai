@@ -1,5 +1,5 @@
 import 'package:my_first_flutter_app/l10n/AppMessages.dart';
-import 'package:my_first_flutter_app/service/AppFontService.dart';
+import 'package:my_first_flutter_app/service/System/AppFontService.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';

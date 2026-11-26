@@ -3,8 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:my_first_flutter_app/constant/CacheKeyConstant.dart';
-import 'package:my_first_flutter_app/service/SyncRouteStore.dart';
-import 'package:my_first_flutter_app/service/SyncStatsService.dart';
+import 'package:my_first_flutter_app/service/Sync/SyncRouteStore.dart';
+import 'package:my_first_flutter_app/service/Sync/SyncStatsService.dart';
 import 'package:my_first_flutter_app/utils/SyncRouteNotifier.dart';
 import 'package:my_first_flutter_app/widgets/SyncRouteFooter.dart';
 

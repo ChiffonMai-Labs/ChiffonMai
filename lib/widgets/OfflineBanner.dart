@@ -1,7 +1,7 @@
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../service/ConnectivityService.dart';
+import '../service/System/ConnectivityService.dart';
 
 /// 离线状态横幅组件
 /// 监听 ConnectivityService 的连接变化，在离线时显示提示，在线恢复时给出通知

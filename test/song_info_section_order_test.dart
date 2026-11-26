@@ -20,23 +20,21 @@ import 'package:my_first_flutter_app/service/History/ChartHistoryStore.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/widgets/ChartHistorySection.dart';
 
-/// SongInfoPage 在 2026-11 拆成了主文件 + `lib/page/song_info/*.dart` 若干 part 文件，
+/// SongInfoPage 主文件与若干 part 文件都在 `lib/page/song_info/*.dart` 下，
 /// 结构断言要把它们拼在一起看。
 String _src() {
-  final files = <File>[
-    File('lib/page/SongInfoPage.dart'),
-    ...Directory('lib/page/song_info')
-        .listSync()
-        .whereType<File>()
-        .where((f) => f.path.endsWith('.dart'))
-        .toList()
-      ..sort((a, b) => a.path.compareTo(b.path)),
-  ];
+  final files = Directory('lib/page/song_info')
+      .listSync()
+      .whereType<File>()
+      .where((f) => f.path.endsWith('.dart'))
+      .toList()
+    ..sort((a, b) => a.path.compareTo(b.path));
   return files.map((f) => f.readAsStringSync()).join('\n');
 }
 
 /// 只看主文件（build 方法所在处），用于判断板块在页面上的先后顺序。
-String _mainSrc() => File('lib/page/SongInfoPage.dart').readAsStringSync();
+String _mainSrc() =>
+    File('lib/page/song_info/SongInfoPage.dart').readAsStringSync();
 
 /// 取出某个方法从签名到下一个同级方法之前的源码（粗略按 `\n  Widget ` 分段）。
 String _methodBody(String src, String signature) {

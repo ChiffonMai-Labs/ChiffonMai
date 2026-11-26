@@ -30,11 +30,11 @@ import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 
 import '../../entity/Portable/PortableSong.dart';
-import '../DxRatingCoverService.dart';
-import '../AwmcCoverService.dart';
+import '../Media/DxRatingCoverService.dart';
+import '../Media/AwmcCoverService.dart';
 import 'PortableAudioCache.dart';
 import 'CachedSongAudioSource.dart';
-import '../SongMediaCache.dart';
+import '../Media/SongMediaCache.dart';
 
 /// 播给 UI 看的一次性提示（轻提示用）。
 class PortablePlayerEvent {

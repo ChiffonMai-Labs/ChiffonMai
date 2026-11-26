@@ -8,7 +8,7 @@ import '../l10n/AppMessages.dart';
 import '../l10n/LocalizationsExtension.dart';
 import '../l10n/app_localizations.dart';
 import '../manager/DivingFish/DivingFishOAuthManager.dart';
-import '../manager/DivingFishProbeManager.dart' show SafeMapAccess;
+import '../manager/DivingFish/DivingFishProbeManager.dart' show SafeMapAccess;
 import '../utils/ApiClient.dart';
 import '../utils/AppTheme.dart';
 import '../utils/SecureCredentialStore.dart';

@@ -3,8 +3,8 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 
-import '../service/SyncRouteStore.dart';
-import '../service/SyncStatsService.dart';
+import '../service/Sync/SyncRouteStore.dart';
+import '../service/Sync/SyncStatsService.dart';
 
 /// 「同步成绩到水鱼 / 落雪」这两个入口的**共享状态**：当前线路 + 近 100 次统计。
 ///

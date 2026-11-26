@@ -17,7 +17,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:my_first_flutter_app/constant/CacheKeyConstant.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.dart';
-import 'package:my_first_flutter_app/service/SongInfoService.dart';
+import 'package:my_first_flutter_app/service/SongInfo/SongInfoService.dart';
 import 'package:my_first_flutter_app/utils/SongFilterUtil.dart';
 
 /// 造一首能被 `Song` 解析、且会参与理论 Rating 的常规曲。

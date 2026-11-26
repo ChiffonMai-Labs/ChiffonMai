@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:my_first_flutter_app/api/ApiUrls.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
-import 'package:my_first_flutter_app/manager/DivingFishProbeManager.dart';
+import 'package:my_first_flutter_app/manager/DivingFish/DivingFishProbeManager.dart';
 import 'package:my_first_flutter_app/utils/ExternalLaunchUtil.dart';
 import 'package:my_first_flutter_app/utils/LoginStateNotifier.dart';
 

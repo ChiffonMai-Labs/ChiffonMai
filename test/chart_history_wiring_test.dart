@@ -8,7 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:my_first_flutter_app/constant/CacheKeyConstant.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/UserPlayDataManager.dart';
 import 'package:my_first_flutter_app/manager/AWMC/AwmcNetUserPlayDataManager.dart';
-import 'package:my_first_flutter_app/service/FriendCompareService.dart';
+import 'package:my_first_flutter_app/service/Score/FriendCompareService.dart';
 import 'package:my_first_flutter_app/service/History/ChartHistoryStore.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
 import 'package:my_first_flutter_app/utils/CurrentDataSourceNotifier.dart';

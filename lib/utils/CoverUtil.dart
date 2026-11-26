@@ -16,8 +16,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
-import '../service/AwmcCoverService.dart';
-import '../service/DxRatingCoverService.dart';
+import '../service/Media/AwmcCoverService.dart';
+import '../service/Media/DxRatingCoverService.dart';
 import '../widgets/DxRatingCoverImage.dart';
 import '../widgets/ImageLoadingIndicator.dart';
 

@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import '../../manager/DivingFish/UserPlayDataManager.dart';
 import '../../manager/DivingFish/DiffMusicDataManager.dart';
 import '../../manager/DivingFish/MaimaiMusicDataManager.dart';
-import '../../manager/MaiTagsManager.dart';
+import '../../manager/DXRating/MaiTagsManager.dart';
 import '../../utils/Best50Tie.dart';
 import '../../utils/Best50Order.dart';
 

@@ -4,7 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
-import '../AccountStore.dart';
+import '../Account/AccountStore.dart';
 import '../../manager/DivingFish/MaimaiMusicDataManager.dart';
 
 import '../../utils/CurrentDataSourceNotifier.dart';

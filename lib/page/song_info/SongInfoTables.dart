@@ -1,4 +1,4 @@
-part of '../SongInfoPage.dart';
+part of 'SongInfoPage.dart';
 
 /// SongInfoPage · 数据类板块：定数历史、成绩趋势、分布图、对照表、容错计算
 ///

@@ -10,7 +10,7 @@ import '../../entity/Multiplayer/PlayerEntity.dart';
 import '../../entity/Multiplayer/GameStateEntity.dart';
 import '../../entity/Multiplayer/GuessRecord.dart';
 import '../../entity/Multiplayer/GameType.dart';
-import '../CommunityAvatarStore.dart';
+import '../Community/CommunityAvatarStore.dart';
 import '../../utils/AppError.dart';
 import '../../utils/CommunityProfileUtil.dart';
 

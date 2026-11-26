@@ -1,6 +1,6 @@
 import '../../l10n/FeatureLocalizations.dart';
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
-import '../../service/PaiziProgressService.dart';
+import '../../service/Score/PaiziProgressService.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:io';
@@ -18,7 +18,7 @@ import '../../utils/CoverUtil.dart';
 import '../../utils/StringUtil.dart';
 import '../../utils/TranslationUtil.dart';
 import '../../utils/AppTheme.dart';
-import '../SongInfoPage.dart';
+import '../song_info/SongInfoPage.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/LxnsAssetImage.dart';
 import '../../widgets/TrophyTitleBadge.dart';

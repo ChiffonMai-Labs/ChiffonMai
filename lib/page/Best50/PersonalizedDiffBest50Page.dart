@@ -1,5 +1,5 @@
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
-import 'package:my_first_flutter_app/service/CustomTagStore.dart';
+import 'package:my_first_flutter_app/service/Library/CustomTagStore.dart';
 import '../../utils/ChartDifficulty.dart';
 import 'dart:io';
 
@@ -9,11 +9,11 @@ import 'package:flutter/services.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import '../../service/Best50/PersonalizedDiffBest50Service.dart';
 import '../../manager/DivingFish/MaimaiMusicDataManager.dart';
-import '../SongInfoPage.dart';
+import '../song_info/SongInfoPage.dart';
 import '../../service/Best50/PersonalizedDiffBest50ConvertToImgService.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
-import 'package:my_first_flutter_app/manager/MaiTagsManager.dart';
+import 'package:my_first_flutter_app/manager/DXRating/MaiTagsManager.dart';
 import 'package:my_first_flutter_app/entity/DXRating/MaiTagsModel.dart';
 import 'package:my_first_flutter_app/utils/ExportQualitySelector.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
@@ -21,9 +21,9 @@ import '../../widgets/BackgroundPageScaffold.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../widgets/Best50Ui.dart';
 import '../../widgets/AppDialogs.dart';
-import 'package:my_first_flutter_app/service/BackgroundExportService.dart';
+import 'package:my_first_flutter_app/service/System/BackgroundExportService.dart';
 import 'package:my_first_flutter_app/widgets/AppToast.dart';
-import '../../service/AccountStore.dart';
+import '../../service/Account/AccountStore.dart';
 import '../../utils/Best50Tie.dart';
 import '../../utils/MusicDataIndex.dart';
 

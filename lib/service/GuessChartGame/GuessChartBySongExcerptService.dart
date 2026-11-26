@@ -5,7 +5,7 @@ import 'package:my_first_flutter_app/entity/GuessChartGame/GuessSong.dart';
 import 'package:my_first_flutter_app/entity/DXRating/MaiTagsModel.dart';
 import 'package:my_first_flutter_app/entity/DivingFish/Song.dart';
 import 'package:my_first_flutter_app/manager/LuoXue/LuoXueSongsManager.dart';
-import 'package:my_first_flutter_app/manager/MaiTagsManager.dart';
+import 'package:my_first_flutter_app/manager/DXRating/MaiTagsManager.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 

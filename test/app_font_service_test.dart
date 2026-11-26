@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:my_first_flutter_app/service/AppFontService.dart';
+import 'package:my_first_flutter_app/service/System/AppFontService.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 
 void main() {

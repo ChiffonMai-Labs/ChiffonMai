@@ -289,7 +289,7 @@ void main() {
   // ---- 源码守卫：这处是纯布局宽度问题，widget test 里搭不出真实卡片宽度 ----
   group('PLAYER OVERVIEW 的「数据源」格子', () {
     test('必须用短名，否则 AWMC NET 会被截成「AWMC N..」', () {
-      final src = File('lib/page/HomePage.dart').readAsStringSync();
+      final src = File('lib/page/Home/HomePage.dart').readAsStringSync();
       // 那一行是三个 Expanded 平分宽度：360dp 屏上每格约 107dp，
       // 再让出右边 14dp 的切换图标，留给文字只有 ~90dp；
       // 'AWMC NET'（15px 粗体 ≈ 79dp）加上机型字体度量差异就会顶出去，

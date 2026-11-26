@@ -1,7 +1,7 @@
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 
-import '../service/SyncStatsService.dart';
+import '../service/Sync/SyncStatsService.dart';
 import '../utils/SyncRouteNotifier.dart';
 import 'SyncStatsView.dart';
 import 'AnimatedReveal.dart';

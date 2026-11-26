@@ -1,4 +1,4 @@
-part of '../SongInfoPage.dart';
+part of 'SongInfoPage.dart';
 
 /// SongInfoPage · 2026-11 页面布局。
 ///

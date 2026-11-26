@@ -7,7 +7,7 @@ import 'CommunitySyncStatusIcon.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constant/CacheKeyConstant.dart';
-import '../service/CommunityAvatarStore.dart';
+import '../service/Community/CommunityAvatarStore.dart';
 import '../utils/AppTheme.dart';
 import '../utils/UserProfileNotifier.dart';
 import 'CommunityAvatar.dart';

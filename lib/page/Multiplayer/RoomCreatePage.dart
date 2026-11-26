@@ -2,7 +2,7 @@ import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:my_first_flutter_app/entity/Multiplayer/GameType.dart';
-import 'package:my_first_flutter_app/manager/MultiplayerManager.dart';
+import 'package:my_first_flutter_app/manager/Multiplayer/MultiplayerManager.dart';
 import 'package:my_first_flutter_app/utils/CommonWidgetUtil.dart';
 import 'package:my_first_flutter_app/utils/SongFilterUtil.dart';
 import 'package:my_first_flutter_app/service/GuessChartGame/GuessChartByInfoService.dart';

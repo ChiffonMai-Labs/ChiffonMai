@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../service/SyncStatsService.dart';
+import '../service/Sync/SyncStatsService.dart';
 import '../utils/SyncRouteNotifier.dart';
 import 'SyncRouteSwitcher.dart';
 import 'SyncStatsFooter.dart';

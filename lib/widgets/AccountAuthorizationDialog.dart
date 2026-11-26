@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import '../l10n/LocalizationsExtension.dart';
 import '../manager/LuoXue/LuoXueOAuthManager.dart';
 import '../manager/LuoXue/LuoXueUserPlayDataManager.dart';
-import '../service/AccountAuthorizationStore.dart';
+import '../service/Account/AccountAuthorizationStore.dart';
 import '../utils/AppTaskActivity.dart';
 import '../utils/AppTheme.dart';
 import '../utils/ExternalLaunchUtil.dart';

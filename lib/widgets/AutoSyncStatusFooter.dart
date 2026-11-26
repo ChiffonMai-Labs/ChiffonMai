@@ -4,8 +4,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../service/AutoSyncService.dart';
-import '../service/SyncStatsService.dart';
+import '../service/Sync/AutoSyncService.dart';
+import '../service/Sync/SyncStatsService.dart';
 import '../utils/AppTheme.dart';
 import '../utils/AutoSyncDisplay.dart';
 import 'MarqueeText.dart';

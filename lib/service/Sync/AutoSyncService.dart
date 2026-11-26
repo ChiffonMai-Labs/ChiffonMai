@@ -1,0 +1,873 @@
+import 'package:my_first_flutter_app/l10n/AppMessages.dart';
+import 'dart:convert';
+import 'dart:async';
+import 'dart:math';
+
+import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../api/ApiUrls.dart';
+import '../../constant/CacheKeyConstant.dart';
+import '../../utils/ApiClient.dart';
+import '../../utils/AppError.dart';
+import '../../utils/SecureCredentialStore.dart';
+import 'SyncStatsService.dart';
+import '../AWMC/AwmcQuickIdentityStore.dart';
+import '../AWMC/AwmcQuickSyncService.dart';
+import '../Account/AccountStore.dart';
+import '../Account/AccountSwitchService.dart';
+import 'PostSyncRefreshService.dart';
+import '../Community/PlayerExperienceService.dart';
+import '../../utils/CurrentDataSourceNotifier.dart';
+
+class AutoSyncException implements Exception {
+  final String message;
+  final String? code;
+  final String? requestId;
+  final int? httpStatus;
+  final String? stage;
+  const AutoSyncException(
+    this.message, {
+    this.code,
+    this.requestId,
+    this.httpStatus,
+    this.stage,
+  });
+  @override
+  String toString() => message;
+}
+
+DateTime? _syncDate(dynamic value) => value is num && value > 0
+    ? DateTime.fromMillisecondsSinceEpoch(value.toInt(), isUtc: true)
+    : null;
+
+class AutoSyncQueue {
+  final int waitingUsers;
+  final int waitingTasks;
+  final int runningTasks;
+  final int? position;
+  final int? userPosition;
+  final DateTime? scheduledAt;
+  final bool upcoming;
+  final bool longQueue;
+  final String? queueWarning;
+  final AutoSyncBatchResults? currentQueue;
+  final AutoSyncBatchResults? previousQueue;
+  const AutoSyncQueue(
+      {required this.waitingUsers,
+      required this.waitingTasks,
+      required this.runningTasks,
+      this.position,
+      this.userPosition,
+      this.scheduledAt,
+      this.upcoming = false,
+      this.longQueue = false,
+      this.queueWarning,
+      this.currentQueue,
+      this.previousQueue});
+  factory AutoSyncQueue.fromJson(Map data) => AutoSyncQueue(
+      waitingUsers: (data['waitingUsers'] as num?)?.toInt() ?? 0,
+      waitingTasks: (data['waitingTasks'] as num?)?.toInt() ?? 0,
+      runningTasks: (data['runningTasks'] as num?)?.toInt() ?? 0,
+      position: (data['position'] as num?)?.toInt(),
+      userPosition: (data['userPosition'] as num?)?.toInt(),
+      scheduledAt: _syncDate(data['scheduledAt']),
+      upcoming: data['upcoming'] == true,
+      longQueue: data['longQueue'] == true,
+      queueWarning: data['queueWarning'] as String?,
+      currentQueue: data['currentQueue'] is Map
+          ? AutoSyncBatchResults.fromJson(data['currentQueue'])
+          : null,
+      previousQueue: data['previousQueue'] is Map
+          ? AutoSyncBatchResults.fromJson(data['previousQueue'])
+          : null);
+}
+
+class AutoSyncBatchResults {
+  final DateTime? scheduledAt;
+  final int processedUsers;
+  final int processedTasks;
+  final int completeSuccessUsers;
+  final int partialSuccessUsers;
+  final int completeFailureUsers;
+  final int submitted;
+  final int skipped;
+  final int unchanged;
+
+  const AutoSyncBatchResults({
+    this.scheduledAt,
+    this.processedUsers = 0,
+    this.processedTasks = 0,
+    this.completeSuccessUsers = 0,
+    this.partialSuccessUsers = 0,
+    this.completeFailureUsers = 0,
+    this.submitted = 0,
+    this.skipped = 0,
+    this.unchanged = 0,
+  });
+
+  factory AutoSyncBatchResults.fromJson(Map data) {
+    int? number(String key) => (data[key] as num?)?.toInt();
+    final processed = number('processedUsers') ?? 0;
+    final success = number('successUsers') ?? 0;
+    final failed = number('failedUsers') ?? 0;
+    // 旧接口把部分成功者同时计入成功和失败。
+    final mixed = (success + failed - processed).clamp(0, success < failed ? success : failed);
+    return AutoSyncBatchResults(
+        scheduledAt: _syncDate(data['scheduledAt']),
+        processedUsers: processed,
+        processedTasks: number('processedTasks') ?? 0,
+        completeSuccessUsers: number('completeSuccessUsers') ?? success - mixed,
+        partialSuccessUsers: number('partialSuccessUsers') ?? mixed,
+        completeFailureUsers: number('completeFailureUsers') ?? failed - mixed,
+        submitted: number('submitted') ?? 0,
+        skipped: number('skipped') ?? 0,
+        unchanged: number('unchanged') ?? 0,
+      );
+  }
+}
+
+class AutoSyncTiming {
+  final DateTime? plannedAt;
+  final DateTime? retryAt;
+  final DateTime? collectedAt;
+
+  /// 本轮第一次实际开始处理的时间；尚未开始时为空（排队等待不计入整轮时限）。
+  final DateTime? startedAt;
+
+  /// 服务端当前整轮处理时限（毫秒）；旧版本没有该字段时为空。
+  final int? roundTimeoutMs;
+  final String? waitReason;
+  const AutoSyncTiming(
+      {this.plannedAt,
+      this.retryAt,
+      this.collectedAt,
+      this.startedAt,
+      this.roundTimeoutMs,
+      this.waitReason});
+  bool get waiting => waitReason != null;
+  factory AutoSyncTiming.fromJson(Map data) => AutoSyncTiming(
+        plannedAt: _syncDate(data['plannedAt']),
+        retryAt: _syncDate(data['retryAt']),
+        collectedAt: _syncDate(data['collectedAt']),
+        startedAt: _syncDate(data['startedAt']),
+        roundTimeoutMs: (data['roundTimeoutMs'] as num?)?.toInt(),
+        waitReason: data['waitReason'] as String?,
+      );
+}
+
+class AutoSyncProgress {
+  final String stage;
+  final int completed;
+  final int total;
+  final int submitted;
+  final int skipped;
+  const AutoSyncProgress(
+      {required this.stage,
+      this.completed = 0,
+      this.total = 0,
+      this.submitted = 0,
+      this.skipped = 0});
+  factory AutoSyncProgress.fromJson(Map data) => AutoSyncProgress(
+      stage: data['stage'] as String? ?? 'starting',
+      completed: (data['completed'] as num?)?.toInt() ?? 0,
+      total: (data['total'] as num?)?.toInt() ?? 0,
+      submitted: (data['submitted'] as num?)?.toInt() ?? 0,
+      skipped: (data['skipped'] as num?)?.toInt() ?? 0);
+  double? get value => total > 0 ? (completed / total).clamp(0.0, 1.0) : null;
+  String get label => switch (stage) {
+        'target_records' => appL10n.flowReadingExistingScoresOnTheTargetAccount,
+        'catalog' => appL10n.flowCheckingChartsSupportedByTheTarget,
+        'reading' => completed > 0
+            ? appL10n
+                .flowReadingCabinetScoresP0PagesRead((completed).toString())
+            : appL10n.flowReadingCabinetScores,
+        'preparing' => appL10n.flowPreparingChartsComboAndSyncMarkers,
+        'uploading' => appL10n.flowUploadingScoresP0P1P2(
+            (completed).toString(),
+            (total).toString(),
+            (submitted > 0
+                    ? appL10n.flowP0Submitted((submitted).toString())
+                    : '')
+                .toString()),
+        'complete' => appL10n.flowSyncComplete2,
+        'waiting_quota' => appL10n.flowWaitingForUpstreamQuota2,
+        'waiting_upstream' => appL10n.flowWaitingForUpstreamService2,
+        _ => appL10n.flowPreparingQuickSync,
+      };
+
+  /// 按目标源细化的进度文案（页面详情用）：区分读取目标成绩、曲库、上传等阶段。
+  String detailLabel(String platformLabel) => switch (stage) {
+        'target_records' => appL10n
+            .flowReadingExistingScoresOnP0(appLocalizeLabel(platformLabel)),
+        'catalog' => appL10n
+            .flowCheckingChartsSupportedByP0(appLocalizeLabel(platformLabel)),
+        'reading' => completed > 0
+            ? appL10n
+                .flowReadingCabinetScoresP0PagesRead((completed).toString())
+            : appL10n.flowReadingCabinetScores,
+        'preparing' => appL10n.flowComparingChangesAndPreparingUploads,
+        'uploading' => appL10n.flowUploadingToP0P1P2P3(
+            appLocalizeLabel(platformLabel),
+            (completed).toString(),
+            (total).toString(),
+            (submitted > 0
+                    ? appL10n.flowP0Submitted((submitted).toString())
+                    : '')
+                .toString()),
+        'complete' => appL10n.flowSyncComplete2,
+        'waiting_quota' => appL10n.flowWaitingForUpstreamQuota2,
+        'waiting_upstream' => appL10n.flowWaitingForUpstreamService2,
+        _ => appL10n.flowPreparingQuickSync,
+      };
+}
+
+class AutoSyncRunResult {
+  final String status;
+  final String? error;
+  final int submitted;
+  final int skipped;
+  final int unchanged;
+  final DateTime? scheduledAt;
+  final DateTime? startedAt;
+  final DateTime? finishedAt;
+
+  /// 本轮机台成绩快照的采集时间；没有采集到成绩时为空。
+  final DateTime? collectedAt;
+
+  /// 本轮结束时的整轮处理时限（毫秒），用于说明超时原因。
+  final int? roundTimeoutMs;
+  const AutoSyncRunResult(
+      {required this.status,
+      this.error,
+      this.submitted = 0,
+      this.skipped = 0,
+      this.unchanged = 0,
+      this.scheduledAt,
+      this.startedAt,
+      this.finishedAt,
+      this.collectedAt,
+      this.roundTimeoutMs});
+  factory AutoSyncRunResult.fromJson(Map data) => AutoSyncRunResult(
+      status: data['status'] as String? ?? 'failed',
+      error: data['error'] as String?,
+      submitted: (data['submitted'] as num?)?.toInt() ?? 0,
+      skipped: (data['skipped'] as num?)?.toInt() ?? 0,
+      unchanged: (data['unchanged'] as num?)?.toInt() ?? 0,
+      scheduledAt: _syncDate(data['scheduledAt']),
+      startedAt: _syncDate(data['startedAt']),
+      finishedAt: _syncDate(data['finishedAt']),
+      collectedAt: _syncDate(data['collectedAt']),
+      roundTimeoutMs: (data['roundTimeoutMs'] as num?)?.toInt());
+}
+
+class AutoSyncTask {
+  final bool enabled;
+  final String status;
+  final String? error;
+  final DateTime? nextRunAt;
+  final DateTime? lastRunAt;
+  final DateTime? keepaliveExpiresAt;
+  final int submitted;
+  final int skipped;
+  final AutoSyncQueue? queue;
+  final AutoSyncProgress? progress;
+  final AutoSyncRunResult? lastResult;
+  final AutoSyncTiming? timing;
+
+  const AutoSyncTask(
+      {this.enabled = false,
+      this.status = 'disabled',
+      this.error,
+      this.nextRunAt,
+      this.lastRunAt,
+      this.keepaliveExpiresAt,
+      this.submitted = 0,
+      this.skipped = 0,
+      this.queue,
+      this.progress,
+      this.lastResult,
+      this.timing});
+
+  /// 任务进程仍在运行，但当前是在等待上游（配额 / 服务恢复），不是在读写成绩。
+  bool get waiting => status == 'running' && timing?.waitReason != null;
+
+  factory AutoSyncTask.fromJson(Map<String, dynamic> data) {
+    return AutoSyncTask(
+        enabled: data['enabled'] == true,
+        status: data['status'] as String? ?? 'disabled',
+        error: data['error'] as String?,
+        nextRunAt: _syncDate(data['nextRunAt']),
+        lastRunAt: _syncDate(data['lastRunAt']),
+        keepaliveExpiresAt: _syncDate(data['keepaliveExpiresAt']),
+        submitted: (data['submitted'] as num?)?.toInt() ?? 0,
+        skipped: (data['skipped'] as num?)?.toInt() ?? 0,
+        queue:
+            data['queue'] is Map ? AutoSyncQueue.fromJson(data['queue']) : null,
+        progress: data['progress'] is Map
+            ? AutoSyncProgress.fromJson(data['progress'])
+            : null,
+        lastResult: data['lastResult'] is Map
+            ? AutoSyncRunResult.fromJson(data['lastResult'])
+            : ['success', 'failed'].contains(data['status']) &&
+                    data['lastRunAt'] != null
+                ? AutoSyncRunResult(
+                    status: data['status'],
+                    error: data['error'],
+                    submitted: (data['submitted'] as num?)?.toInt() ?? 0,
+                    skipped: (data['skipped'] as num?)?.toInt() ?? 0,
+                    startedAt: _syncDate(data['lastRunAt']))
+                : null,
+        timing: data['timing'] is Map
+            ? AutoSyncTiming.fromJson(data['timing'])
+            : null);
+  }
+}
+
+class AutoSyncRegistration {
+  final SyncPlatform platform;
+  final String source;
+  final String accountId;
+  final String _token;
+  final bool lastKnownEnabled;
+  final bool credentialPending;
+  const AutoSyncRegistration(
+      this.platform, this.source, this.accountId, this._token,
+      {this.lastKnownEnabled = false, this.credentialPending = false});
+
+  String get accountKey => '$source:$accountId';
+  Map<String, dynamic> _toJson() => {
+        'source': source,
+        'accountId': accountId,
+        'token': _token,
+        'enabled': lastKnownEnabled,
+        'credentialPending': credentialPending,
+      };
+}
+
+/// 服务端托管定时任务；本机只在安全存储中保存独立的任务管理令牌。
+/// 不使用共享开发者密钥，也不在偏好、备份或日志中保存任务令牌。
+class AutoSyncService {
+  AutoSyncService._();
+  static final instance = AutoSyncService._();
+
+  /// 设置变更后通知 Hub 摘要刷新；查询状态不会反复触发通知。
+  static final changes = ValueNotifier<int>(0);
+
+  /// 全站匿名队列汇总，不依赖本机是否绑定账号或开启任务。
+  Future<AutoSyncQueue> queueOverview() async {
+    try {
+      final response = await ApiClient.get(
+          Uri.parse(ApiUrls.AutoSyncOverviewUrl),
+          timeout: const Duration(seconds: 15));
+      final data = jsonDecode(utf8.decode(response.bodyBytes));
+      if (response.statusCode != 200 ||
+          data is! Map ||
+          data['success'] != true ||
+          data['queue'] is! Map) {
+        throw AutoSyncException(appL10n.svcQueueStatisticsAreUnavailableTryAgainLater);
+      }
+      return AutoSyncQueue.fromJson(data['queue']);
+    } catch (_) {
+      throw AutoSyncException(appL10n.svcQueueStatisticsAreUnavailableTryAgainLater);
+    }
+  }
+
+  Future<void> _writes = Future.value();
+  final Map<SyncPlatform, Future<void>> _mutations = {};
+  final Map<SyncPlatform, DateTime> _retryAfter = {};
+  final Map<SyncPlatform, DateTime> _recoveryAfter = {};
+  final Map<SyncPlatform, String> _credentialErrors = {};
+  Future<void> _refreshQueue = Future<void>.value();
+  final Set<String> _queuedRefreshes = {};
+  final Map<SyncPlatform, String> _refreshErrors = {};
+  String? refreshError(SyncPlatform platform) => _refreshErrors[platform];
+  static const _personalKeys = {
+    SyncPlatform.divingFish: CacheKeyConstant.probeDivingFishImportToken,
+    SyncPlatform.luoXue: CacheKeyConstant.probeLxnsImportToken,
+    SyncPlatform.awmc: CacheKeyConstant.awmcNetImportToken,
+  };
+
+  Future<T> _mutate<T>(SyncPlatform platform, Future<T> Function() action) {
+    final next =
+        (_mutations[platform] ?? Future<void>.value()).then((_) => action());
+    _mutations[platform] = next.then<void>((_) {}, onError: (Object _) {});
+    return next;
+  }
+
+  Future<Map<String, dynamic>> _read() async {
+    final raw =
+        await SecureCredentialStore.read(CacheKeyConstant.autoSyncTasks);
+    if (raw == null) return {};
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map<String, dynamic>) return decoded;
+    } catch (_) {}
+    // 损坏的管理令牌不能被静默覆盖，否则会留下无法关闭的服务端任务。
+    throw AutoSyncException(appL10n.svcCouldNotReadTheAutoSyncSettings);
+  }
+
+  Future<void> _store(
+      SyncPlatform platform, AutoSyncRegistration registration) {
+    final next = _writes.then((_) async {
+      final data = await _read();
+      data[platform.key] = registration._toJson();
+      await SecureCredentialStore.write(
+          CacheKeyConstant.autoSyncTasks, jsonEncode(data));
+    });
+    _writes = next.then<void>((_) {}, onError: (Object _) {});
+    return next;
+  }
+
+  Future<void> _remove(SyncPlatform platform) {
+    final next = _writes.then((_) async {
+      final data = await _read();
+      data.remove(platform.key);
+      if (data.isEmpty) {
+        await SecureCredentialStore.delete(CacheKeyConstant.autoSyncTasks);
+      } else {
+        await SecureCredentialStore.write(
+            CacheKeyConstant.autoSyncTasks, jsonEncode(data));
+      }
+    });
+    _writes = next.then<void>((_) {}, onError: (Object _) {});
+    return next;
+  }
+
+  Future<AutoSyncRegistration?> registration(SyncPlatform platform) async {
+    await _writes;
+    final value = (await _read())[platform.key];
+    if (value == null) return null;
+    if (value is! Map ||
+        value['token'] is! String ||
+        !RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(value['token']) ||
+        value['source'] is! String ||
+        value['accountId'] is! String) {
+      throw AutoSyncException(appL10n.svcCouldNotReadTheAutoSyncCredentials);
+    }
+    return AutoSyncRegistration(
+        platform, value['source'], value['accountId'], value['token'],
+        lastKnownEnabled: value['enabled'] == true,
+        credentialPending: value['credentialPending'] == true);
+  }
+
+  Future<AutoSyncTask> _request(
+      String method, AutoSyncRegistration registration,
+      {Map<String, dynamic>? body, String? action}) async {
+    try {
+      final suffix = method == 'POST' ? '/${action ?? 'credential'}' : '';
+      final uri = Uri.parse('${ApiUrls.AutoSyncTaskUrl}$suffix');
+      final headers = {
+        'Authorization': 'Bearer ${registration._token}',
+        'Content-Type': 'application/json'
+      };
+      final response = switch (method) {
+        'GET' => await ApiClient.get(uri,
+            headers: headers, timeout: const Duration(seconds: 20)),
+        'PUT' => await ApiClient.put(uri,
+            headers: headers,
+            body: body == null ? null : jsonEncode(body),
+            timeout: const Duration(seconds: 90)),
+        'POST' => await ApiClient.post(uri,
+            headers: headers,
+            body: jsonEncode(body),
+            timeout: const Duration(seconds: 90)),
+        _ => await ApiClient.delete(uri,
+            headers: headers, timeout: const Duration(seconds: 20)),
+      };
+      dynamic data;
+      try {
+        data = jsonDecode(utf8.decode(response.bodyBytes));
+      } catch (_) {}
+      if (response.statusCode < 200 ||
+          response.statusCode >= 300 ||
+          data is! Map ||
+          data['success'] != true ||
+          data['task'] is! Map ||
+          data['task']['enabled'] is! bool) {
+        final code = data is Map ? data['error']?.toString() : null;
+        final requestId = ApiClient.requestIdOf(response);
+        if (code == 'invalid_config') {
+          debugPrint('[AutoSync] ${registration.platform.name} $method '
+              'HTTP ${response.statusCode}: invalid_config req=${requestId ?? '-'}');
+        }
+        throw AutoSyncException(
+          errorMessage(code),
+          code: code,
+          requestId: requestId,
+          httpStatus: response.statusCode,
+          stage: '自动同步 $method',
+        );
+      }
+      final task =
+          AutoSyncTask.fromJson(Map<String, dynamic>.from(data['task']));
+      // Hub 会后台查询摘要，旧查询不能覆盖刚开启/关闭任务的本机凭据。
+      if (method != 'GET' && action != 'keepalive') {
+        if (!task.enabled) {
+          await _remove(registration.platform);
+        } else {
+          await _store(
+              registration.platform,
+              AutoSyncRegistration(registration.platform, registration.source,
+                  registration.accountId, registration._token,
+                  lastKnownEnabled: true));
+        }
+        changes.value++;
+        if (method == 'PUT' || method == 'POST') {
+          unawaited(PlayerExperienceService.instance
+              .onAccountAuthenticated(registration.accountKey));
+        }
+      }
+      return task;
+    } on AutoSyncException {
+      rethrow;
+    } catch (error) {
+      // 不把 HTTP 异常或服务端原始响应带到 UI/日志中。
+      throw AutoSyncException(
+        appL10n.svcTheAutoSyncServiceIsUnavailableCheck,
+        requestId: AppErrorRegistry.recentRequestId(host: 'chiffonmai.cloud'),
+        stage: '自动同步 $method',
+      );
+    }
+  }
+
+  Future<AutoSyncTask> status(SyncPlatform platform) async {
+    final before = await registration(platform);
+    final task = await _status(platform);
+    final after = await registration(platform);
+    if (after != null &&
+        (before == null || before.accountKey == after.accountKey)) {
+      // 状态轮询不等待完整刷新；同一轮只入队一次，所有源共享串行刷新队列。
+      _observeCompleted(after, task);
+    }
+    return task;
+  }
+
+  Future<AutoSyncTask> keepalive(SyncPlatform platform) =>
+      _mutate(platform, () async {
+        final entry = await registration(platform);
+        if (entry == null) {
+          throw AutoSyncException(errorMessage('task_not_found'));
+        }
+        return _request('POST', entry, action: 'keepalive', body: const {});
+      });
+
+  void _observeCompleted(AutoSyncRegistration entry, AutoSyncTask task) {
+    final result = task.lastResult;
+    final finished = result?.finishedAt ?? result?.scheduledAt;
+    final source = AwmcQuickSyncService.sourceOf(entry.platform);
+    if (result?.status != 'success' ||
+        finished == null ||
+        entry.source != source.key ||
+        CurrentDataSourceNotifier.instance.value != source) return;
+    final stamp = '${entry.accountKey}:${finished.millisecondsSinceEpoch}';
+    if (!_queuedRefreshes.add(stamp)) return;
+    final revision = AccountSwitchService.revision;
+    final next = _refreshQueue.then((_) async {
+      final prefs = await SharedPreferences.getInstance();
+      final marker = 'auto_sync_refreshed_${entry.platform.key}';
+      if (prefs.getString(marker) == stamp ||
+          CurrentDataSourceNotifier.instance.value != source ||
+          AccountSwitchService.revision != revision) return;
+      final current = (await AccountStore.loadAll())[source.key];
+      final registration = await this.registration(entry.platform);
+      if (current?.id != entry.accountId ||
+          registration?._token != entry._token ||
+          registration?.accountKey != entry.accountKey) return;
+      final refresh = await PostSyncRefreshOperation.capture(source);
+      if (AccountSwitchService.revision != revision ||
+          CurrentDataSourceNotifier.instance.value != source) return;
+      final error = await refresh.run(onProgress: (_, __) {});
+      // 失败也记录本轮已处理，防止三秒轮询反复请求；用户仍可手动刷新。
+      await prefs.setString(marker, stamp);
+      if (error == null) {
+        _refreshErrors.remove(entry.platform);
+      } else {
+        _refreshErrors[entry.platform] = error;
+      }
+      changes.value++;
+    });
+    _refreshQueue = next.then<void>((_) {
+      _queuedRefreshes.remove(stamp);
+    }, onError: (Object _) {
+      _queuedRefreshes.remove(stamp);
+      _refreshErrors[entry.platform] = appL10n.svcSyncedButTheLocalDataRefreshDid;
+    });
+  }
+
+  Future<AutoSyncTask> _status(SyncPlatform platform) async {
+    final entry = await registration(platform);
+    if (entry == null)
+      return await recoverIfAvailable(platform) ?? const AutoSyncTask();
+    if (entry.credentialPending) {
+      return _mutate(platform, () async {
+        final latest = await registration(platform);
+        if (latest == null) return const AutoSyncTask();
+        if (!latest.credentialPending) return _request('GET', latest);
+        if (_retryAfter[platform]?.isAfter(DateTime.now()) == true) {
+          throw AutoSyncException(
+              _credentialErrors[platform] ?? appL10n.svcPersonalKeySavedOnThisDeviceThe);
+        }
+        return _updatePersonalCredential(latest);
+      });
+    }
+    return _request('GET', entry);
+  }
+
+  /// 本机管理令牌丢失后，用已保存的账号身份和机台 userId 找回任务。
+  /// 没有匹配任务时短暂缓存结果，避免 Hub 轮询反复请求恢复接口。
+  Future<AutoSyncTask?> _recoverIfAvailableUnserialized(
+      SyncPlatform platform) async {
+    if (_recoveryAfter[platform]?.isAfter(DateTime.now()) == true) {
+      return null;
+    }
+    try {
+      final account = await AwmcQuickSyncService.accountFor(
+        platform,
+        requireData: false,
+        forAutoSync: true,
+      );
+      final userId = await AwmcQuickIdentityStore.readForTaskRecovery();
+      if (userId == null) return null;
+      final task = await _recoverTask(
+          platform: platform,
+          source: account.source.key,
+          accountId: account.id,
+          credential: account.credential,
+          userId: userId);
+      _recoveryAfter.remove(platform);
+      return task;
+    } on AutoSyncException catch (error) {
+      if (error.code == 'task_not_found') {
+        _recoveryAfter[platform] =
+            DateTime.now().add(const Duration(seconds: 30));
+        return null;
+      }
+      rethrow;
+    } on StateError {
+      _recoveryAfter[platform] =
+          DateTime.now().add(const Duration(seconds: 30));
+      return null;
+    }
+  }
+
+  Future<AutoSyncTask?> recoverIfAvailable(SyncPlatform platform) =>
+      _mutate(platform, () => _recoverIfAvailableUnserialized(platform));
+
+  Future<AutoSyncTask> _updatePersonalCredential(
+      AutoSyncRegistration entry) async {
+    try {
+      final account = (await AccountStore.loadAll())[entry.source];
+      if (account != null && account.id != entry.accountId) {
+        throw AutoSyncException(appL10n.svcTheAccountChangedTurnOffAutoSync);
+      }
+      final credential =
+          await SecureCredentialStore.read(_personalKeys[entry.platform]!);
+      if (credential == null || credential.trim().isEmpty) {
+        throw AutoSyncException(appL10n.svcSaveThePersonalKeyForThisData);
+      }
+      final task = await _request('POST', entry, body: {
+        'platform': entry.platform.key,
+        'accountId': entry.accountId,
+        'credential': credential.trim(),
+      });
+      _retryAfter.remove(entry.platform);
+      _credentialErrors.remove(entry.platform);
+      return task;
+    } catch (error) {
+      final message =
+          appL10n.svcPersonalKeySavedOnThisDeviceThe2((error is AutoSyncException ? error.message : appL10n.svcCheckYourNetworkAndTryAgain).toString());
+      _credentialErrors[entry.platform] = message;
+      _retryAfter[entry.platform] =
+          DateTime.now().add(const Duration(seconds: 30));
+      throw AutoSyncException(message);
+    }
+  }
+
+  Future<AutoSyncTask> _recoverTask({
+    required SyncPlatform platform,
+    required String source,
+    required String accountId,
+    String? credential,
+    required int userId,
+  }) async {
+    final trimmedCredential = credential?.trim();
+    final response = await ApiClient.post(
+      Uri.parse('${ApiUrls.AutoSyncTaskUrl}/recover'),
+      body: jsonEncode({
+        'platform': platform.key,
+        'accountId': accountId,
+        if (trimmedCredential != null && trimmedCredential.isNotEmpty)
+          'credential': trimmedCredential,
+        'userId': userId,
+      }),
+      headers: const {'Content-Type': 'application/json'},
+      timeout: const Duration(seconds: 90),
+    );
+    dynamic data;
+    try {
+      data = jsonDecode(utf8.decode(response.bodyBytes));
+    } catch (_) {}
+    final token = data is Map ? data['token']?.toString() : null;
+    if (response.statusCode < 200 ||
+        response.statusCode >= 300 ||
+        data is! Map ||
+        data['success'] != true ||
+        data['task'] is! Map ||
+        data['task']['enabled'] is! bool ||
+        token == null ||
+        !RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(token)) {
+      final code = data is Map ? data['error']?.toString() : null;
+      throw AutoSyncException(
+        errorMessage(code),
+        code: code,
+        requestId: ApiClient.requestIdOf(response),
+        httpStatus: response.statusCode,
+        stage: '找回自动同步任务',
+      );
+    }
+    await _store(
+        platform,
+        AutoSyncRegistration(platform, source, accountId, token,
+            lastKnownEnabled: true));
+    changes.value++;
+    unawaited(PlayerExperienceService.instance
+        .onAccountAuthenticated('$source:$accountId'));
+    return AutoSyncTask.fromJson(Map<String, dynamic>.from(data['task']));
+  }
+
+  /// 先标记待更新，再保存新 key；断网或中途退出后仍可由状态查询恢复同步。
+  Future<String> savePersonalCredential(SyncPlatform platform, String value) =>
+      _mutate(platform, () async {
+        final credential = value.trim();
+        if (credential.isEmpty) throw AutoSyncException(appL10n.svcEnterThePersonalKey);
+        final entry = await registration(platform);
+        if (entry != null) {
+          await _store(
+              platform,
+              AutoSyncRegistration(
+                  platform, entry.source, entry.accountId, entry._token,
+                  lastKnownEnabled: entry.lastKnownEnabled,
+                  credentialPending: true));
+        }
+        await SecureCredentialStore.write(_personalKeys[platform]!, credential);
+        if (entry == null) return appL10n.svcPersonalKeySaved;
+        try {
+          final task = await _updatePersonalCredential(entry);
+          return task.enabled ? appL10n.svcPersonalKeySavedAndTheScheduledTask : appL10n.svcPersonalKeySavedAutoSyncStaysOff;
+        } on AutoSyncException catch (error) {
+          changes.value++;
+          return error.message;
+        }
+      });
+
+  /// 先关闭托管任务，再删除本机 key；关闭失败时保留本机管理能力和凭据。
+  Future<String> clearPersonalCredential(SyncPlatform platform) =>
+      _mutate(platform, () async {
+        var entry = await registration(platform);
+        if (entry == null) {
+          await _recoverIfAvailableUnserialized(platform);
+          entry = await registration(platform);
+        }
+        if (entry != null) await _request('DELETE', entry);
+        await SecureCredentialStore.delete(_personalKeys[platform]!);
+        _retryAfter.remove(platform);
+        _credentialErrors.remove(platform);
+        return entry == null ? appL10n.svcPersonalKeyCleared : appL10n.svcPersonalKeyClearedAndTheMatchingAuto;
+      });
+
+  Future<AutoSyncTask> enable(
+          {required SyncPlatform platform,
+          required String source,
+          required String accountId,
+          String? credential,
+          required int userId}) =>
+      _mutate(platform, () async {
+        var entry = await registration(platform);
+        if (entry != null && entry.accountId != accountId) {
+          await _request('DELETE', entry);
+          entry = null;
+        }
+        if (entry == null) {
+          final random = Random.secure();
+          final token = base64UrlEncode(
+                  List<int>.generate(32, (_) => random.nextInt(256)))
+              .replaceAll('=', '');
+          entry = AutoSyncRegistration(platform, source, accountId, token);
+          // 先可靠保存，再请求服务器，网络超时后仍能查询或关闭已创建的任务。
+          await _store(platform, entry);
+        }
+        final trimmedCredential = credential?.trim();
+        try {
+          return await _request('PUT', entry, body: {
+            'platform': platform.key,
+            'accountId': accountId,
+            if (trimmedCredential != null && trimmedCredential.isNotEmpty)
+              'credential': trimmedCredential,
+            'userId': userId
+          });
+        } on AutoSyncException catch (error) {
+          if (error.code != 'already_registered') rethrow;
+          return _recoverTask(
+              platform: platform,
+              source: source,
+              accountId: accountId,
+              credential: trimmedCredential,
+              userId: userId);
+        }
+      });
+
+  Future<AutoSyncTask> disable(SyncPlatform platform) =>
+      _mutate(platform, () async {
+        var entry = await registration(platform);
+        if (entry == null) {
+          await _recoverIfAvailableUnserialized(platform);
+          entry = await registration(platform);
+        }
+        if (entry == null) return const AutoSyncTask();
+        return _request('DELETE', entry);
+      });
+
+  Future<void> disableForAccountKey(String accountKey) async {
+    for (final platform in SyncPlatform.values) {
+      final entry = await registration(platform);
+      if (entry?.accountKey == accountKey) await disable(platform);
+    }
+  }
+
+  Future<void> disableForSource(String source) async {
+    for (final platform in SyncPlatform.values) {
+      final entry = await registration(platform);
+      if (entry?.source == source) await disable(platform);
+    }
+  }
+
+  static String errorMessage(String? code) => switch (code) {
+        'target_records_failed' => appL10n.svcCouldNotVerifyTheTargetAccountScores,
+        'already_registered' => appL10n.svcAnAutoSyncTaskAlreadyExistsTrying,
+        'task_not_found' => appL10n.svcNoMatchingAutoSyncTaskWasFound,
+        'keepalive_expired' => appL10n.autoSyncKeepaliveExpired,
+        'task_running' => appL10n.svcTheTaskIsRunningRestoreManagementAccess,
+        'account_changed' => appL10n.svcTheAccountLinkedToTheTaskChanged,
+        'invalid_config' => appL10n.svcQuickSyncCredentialsAreIncompleteEnterA,
+        'rate_limited' => appL10n.svcTooManyRequestsTryAgainLater,
+        'catalog_failed' => appL10n.svcCouldNotReadTheSongLibraryOf,
+        'upload_failed' => appL10n.svcScoreUploadFailedSomeBatchesMayHave,
+        'upload_credential_invalid' =>
+          appL10n.svcTheAWMCNETImportTokenIsInvalid,
+        'fish_write_consent_required' =>
+          appL10n.flowDivingFishWriteConsentRequiredMessage,
+        'gateway_failed' => appL10n.svcCouldNotReadCabinetScoresTryAgain,
+        'unexpected_pagination' => appL10n.svcTheUpstreamReturnedPagedScoresReadingStopped,
+        'no_scores' || 'no_matching_scores' => appL10n.svcNoValidScoresSupportedByTheTarget,
+        'interrupted' => appL10n.svcAServiceRestartInterruptedTheLastSync,
+        'cancelled' => appL10n.svcTheAutoSyncSettingChangedRefreshThe,
+        'run_timeout' => appL10n.svcThisSyncTimedOutAndStoppedIt,
+        'capacity_reached' => appL10n.svcAutoSyncCapacityIsFullTurnIt,
+        'quota_unavailable' || 'quota_wait' => appL10n.svcTheUpstreamQuotaCannotBeConfirmedOr,
+        'upstream_wait' || 'gateway_suspended' => appL10n.svcTheUpstreamServiceIsUnavailableTheTask,
+        'window_expired' => appL10n.svcThisMorningSProcessingWindowHasEnded,
+        'upload_uncertain' => appL10n.svcTheUploadResultIsUncertainTheNext,
+        _ => appL10n.svcTheAutoSyncServiceIsUnavailableTry,
+      };
+}

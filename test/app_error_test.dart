@@ -6,7 +6,7 @@ import 'dart:ui' show Locale;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:my_first_flutter_app/manager/DivingFish/ProberException.dart';
-import 'package:my_first_flutter_app/service/AutoSyncService.dart';
+import 'package:my_first_flutter_app/service/Sync/AutoSyncService.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
 import 'package:my_first_flutter_app/utils/AppError.dart';
 import 'package:my_first_flutter_app/utils/SensitiveRedactor.dart';

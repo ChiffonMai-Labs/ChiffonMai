@@ -6,7 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:my_first_flutter_app/constant/CacheKeyConstant.dart';
-import 'package:my_first_flutter_app/service/CommunityNicknameSyncService.dart';
+import 'package:my_first_flutter_app/service/Community/CommunityNicknameSyncService.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
 
 void main() {

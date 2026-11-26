@@ -1,7 +1,7 @@
 import 'package:just_audio/just_audio.dart';
 
 import '../../entity/Portable/PortableSong.dart';
-import '../SongMediaCache.dart';
+import '../Media/SongMediaCache.dart';
 
 /// 队列音源只在平台实际请求时准备缓存，上一首/下一首/自动续播走同一入口。
 class CachedSongAudioSource extends StreamAudioSource {

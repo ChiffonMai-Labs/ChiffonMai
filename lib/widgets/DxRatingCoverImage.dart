@@ -2,8 +2,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
-import '../service/AwmcCoverService.dart';
-import '../service/DxRatingCoverService.dart';
+import '../service/Media/AwmcCoverService.dart';
+import '../service/Media/DxRatingCoverService.dart';
 import 'ImageLoadingIndicator.dart';
 
 /// 网络备用曲绘专用磁盘缓存，复用旧缓存以保留已经下载的曲绘。

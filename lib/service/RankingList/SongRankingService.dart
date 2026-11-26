@@ -6,7 +6,7 @@ import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.d
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
 import '../../utils/CurrentDataSourceNotifier.dart';
 import '../../utils/CommunityProfileUtil.dart';
-import '../PlayerExperienceService.dart';
+import '../Community/PlayerExperienceService.dart';
 import 'RankingUploadGuard.dart';
 
 enum RankingType {

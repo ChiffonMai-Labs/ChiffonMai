@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:my_first_flutter_app/service/SyncStatsService.dart';
+import 'package:my_first_flutter_app/service/Sync/SyncStatsService.dart';
 import 'package:my_first_flutter_app/widgets/SyncStatsView.dart';
 
 /// 统计摘要行的排版测试。

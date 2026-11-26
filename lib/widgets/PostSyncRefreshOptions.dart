@@ -1,4 +1,4 @@
-import '../service/AccountAuthorizationStore.dart';
+import '../service/Account/AccountAuthorizationStore.dart';
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';

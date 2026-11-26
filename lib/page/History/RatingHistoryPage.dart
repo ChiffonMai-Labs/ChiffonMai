@@ -4,15 +4,15 @@ import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
-import '../../service/AccountStore.dart';
+import '../../service/Account/AccountStore.dart';
 import '../../service/History/AwmcNetTrendService.dart';
 import '../../service/History/ChartHistoryCore.dart';
 import '../../service/History/ChartHistoryStore.dart';
 import '../../service/History/RatingHistoryExportService.dart';
-import '../../service/BackgroundExportService.dart';
+import '../../service/System/BackgroundExportService.dart';
 import '../../utils/ExportQualitySelector.dart';
 import '../../utils/ImageEncodeUtil.dart';
-import '../../service/SongInfoService.dart';
+import '../../service/SongInfo/SongInfoService.dart';
 import '../../utils/AppTheme.dart';
 import '../../utils/CommonWidgetUtil.dart';
 import '../../utils/CurrentDataSourceNotifier.dart';

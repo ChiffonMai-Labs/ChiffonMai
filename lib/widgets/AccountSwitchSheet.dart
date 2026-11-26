@@ -2,8 +2,8 @@ import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 
-import '../service/AccountStore.dart';
-import '../service/AccountSwitchService.dart';
+import '../service/Account/AccountStore.dart';
+import '../service/Account/AccountSwitchService.dart';
 import '../utils/AppError.dart';
 import '../utils/CurrentDataSourceNotifier.dart';
 import 'FishIcon.dart';

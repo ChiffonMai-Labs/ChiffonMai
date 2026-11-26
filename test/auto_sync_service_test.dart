@@ -9,20 +9,20 @@ import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:my_first_flutter_app/constant/CacheKeyConstant.dart';
-import 'package:my_first_flutter_app/service/AutoSyncService.dart';
-import 'package:my_first_flutter_app/service/AccountSwitchService.dart';
+import 'package:my_first_flutter_app/service/Sync/AutoSyncService.dart';
+import 'package:my_first_flutter_app/service/Account/AccountSwitchService.dart';
 import 'package:my_first_flutter_app/service/AWMC/AwmcQuickIdentityStore.dart';
 import 'package:my_first_flutter_app/service/AWMC/AwmcQuickSyncService.dart';
-import 'package:my_first_flutter_app/service/SyncStatsService.dart';
+import 'package:my_first_flutter_app/service/Sync/SyncStatsService.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
 import 'package:my_first_flutter_app/utils/CurrentDataSourceNotifier.dart';
 import 'package:my_first_flutter_app/utils/SecureCredentialStore.dart';
 // 编译实际页面入口；以下用例仅检查状态与凭据逻辑。
 // ignore: unused_import
-import 'package:my_first_flutter_app/page/AutoSyncPage.dart';
+import 'package:my_first_flutter_app/page/Account/AutoSyncPage.dart';
 // 编译账号管理的实际保存和轮换入口。
 // ignore: unused_import
-import 'package:my_first_flutter_app/page/HomePage.dart';
+import 'package:my_first_flutter_app/page/Home/HomePage.dart';
 
 void main() {
   // 断言的是简体中文提示，固定系统语言，不受跑测试机器的语言影响。

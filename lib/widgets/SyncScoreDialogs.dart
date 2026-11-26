@@ -8,10 +8,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constant/CacheKeyConstant.dart';
 import '../constant/LoadingTipsConstant.dart';
-import '../manager/DivingFishProbeManager.dart';
+import '../manager/DivingFish/DivingFishProbeManager.dart';
 import '../manager/LuoXue/LuoXueOAuthManager.dart';
-import '../service/SyncStatsService.dart';
-import '../service/PostSyncRefreshService.dart';
+import '../service/Sync/SyncStatsService.dart';
+import '../service/Sync/PostSyncRefreshService.dart';
 import '../utils/AppTheme.dart';
 import '../utils/SyncRouteNotifier.dart';
 import '../utils/SecureCredentialStore.dart';

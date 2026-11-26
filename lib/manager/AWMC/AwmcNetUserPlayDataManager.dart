@@ -8,7 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../api/ApiUrls.dart';
-import '../../service/AccountSwitchService.dart';
+import '../../service/Account/AccountSwitchService.dart';
 import '../../utils/ApiClient.dart';
 import '../../utils/CurrentDataSourceNotifier.dart';
 import '../../utils/QuotaRetryHint.dart';

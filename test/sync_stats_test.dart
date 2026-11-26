@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:my_first_flutter_app/service/SyncStatsService.dart';
+import 'package:my_first_flutter_app/service/Sync/SyncStatsService.dart';
 
 /// 同步统计（Redis）的纯逻辑测试：条目聚合、耗时格式化、键名、上报口径。
 ///

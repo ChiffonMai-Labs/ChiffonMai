@@ -10,10 +10,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:my_first_flutter_app/constant/CacheKeyConstant.dart';
 import 'package:my_first_flutter_app/entity/Portable/PortableSong.dart';
-import 'package:my_first_flutter_app/manager/MaidataManager.dart';
+import 'package:my_first_flutter_app/manager/Song/MaidataManager.dart';
 import 'package:my_first_flutter_app/service/Portable/CachedSongAudioSource.dart';
 import 'package:my_first_flutter_app/service/Portable/PortableSongDownloadService.dart';
-import 'package:my_first_flutter_app/service/SongMediaCache.dart';
+import 'package:my_first_flutter_app/service/Media/SongMediaCache.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
 
 class _Paths extends PathProviderPlatform {

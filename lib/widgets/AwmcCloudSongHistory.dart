@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../l10n/LocalizationsExtension.dart';
 import '../service/AWMC/AwmcNetSongService.dart';
-import '../service/AccountStore.dart';
+import '../service/Account/AccountStore.dart';
 import '../service/History/ChartHistoryCore.dart';
 import '../utils/AppDesignTokens.dart';
 import '../utils/AppTheme.dart';

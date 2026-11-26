@@ -33,7 +33,7 @@ import '../../widgets/MarqueeText.dart';
 import '../../widgets/NextPlayAddDialog.dart';
 import '../../widgets/NowPlayingUi.dart';
 import '../../widgets/PortablePlaybackModeButton.dart';
-import '../SongInfoPage.dart';
+import '../song_info/SongInfoPage.dart';
 
 class PortableNowPlayingPage extends StatefulWidget {
   /// 歌曲详情页进来时，音源还没就绪就先显示这首歌，避免先闪出别的曲目或空页面。

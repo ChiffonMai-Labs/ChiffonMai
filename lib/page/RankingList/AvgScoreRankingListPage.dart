@@ -1,6 +1,6 @@
 import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
-import '../../service/CommunityAvatarStore.dart';
+import '../../service/Community/CommunityAvatarStore.dart';
 import '../../widgets/RankingPlayerBriefSheet.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';

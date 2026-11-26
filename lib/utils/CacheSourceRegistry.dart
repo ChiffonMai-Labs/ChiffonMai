@@ -1,7 +1,7 @@
 import '../l10n/AppMessages.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api/ApiUrls.dart';
-import '../manager/SongAliasManager.dart';
+import '../manager/Song/SongAliasManager.dart';
 import '../constant/CacheKeyConstant.dart';
 import '../constant/CacheTimestampConstant.dart';
 

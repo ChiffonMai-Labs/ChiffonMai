@@ -12,7 +12,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:my_first_flutter_app/page/SettingsPage.dart';
+import 'package:my_first_flutter_app/page/System/SettingsPage.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/widgets/AppDialogs.dart';
 

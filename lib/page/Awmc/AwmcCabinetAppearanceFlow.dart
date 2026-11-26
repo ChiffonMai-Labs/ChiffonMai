@@ -6,8 +6,8 @@ import '../../l10n/LocalizationsExtension.dart';
 import '../../manager/LuoXue/CollectionsManager.dart';
 import '../../service/AWMC/AwmcApiService.dart';
 import '../../service/AWMC/AwmcStore.dart';
-import '../../service/CommunityAvatarStore.dart';
-import '../../service/CommunityTravelAppearanceStore.dart';
+import '../../service/Community/CommunityAvatarStore.dart';
+import '../../service/Community/CommunityTravelAppearanceStore.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../utils/AppTheme.dart';
 import '../../widgets/AppDialogs.dart';
@@ -15,7 +15,7 @@ import '../../widgets/AppToast.dart';
 import '../../widgets/LxnsAssetImage.dart';
 import '../../widgets/SyncDialogUi.dart';
 import '../../widgets/TrophyTitleBadge.dart';
-import '../CommunityTravelAppearancePage.dart';
+import '../Community/CommunityTravelAppearancePage.dart';
 
 abstract final class AwmcCabinetAppearanceFlow {
   static Future<void> run(

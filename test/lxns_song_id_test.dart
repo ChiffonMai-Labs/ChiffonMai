@@ -5,7 +5,7 @@
 // 10000 的曲目 ID（如有，请在请求前对 10000 取余处理）。宴会场曲目为例外，
 // 不分标准、DX 谱面，曲目 ID 大于 100000」。
 import 'package:flutter_test/flutter_test.dart';
-import 'package:my_first_flutter_app/service/LuoXueScoreUploadService.dart';
+import 'package:my_first_flutter_app/service/Sync/LuoXueScoreUploadService.dart';
 import 'package:my_first_flutter_app/utils/LuoXueSongUtil.dart';
 
 void main() {

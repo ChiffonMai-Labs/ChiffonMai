@@ -14,7 +14,7 @@ import '../../manager/DivingFish/MaimaiMusicDataManager.dart';
 import '../../service/Best50/CustomBest50Store.dart';
 import '../../service/Best50/DiffBest50Service.dart';
 import '../../service/Best50/PersonalizedBest50ConvertToImgService.dart';
-import '../../service/SongSearchService.dart';
+import '../../service/Library/SongSearchService.dart';
 import '../../utils/AppTheme.dart';
 import '../../utils/CoverUtil.dart';
 import '../../utils/ExportQualitySelector.dart';
@@ -27,7 +27,7 @@ import '../../widgets/AppUi.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../widgets/Best50Ui.dart';
 import '../../widgets/AppDialogs.dart';
-import 'package:my_first_flutter_app/service/BackgroundExportService.dart';
+import 'package:my_first_flutter_app/service/System/BackgroundExportService.dart';
 
 /// 自定义 Best50 的一键排序方式。
 enum _SortMode { raDesc, raAsc, dsDesc, dsAsc }

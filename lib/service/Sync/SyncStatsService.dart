@@ -1,0 +1,364 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
+
+import '../../api/ApiUrls.dart';
+import '../../utils/ApiClient.dart';
+
+/// 同步成绩走的**通道**（前两个就是 `SyncRouteStore` 里可选的两条线路）。
+enum SyncLine {
+  /// 线路1：AWMC 网关（机台二维码 + 用户平台凭据，开发者密钥由服务端代理注入）。
+  awmc(key: 'awmc', label: 'AWMC 网关'),
+
+  /// 线路2：maimai Score Hub（原有流程）。
+  scoreHub(key: 'scorehub', label: 'maimai Score Hub'),
+
+  /// **不是线路**：机台二维码直传（目前只有 AWMC NET 用）。
+  ///
+  /// 它不经过任何网关、也不依赖 [SyncRouteStore] 的线路选择，所以统计里
+  /// **自成一个槽位**，不要去和上面两个线路混着算平均（二维码导入要 30 多秒，
+  /// 混进去会把线路1/线路2 的平均耗时整体拉高，看起来像网关变慢了）。
+  direct(key: 'direct', label: '二维码直传'),
+
+  /// 三个目标源的免二维码快速同步，独立于普通线路统计。
+  quick(key: 'quick', label: '快速同步');
+
+  const SyncLine({required this.key, required this.label});
+
+  final String key;
+  final String label;
+}
+
+/// 同步目标平台。
+enum SyncPlatform {
+  /// AWMC NET 查分器（支持二维码直传与快速同步）。
+  awmc(key: 'awmc', label: 'AWMC NET'),
+
+  divingFish(key: 'fish', label: '水鱼'),
+  luoXue(key: 'lx', label: '落雪');
+
+  const SyncPlatform({required this.key, required this.label});
+
+  final String key;
+  final String label;
+}
+
+/// 统计的**槽位**：`<线路>:<平台>`，见 [SyncStatsService.slotOf]。
+typedef SyncSlot = (SyncLine, SyncPlatform);
+
+/// 近 N 次同步的聚合结果。
+class SyncStats {
+  /// 样本数（0 表示还没有任何记录）。
+  final int count;
+
+  /// 其中成功的次数。
+  final int successCount;
+
+  /// 成功样本的平均耗时（毫秒）。
+  final double avgMs;
+
+  final int minMs;
+  final int maxMs;
+
+  /// 最近一次：耗时 / 是否成功 / 时间戳（毫秒）。
+  final int lastMs;
+  final bool lastOk;
+  final int lastAtMs;
+
+  const SyncStats({
+    required this.count,
+    required this.successCount,
+    required this.avgMs,
+    required this.minMs,
+    required this.maxMs,
+    required this.lastMs,
+    required this.lastOk,
+    required this.lastAtMs,
+  });
+
+  static const SyncStats empty = SyncStats(
+    count: 0,
+    successCount: 0,
+    avgMs: 0,
+    minMs: 0,
+    maxMs: 0,
+    lastMs: 0,
+    lastOk: false,
+    lastAtMs: 0,
+  );
+
+  bool get hasData => count > 0;
+
+  /// 成功率（0.0 ~ 1.0）。
+  double get successRate => count == 0 ? 0 : successCount / count;
+
+  /// 失败次数。
+  int get failCount => count - successCount;
+
+  String get successRateText =>
+      count == 0 ? '—' : '${(successRate * 100).round()}%';
+
+  String get avgText => formatDuration(avgMs.round());
+
+  String get rangeText =>
+      count == 0 ? '—' : '${formatDuration(minMs)} ~ ${formatDuration(maxMs)}';
+
+  String get lastText =>
+      count == 0 ? '—' : '${formatDuration(lastMs)}${lastOk ? '' : '（失败）'}';
+
+  /// 毫秒 → 便于阅读的文本。
+  static String formatDuration(int ms) {
+    if (ms <= 0) return '—';
+    if (ms < 1000) return '${ms}ms';
+    if (ms < 60000) return '${(ms / 1000).toStringAsFixed(1)}s';
+    final m = ms ~/ 60000;
+    final s = ((ms % 60000) / 1000).round();
+    return '${m}m${s}s';
+  }
+
+  /// 把 Redis 里的原始条目（JSON 字符串列表）聚合成统计结果。
+  ///
+  /// 条目格式：`{"t":<毫秒时间戳>,"d":<耗时毫秒>,"ok":1|0}`。
+  /// 坏数据（半截 JSON、字段缺失）直接跳过，不让它污染平均值。
+  factory SyncStats.fromRawEntries(Iterable<String> rawEntries) {
+    var count = 0;
+    var successCount = 0;
+    // 平均耗时只统计成功样本。失败请求常常会经历超时或重试，
+    // 把它们混进平均值会把一次正常同步的耗时拉高。
+    var successSum = 0;
+    var minMs = 0;
+    var maxMs = 0;
+    var lastMs = 0;
+    var lastOk = false;
+    var lastAtMs = 0;
+
+    for (final raw in rawEntries) {
+      try {
+        final decoded = json.decode(raw);
+        if (decoded is! Map) continue;
+        final d = (decoded['d'] as num?)?.toInt();
+        if (d == null || d < 0) continue;
+        final okRaw = decoded['ok'];
+        final ok = okRaw == 1 || okRaw == true || okRaw == '1';
+        final t = (decoded['t'] as num?)?.toInt() ?? 0;
+
+        count++;
+        if (ok) {
+          successCount++;
+          successSum += d;
+        }
+        if (count == 1 || d < minMs) minMs = d;
+        if (count == 1 || d > maxMs) maxMs = d;
+        if (t >= lastAtMs) {
+          lastAtMs = t;
+          lastMs = d;
+          lastOk = ok;
+        }
+      } catch (_) {
+        // 跳过坏条目
+      }
+    }
+
+    if (count == 0) return SyncStats.empty;
+    return SyncStats(
+      count: count,
+      successCount: successCount,
+      avgMs: successCount == 0 ? 0 : successSum / successCount,
+      minMs: minMs,
+      maxMs: maxMs,
+      lastMs: lastMs,
+      lastOk: lastOk,
+      lastAtMs: lastAtMs,
+    );
+  }
+}
+
+/// 一次同步尝试的计时 + 上报。
+///
+/// 口径集中在这里（各处自己写 stopwatch 很容易写歪）：
+///   * 用户主动取消、或「只是还没绑定 ImportToken」→ `finish(skip: true)`，
+///     **不计样本**（算失败会拉低成功率、误导看统计的人）；
+///   * 同一次尝试重复 `finish` → 只算一条（流程里多个分支都可能调）；
+///   * 耗时 ≤ 0（压根没开始）→ 不计样本。
+///
+/// 落到哪个槽位由构造时的 line/platform 决定：水鱼/落雪走线路1、线路2，
+/// **AWMC NET 的二维码直传用 `(SyncLine.direct, SyncPlatform.awmc)`**。
+class SyncAttemptTracker {
+  SyncAttemptTracker({required this.line, required this.platform});
+
+  final SyncLine line;
+  final SyncPlatform platform;
+
+  final Stopwatch _stopwatch = Stopwatch();
+  bool _recorded = false;
+
+  bool get running => _stopwatch.isRunning;
+  int get elapsedMs => _stopwatch.elapsedMilliseconds;
+
+  /// 开始计时（重试会重新开始一次尝试）。
+  void start() {
+    _recorded = false;
+    _stopwatch
+      ..reset()
+      ..start();
+  }
+
+  /// 结束并上报；返回**是否真的写了一条样本**（调用方据此决定要不要刷新统计）。
+  bool finish({required bool ok, bool skip = false}) {
+    _stopwatch.stop();
+    if (skip || _recorded) return false;
+    final ms = _stopwatch.elapsedMilliseconds;
+    if (ms <= 0) return false;
+    _recorded = true;
+    unawaited(SyncStatsService.record(
+      line: line,
+      platform: platform,
+      durationMs: ms,
+      ok: ok,
+    ));
+    return true;
+  }
+}
+
+/// 同步成绩的耗时 / 成功率统计。
+///
+/// 每个「线路 × 平台」槽位一条 Redis LIST（共 [allSlots] 个），只保留**最近 100 次**：
+///
+/// ```
+/// chiffonmai:sync_stats:<line>:<platform>     # LPUSH 新条目 + LTRIM 0 99
+///   条目 = {"t":<毫秒时间戳>,"d":<耗时毫秒>,"ok":1|0}
+/// ```
+///
+/// 刻意只存这三个字段：**不含二维码、令牌、QQ、账号 id** 等任何个人信息，
+/// 因此这些键可以安全地共享统计（看到的是所有用户的整体情况）。
+///
+/// 所有操作都是「尽力而为」：服务端不可用、超时、返回异常数据都不抛异常，
+/// 也**绝不影响同步本身**（统计失败最多是少一条样本）。
+class SyncStatsService {
+  SyncStatsService._();
+
+  /// 只保留最近多少次记录。
+  static const int windowSize = 100;
+
+  /// 键前缀。
+  static const String keyPrefix = 'chiffonmai:sync_stats';
+
+  /// 每次操作的整体超时（连不上就快速放弃，别拖住 UI）。
+  static const Duration timeout = Duration(seconds: 6);
+
+  /// 全部统计槽位 —— **显式列出，不要用 `SyncLine.values × SyncPlatform.values` 的叉乘**。
+  ///
+  /// 普通同步保留原来的五个槽位，快速同步按目标源各自保留近 100 次。
+  static const List<SyncSlot> allSlots = [
+    // 机台二维码直传 → AWMC NET（30 多秒一次，单列一项）
+    (SyncLine.direct, SyncPlatform.awmc),
+    (SyncLine.awmc, SyncPlatform.divingFish),
+    (SyncLine.awmc, SyncPlatform.luoXue),
+    (SyncLine.scoreHub, SyncPlatform.divingFish),
+    (SyncLine.scoreHub, SyncPlatform.luoXue),
+    (SyncLine.quick, SyncPlatform.awmc),
+    (SyncLine.quick, SyncPlatform.divingFish),
+    (SyncLine.quick, SyncPlatform.luoXue),
+  ];
+
+  /// 槽位名：`<line>:<platform>`（就是 Redis 键去掉前缀的部分）。
+  static String slotOf(SyncLine line, SyncPlatform platform) =>
+      '${line.key}:${platform.key}';
+
+  /// 键名：`chiffonmai:sync_stats:<line>:<platform>`。
+  static String keyFor(SyncLine line, SyncPlatform platform) =>
+      '$keyPrefix:${slotOf(line, platform)}';
+
+  /// 仅供测试：置 true 后 [record] 直接返回。
+  ///
+  /// 单测**绝不能**往这个项目的线上 Redis 写假样本（测试里的耗时只有几毫秒，
+  /// 会污染所有人看到的平均耗时与成功率）。`test/sync_stats_test.dart` 里已置位。
+  @visibleForTesting
+  static bool debugDisableWrites = false;
+
+  /// 记录一次同步（耗时 + 成败）。调用方可以直接 `unawaited(...)`。
+  static Future<void> record({
+    required SyncLine line,
+    required SyncPlatform platform,
+    required int durationMs,
+    required bool ok,
+  }) async {
+    if (debugDisableWrites) return;
+    try {
+      final response = await ApiClient.post(
+        Uri.parse(ApiUrls.SyncStatsUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'line': line.key,
+          'platform': platform.key,
+          'durationMs': durationMs < 0 ? 0 : durationMs,
+          'ok': ok,
+        }),
+        timeout: timeout,
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        debugPrint('[SyncStats] 已记录 ${line.key}/${platform.key} '
+            '${durationMs}ms ok=$ok');
+      }
+    } catch (e) {
+      debugPrint('[SyncStats] 服务端记录失败（已忽略）: $e');
+    }
+  }
+
+  /// 读取某条线路 + 平台的统计；不可用（Redis 连不上 / 无数据）时返回 null。
+  static Future<SyncStats?> load({
+    required SyncLine line,
+    required SyncPlatform platform,
+  }) async {
+    final all = await loadMany([(line, platform)]);
+    return all['${line.key}:${platform.key}'];
+  }
+
+  /// 一次连接批量读取多个组合（详情弹窗要 4 组，避免开 4 条连接）。
+  static Future<Map<String, SyncStats?>> loadMany(
+    List<(SyncLine, SyncPlatform)> queries,
+  ) async {
+    final result = <String, SyncStats?>{};
+    if (queries.isEmpty) return result;
+
+    try {
+      final slots = queries.map((q) => slotOf(q.$1, q.$2)).join(',');
+      final response = await ApiClient.get(
+        Uri.parse(
+            '${ApiUrls.SyncStatsUrl}?slots=${Uri.encodeQueryComponent(slots)}'),
+        timeout: timeout,
+      );
+      if (response.statusCode == 200) {
+        final decoded = json.decode(response.body);
+        final data = decoded is Map ? decoded['data'] : null;
+        if (data is Map) {
+          for (final (line, platform) in queries) {
+            final id = slotOf(line, platform);
+            final raw = data[id];
+            if (raw is List) {
+              result[id] = SyncStats.fromRawEntries(
+                raw.whereType<String>(),
+              );
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[SyncStats] 服务端读取失败（已忽略）: $e');
+    }
+
+    // 一个组合都没读到 = Redis 不可用：返回 null 让 UI 显示「统计不可用」，
+    // 而不是冒充「暂无记录」（这两件事对用户的意义完全不同）。
+    for (final (line, platform) in queries) {
+      result.putIfAbsent(slotOf(line, platform), () => null);
+    }
+    return result;
+  }
+
+  /// 清空统计（调试 / 排查用；正常流程不会调用）。
+  static Future<void> clearAll() async {
+    // 生产环境不提供客户端清空统计入口，避免任何用户误删全局数据。
+    debugPrint('[SyncStats] clearAll 已禁用，请在服务端维护统计数据');
+  }
+}

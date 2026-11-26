@@ -1,6 +1,6 @@
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
-import '../manager/MaidataManager.dart';
+import '../manager/Song/MaidataManager.dart';
 import '../utils/ChartBpmInfo.dart';
 import '../utils/ChartDifficulty.dart';
 import '../utils/AppTheme.dart';

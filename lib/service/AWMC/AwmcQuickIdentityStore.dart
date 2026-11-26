@@ -3,8 +3,8 @@ import 'package:flutter/foundation.dart';
 
 import '../../constant/CacheKeyConstant.dart';
 import '../../utils/SecureCredentialStore.dart';
-import '../AutoSyncService.dart';
-import '../SyncStatsService.dart';
+import '../Sync/AutoSyncService.dart';
+import '../Sync/SyncStatsService.dart';
 
 /// 二维码获取的 userId 由三个数据源共用；各数据源个人 key 仍独立保存。
 /// 只使用系统安全存储，不保存二维码，也不进入普通备份。

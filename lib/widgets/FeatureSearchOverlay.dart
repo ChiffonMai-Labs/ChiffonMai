@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../service/SongSearchHistoryStore.dart';
+import '../service/Library/SongSearchHistoryStore.dart';
 import 'SongSearchOverlay.dart';
 
 /// 功能搜索复用搜索历史界面，独立保存关键词；输入后直接在搜索层展示结果。

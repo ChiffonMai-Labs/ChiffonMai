@@ -1,7 +1,7 @@
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:convert';
 import 'dart:async';
-import '../../service/PlayerExperienceService.dart';
+import '../../service/Community/PlayerExperienceService.dart';
 import '../DivingFish/UserPlayDataManager.dart';
 import 'package:flutter/foundation.dart';
 import './LuoXueOAuthManager.dart';
@@ -12,7 +12,7 @@ import '../../entity/DivingFish/RecordItem.dart';
 import '../../entity/DivingFish/Song.dart';
 import '../../utils/LuoXueToDivingFishUtil.dart';
 import '../../manager/DivingFish/MaimaiMusicDataManager.dart';
-import '../../service/AccountSwitchService.dart';
+import '../../service/Account/AccountSwitchService.dart';
 import '../../utils/CurrentDataSourceNotifier.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
 

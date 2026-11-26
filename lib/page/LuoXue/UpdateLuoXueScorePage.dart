@@ -1,11 +1,11 @@
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../../manager/DivingFishProbeManager.dart';
+import '../../manager/DivingFish/DivingFishProbeManager.dart';
 import '../../utils/AppTheme.dart';
 import '../../constant/CacheKeyConstant.dart';
 import '../../constant/LoadingTipsConstant.dart';
-import '../../service/SyncStatsService.dart';
+import '../../service/Sync/SyncStatsService.dart';
 import '../../utils/SyncRouteNotifier.dart';
 import '../../utils/SecureCredentialStore.dart';
 import '../../utils/ExternalLaunchUtil.dart';

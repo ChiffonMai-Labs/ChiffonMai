@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:my_first_flutter_app/entity/DXRating/DXDataEntity.dart';
-import 'package:my_first_flutter_app/service/DxRatingCoverService.dart';
+import 'package:my_first_flutter_app/service/Media/DxRatingCoverService.dart';
 
 /// dxrating（shama）曲绘兜底的核心逻辑测试。
 ///

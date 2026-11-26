@@ -23,7 +23,7 @@ import '../../entity/LuoXue/LuoXueSongEntity.dart';
 import '../../entity/Portable/PortableSong.dart';
 import '../../manager/DivingFish/MaimaiMusicDataManager.dart';
 import '../../manager/LuoXue/LuoXueSongsManager.dart';
-import '../../manager/SongAliasManager.dart';
+import '../../manager/Song/SongAliasManager.dart';
 import '../../utils/ApiClient.dart';
 import '../../utils/LuoXueSongUtil.dart';
 import '../../utils/SongQueryMatcher.dart';

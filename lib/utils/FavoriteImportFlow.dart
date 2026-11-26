@@ -3,7 +3,7 @@ import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'AppTaskActivity.dart';
 import 'package:flutter/material.dart';
 
-import '../service/FavoriteTransferService.dart';
+import '../service/Favorite/FavoriteTransferService.dart';
 import 'ExportSettings.dart';
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';

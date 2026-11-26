@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../page/HubComponents.dart';
+import '../page/Hub/HubComponents.dart';
 
 /// 猜歌枢纽的设置功能区，沿用其它功能区的主题底色与间距。
 class GuessSettingsHubSection extends StatelessWidget {

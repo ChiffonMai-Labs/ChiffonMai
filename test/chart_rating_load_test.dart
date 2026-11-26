@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:my_first_flutter_app/service/SongInfoService.dart';
+import 'package:my_first_flutter_app/service/SongInfo/SongInfoService.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
 
 void main() {

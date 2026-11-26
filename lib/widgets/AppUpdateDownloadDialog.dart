@@ -4,8 +4,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../service/AppUpdateDownloadService.dart';
-import '../service/BackgroundAppUpdateService.dart';
+import '../service/AppUpdate/AppUpdateDownloadService.dart';
+import '../service/AppUpdate/BackgroundAppUpdateService.dart';
 import '../utils/ExternalLaunchUtil.dart';
 import '../constant/AppLinks.dart';
 import 'AppDialogs.dart';

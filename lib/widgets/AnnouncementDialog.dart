@@ -2,7 +2,7 @@ import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
-import '../service/AnnouncementService.dart';
+import '../service/About/AnnouncementService.dart';
 import 'SmoothLinearProgressIndicator.dart';
 import '../widgets/AppDialogs.dart';
 

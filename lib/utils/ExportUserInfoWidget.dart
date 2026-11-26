@@ -2,7 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:my_first_flutter_app/constant/CacheKeyConstant.dart';
-import '../service/CommunityAvatarStore.dart';
+import '../service/Community/CommunityAvatarStore.dart';
 import '../widgets/LxnsAssetImage.dart';
 import 'CurrentDataSourceNotifier.dart';
 

@@ -5,9 +5,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../entity/chongxi/MaimaiServerStatusModel.dart';
-import '../service/AutoSyncService.dart';
-import '../service/HomeWidgetService.dart';
-import '../service/SyncStatsService.dart';
+import '../service/Sync/AutoSyncService.dart';
+import '../service/Home/HomeWidgetService.dart';
+import '../service/Sync/SyncStatsService.dart';
 import '../service/chongxi/MaimaiServerStatusService.dart';
 import '../utils/AppDesignTokens.dart';
 import '../utils/AppTheme.dart';

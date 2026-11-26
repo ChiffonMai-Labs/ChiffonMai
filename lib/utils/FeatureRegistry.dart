@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../entity/FeatureModels.dart';
+import '../entity/Home/FeatureModels.dart';
 
 /// Hub 分组与首页搜索共用的分类定义；标题同时是现有收藏的键。
 class FeatureSection {

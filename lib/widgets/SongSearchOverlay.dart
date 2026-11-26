@@ -5,7 +5,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../service/SongSearchHistoryStore.dart';
+import '../service/Library/SongSearchHistoryStore.dart';
 import 'TouchSearchButton.dart';
 import 'SearchOverlaySurface.dart';
 import '../widgets/AppToast.dart';

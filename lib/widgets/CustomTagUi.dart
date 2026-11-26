@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../entity/DivingFish/Song.dart';
 import '../l10n/LocalizationsExtension.dart';
-import '../service/CustomTagStore.dart';
-import '../service/SongSearchService.dart';
+import '../service/Library/CustomTagStore.dart';
+import '../service/Library/SongSearchService.dart';
 import '../utils/AppDesignTokens.dart';
 import '../utils/ChartDifficulty.dart';
 import '../utils/CoverUtil.dart';

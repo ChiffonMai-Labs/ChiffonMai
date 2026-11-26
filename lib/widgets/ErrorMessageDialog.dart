@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../l10n/FeatureLocalizations.dart';
 import '../l10n/LocalizationsExtension.dart';
-import '../service/LogExportService.dart';
+import '../service/System/LogExportService.dart';
 import '../utils/AppDesignTokens.dart';
 import '../utils/AppError.dart';
 import '../utils/AppTheme.dart';
