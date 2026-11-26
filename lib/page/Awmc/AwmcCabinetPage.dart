@@ -37,13 +37,85 @@ class _AwmcCabinetPageState extends State<AwmcCabinetPage> {
   };
   _Mode _mode = _Mode.regions;
   bool _busy = false;
-  bool _loaded = false;
   bool _checking = false;
   bool _checkedPage = false;
-  Object? _data;
+
+  // 游玩地区与已拥有道具分别维护内存缓存状态，切模式时保留各自结果。
+  Object? _regionsData;
+  int? _regionsUpdatedAtMs;
+  bool _regionsLoaded = false;
+
+  Object? _itemsData;
+  int? _itemsUpdatedAtMs;
+  bool _itemsLoaded = false;
+
   String? _error;
   int _page = 0;
   final _verified = <String, bool>{};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCachedData();
+  }
+
+  /// 进入页面时异步加载两份无过期时间的本地缓存，有缓存则自动展示。
+  Future<void> _loadCachedData() async {
+    final results = await Future.wait([
+      AwmcCabinetData.loadCachedRegions(),
+      AwmcCabinetData.loadCachedOwnedItems(),
+    ]);
+    if (!mounted) return;
+    final cachedRegions = results[0];
+    final cachedItems = results[1];
+    var changed = false;
+    if (!_regionsLoaded && cachedRegions != null) {
+      _regionsData = cachedRegions.data;
+      _regionsUpdatedAtMs = cachedRegions.updatedAtMs;
+      _regionsLoaded = true;
+      changed = true;
+    }
+    if (!_itemsLoaded && cachedItems != null) {
+      _itemsData = cachedItems.data;
+      _itemsUpdatedAtMs = cachedItems.updatedAtMs;
+      _itemsLoaded = true;
+      changed = true;
+    }
+    if (changed) {
+      setState(() {});
+    }
+  }
+
+  bool get _currentLoaded => switch (_mode) {
+        _Mode.regions => _regionsLoaded,
+        _Mode.items => _itemsLoaded,
+      };
+
+  Object? get _currentData => switch (_mode) {
+        _Mode.regions => _regionsData,
+        _Mode.items => _itemsData,
+      };
+
+  int? get _currentUpdatedAtMs => switch (_mode) {
+        _Mode.regions => _regionsUpdatedAtMs,
+        _Mode.items => _itemsUpdatedAtMs,
+      };
+
+  String _formatTimestamp(int timestampMs) {
+    final dt = DateTime.fromMillisecondsSinceEpoch(timestampMs).toLocal();
+    final year = dt.year.toString().padLeft(4, '0');
+    final month = dt.month.toString().padLeft(2, '0');
+    final day = dt.day.toString().padLeft(2, '0');
+    final hour = dt.hour.toString().padLeft(2, '0');
+    final minute = dt.minute.toString().padLeft(2, '0');
+    return '$year-$month-$day $hour:$minute';
+  }
+
+  String? _lastFetchedSubtitle(BuildContext context) {
+    final updatedAtMs = _currentUpdatedAtMs;
+    if (updatedAtMs == null) return null;
+    return context.l10n.awmcLastFetchedTime(_formatTimestamp(updatedAtMs));
+  }
 
   String _label(_Mode mode) {
     final l10n = context.l10n;
@@ -54,10 +126,10 @@ class _AwmcCabinetPageState extends State<AwmcCabinetPage> {
   }
 
   void _setMode(_Mode mode) {
+    if (mode == _mode) return;
     setState(() {
       _mode = mode;
-      _loaded = false;
-      _data = null;
+      // 切模式时保留各自缓存结果，仅清理错误提示与翻页核对临时态。
       _error = null;
       _page = 0;
       _checkedPage = false;
@@ -75,24 +147,45 @@ class _AwmcCabinetPageState extends State<AwmcCabinetPage> {
           title: _label(mode),
           body: '${l10n.flowQrPrivateNotice}\n2 Token');
       if (!mounted || qr == null) return;
+      // 新查询前仅清除上次错误提示，保留已有缓存数据，避免查询失败时界面变空。
       setState(() {
-        _loaded = false;
-        _data = null;
         _error = null;
-        _page = 0;
-        _checkedPage = false;
-        _verified.clear();
       });
       final response = await switch (mode) {
         _Mode.items => AwmcApiService.userItemList(token: '', qrcode: qr),
         _Mode.regions => AwmcApiService.userRegion(token: '', qrcode: qr),
       };
       if (!mounted) return;
-      setState(() {
-        _loaded = true;
-        _data = response.ok ? response.businessData : null;
-        _error = response.ok ? null : response.displayMessage;
-      });
+      if (response.ok) {
+        final data = response.businessData;
+        final savedAt = await switch (mode) {
+          _Mode.items => AwmcCabinetData.saveCachedOwnedItems(data),
+          _Mode.regions => AwmcCabinetData.saveCachedRegions(data),
+        };
+        if (!mounted) return;
+        final updatedAtMs = savedAt ?? DateTime.now().millisecondsSinceEpoch;
+        setState(() {
+          _error = null;
+          switch (mode) {
+            case _Mode.regions:
+              _regionsData = data;
+              _regionsUpdatedAtMs = updatedAtMs;
+              _regionsLoaded = true;
+            case _Mode.items:
+              _itemsData = data;
+              _itemsUpdatedAtMs = updatedAtMs;
+              _itemsLoaded = true;
+              _page = 0;
+              _checkedPage = false;
+              _verified.clear();
+          }
+        });
+      } else {
+        // 查询失败不覆盖本地缓存与内存已有结果，仅提示错误信息。
+        setState(() {
+          _error = response.displayMessage;
+        });
+      }
     } on Exception {
       if (mounted) setState(() => _error = context.l10n.awmcChartUnavailable);
     } finally {
@@ -208,8 +301,8 @@ class _AwmcCabinetPageState extends State<AwmcCabinetPage> {
     final l10n = context.l10n;
     final scheme = Theme.of(context).colorScheme;
     const tokenCost = 2;
-    final ownedAll = _loaded && _error == null && _mode == _Mode.items
-        ? AwmcCabinetData.ownedItems(_data)
+    final ownedAll = _currentLoaded && _mode == _Mode.items
+        ? AwmcCabinetData.ownedItems(_currentData)
         : const <AwmcOwnedItem>[];
     final ownedPageCount = (ownedAll.length + _pageSize - 1) ~/ _pageSize;
 
@@ -313,8 +406,9 @@ class _AwmcCabinetPageState extends State<AwmcCabinetPage> {
                   duration: AppDesignTokens.motion(
                       context, AppDesignTokens.mediumMotion),
                   child: KeyedSubtree(
-                    key: ValueKey((_mode, _loaded, _error, _page)),
-                    child: !_loaded || _error != null
+                    key: ValueKey(
+                        (_mode, _currentLoaded, _currentUpdatedAtMs, _page)),
+                    child: !_currentLoaded
                         ? const SizedBox.shrink()
                         : switch (_mode) {
                             _Mode.items => _owned(context, ownedAll),
@@ -325,8 +419,7 @@ class _AwmcCabinetPageState extends State<AwmcCabinetPage> {
               ],
             ),
           ),
-          if (_loaded &&
-              _error == null &&
+          if (_currentLoaded &&
               _mode == _Mode.items &&
               ownedPageCount > 1)
             PagerBar(
@@ -352,6 +445,7 @@ class _AwmcCabinetPageState extends State<AwmcCabinetPage> {
 
   Widget _emptyCard(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final subtitle = _lastFetchedSubtitle(context);
     return AppCard(
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 20),
@@ -363,6 +457,13 @@ class _AwmcCabinetPageState extends State<AwmcCabinetPage> {
               context.l10n.flowNoData,
               style: TextStyle(fontSize: 13.5, color: scheme.onSurfaceVariant),
             ),
+            if (subtitle != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+              ),
+            ],
           ],
         ),
       ),
@@ -372,7 +473,7 @@ class _AwmcCabinetPageState extends State<AwmcCabinetPage> {
   Widget _regions(BuildContext context) {
     final l10n = context.l10n;
     final scheme = Theme.of(context).colorScheme;
-    final rows = AwmcCabinetData.regions(_data);
+    final rows = AwmcCabinetData.regions(_regionsData);
     if (rows.isEmpty) return _emptyCard(context);
     final maximum = rows.first.count ?? 0;
     return AppCard(
@@ -381,11 +482,15 @@ class _AwmcCabinetPageState extends State<AwmcCabinetPage> {
         children: [
           AppSectionHeader(
             title: l10n.awmcPlayRegions,
+            subtitle: _lastFetchedSubtitle(context),
             padding: const EdgeInsets.only(bottom: 12),
-            trailing: AppBadge(
-              text: '${rows.length}',
-              background: AppSurfaces.inset(context),
-              foreground: scheme.onSurfaceVariant,
+            trailing: Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: AppBadge(
+                text: '${rows.length}',
+                background: AppSurfaces.inset(context),
+                foreground: scheme.onSurfaceVariant,
+              ),
             ),
           ),
           for (final (index, row) in rows.indexed) ...[
@@ -451,31 +556,35 @@ class _AwmcCabinetPageState extends State<AwmcCabinetPage> {
         children: [
           AppSectionHeader(
             title: l10n.awmcOwnedItems,
+            subtitle: _lastFetchedSubtitle(context),
             padding: const EdgeInsets.only(bottom: 12),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AppBadge(
-                  text: '${all.length}',
-                  background: AppSurfaces.inset(context),
-                  foreground: scheme.onSurfaceVariant,
-                ),
-                if (hasCheckable) ...[
-                  const SizedBox(width: 8),
-                  IgnorePointer(
-                    ignoring: _busy || _checking,
-                    child: Opacity(
-                      opacity: _busy || _checking ? 0.5 : 1,
-                      child: LinkPill(
-                        label: _checking
-                            ? l10n.flowLoading2
-                            : l10n.awmcCheckCatalogPage,
-                        onTap: () => _checkItems(entries),
+            trailing: Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AppBadge(
+                    text: '${all.length}',
+                    background: AppSurfaces.inset(context),
+                    foreground: scheme.onSurfaceVariant,
+                  ),
+                  if (hasCheckable) ...[
+                    const SizedBox(width: 8),
+                    IgnorePointer(
+                      ignoring: _busy || _checking,
+                      child: Opacity(
+                        opacity: _busy || _checking ? 0.5 : 1,
+                        child: LinkPill(
+                          label: _checking
+                              ? l10n.flowLoading2
+                              : l10n.awmcCheckCatalogPage,
+                          onTap: () => _checkItems(entries),
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
           for (final (index, item) in entries.indexed) ...[

@@ -288,6 +288,12 @@ class CacheKeyConstant {
   /// 任何地方都不要再往里写。
   static const String awmcPlayCountsLegacy = 'awmc_play_counts_v1';
 
+  /// AWMC 机台查询：游玩地区本地缓存（无过期时间，不进备份）。
+  static const String awmcCabinetRegionsCache = 'awmc_cabinet_regions_cache_v1';
+
+  /// AWMC 机台查询：已拥有道具本地缓存（无过期时间，不进备份）。
+  static const String awmcCabinetItemsCache = 'awmc_cabinet_items_cache_v1';
+
   // ===== AWMC NET 查分器（net.wmc.pub）=====
   // 按源区分的身份标记（`awmc:<QQ>`），与 shuiyuUserId / luoxueUserId 对等。
   // 作用见 AccountStore._resolveActiveId：共用的 cachedQQ 在异常路径下会被别的源串号。

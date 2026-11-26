@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../api/ApiUrls.dart';
+import '../../constant/CacheKeyConstant.dart';
 import '../../utils/ApiClient.dart';
 
 typedef AwmcOwnedItem = ({String id, String kind, String name, String? slug});
@@ -303,4 +304,61 @@ class AwmcCabinetData {
 
   static String _string(Object? value) =>
       value is String || value is num ? value.toString().trim() : '';
+
+  /// 读取本地持久化缓存的游玩地区数据（无过期时间）。
+  static Future<({Object? data, int updatedAtMs})?> loadCachedRegions() =>
+      _loadCabinetCache(CacheKeyConstant.awmcCabinetRegionsCache);
+
+  /// 读取本地持久化缓存的已拥有道具数据（无过期时间）。
+  static Future<({Object? data, int updatedAtMs})?> loadCachedOwnedItems() =>
+      _loadCabinetCache(CacheKeyConstant.awmcCabinetItemsCache);
+
+  /// 持久化保存游玩地区查询结果（无过期时间），成功时返回写入时间戳。
+  static Future<int?> saveCachedRegions(Object? data) =>
+      _saveCabinetCache(CacheKeyConstant.awmcCabinetRegionsCache, data);
+
+  /// 持久化保存已拥有道具查询结果（无过期时间），成功时返回写入时间戳。
+  static Future<int?> saveCachedOwnedItems(Object? data) =>
+      _saveCabinetCache(CacheKeyConstant.awmcCabinetItemsCache, data);
+
+  /// 读取机台查询本地缓存，不设过期时间，解析异常时安全回退为空。
+  static Future<({Object? data, int updatedAtMs})?> _loadCabinetCache(
+      String key) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(key);
+      if (raw == null || raw.isEmpty) return null;
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return null;
+      if (decoded['version'] != 1) return null;
+      final rawUpdatedAt = decoded['updatedAtMs'];
+      final updatedAtMs = rawUpdatedAt is int
+          ? rawUpdatedAt
+          : rawUpdatedAt is num
+              ? rawUpdatedAt.toInt()
+              : null;
+      if (updatedAtMs == null || updatedAtMs <= 0) return null;
+      if (!decoded.containsKey('data')) return null;
+      return (data: decoded['data'], updatedAtMs: updatedAtMs);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 将机台查询结果序列化写入本地缓存（无过期时间），异常时安全返回 null。
+  static Future<int?> _saveCabinetCache(String key, Object? data) async {
+    try {
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      final payload = jsonEncode(<String, Object?>{
+        'version': 1,
+        'updatedAtMs': nowMs,
+        'data': data,
+      });
+      final prefs = await SharedPreferences.getInstance();
+      final saved = await prefs.setString(key, payload);
+      return saved ? nowMs : null;
+    } catch (_) {
+      return null;
+    }
+  }
 }

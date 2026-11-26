@@ -110,6 +110,9 @@ class DataBackupService {
     // 跟着备份跑到别的账号上会显示别人的游玩次数。
     // 旧版是单个共享键（Legacy），现在按源分开存（Prefix），两个都要排除。
     CacheKeyConstant.awmcPlayCountsLegacy,
+    // AWMC 机台查询缓存（游玩地区 / 已拥有道具）：本地查询结果，不带入跨设备备份。
+    CacheKeyConstant.awmcCabinetRegionsCache,
+    CacheKeyConstant.awmcCabinetItemsCache,
   };
 
   /// 前缀匹配的缓存键（这些键按歌曲 / 模式 / 难度拼接，数量不固定）
@@ -616,6 +619,7 @@ class DataBackupService {
     ChartPackageHistoryStore().invalidateCache();
     await ChartPlaySettingsStore().reload();
     await ChartVideoExportSettingsStore().reload();
+    await ChartGameplaySettingsStore().reload();
     await CommonCacheUtil().reload();
     await ChartHistoryStore.instance.invalidateCache();
     await NavigationPreferences.instance.reload();
