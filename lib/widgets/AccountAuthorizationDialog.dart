@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constant/CacheKeyConstant.dart';
 import '../l10n/LocalizationsExtension.dart';
+import '../manager/AWMC/AwmcForumOAuthManager.dart';
 import '../manager/LuoXue/LuoXueOAuthManager.dart';
 import '../manager/LuoXue/LuoXueUserPlayDataManager.dart';
 import '../service/AWMC/AwmcQrSyncService.dart';
@@ -200,20 +202,146 @@ class _AccountAuthorizationDialog extends StatefulWidget {
 }
 
 class _AccountAuthorizationDialogState
-    extends State<_AccountAuthorizationDialog> {
+    extends State<_AccountAuthorizationDialog> with WidgetsBindingObserver {
   final authCodeController = TextEditingController();
-  final awmcQqController = TextEditingController();
+  String _boundAwmcQq = '';
   bool _saving = false;
   bool _initializingProfile = false;
   String? _boundFishQq;
   bool _hasLxAuth = false;
+  AwmcForumOAuthSession? _awmcOAuthSession;
+  bool _awmcOAuthStarting = false;
+  bool _awmcOAuthPolling = false;
+  String? _awmcOAuthError;
+  Timer? _awmcOAuthTimer;
+  int _awmcOAuthGeneration = 0;
   late final bool _hasSavedLuoXueToken = widget.authorized;
+
+  bool get _hasBoundAwmcQq => RegExp(r'^\d{5,12}$').hasMatch(_boundAwmcQq);
+
   @override
   void initState() {
     super.initState();
-    awmcQqController.text = widget.initialQQ;
+    WidgetsBinding.instance.addObserver(this);
+    _boundAwmcQq = widget.initialQQ.trim();
     if (!widget.luoxue) {
       _loadExternalSources();
+    }
+  }
+
+  Future<void> _persistAwmcQq(String qq) async {
+    await AccountAuthorizationStore.saveAwmcQQ(qq);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(CacheKeyConstant.awmcNetSyncQQ, qq);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed &&
+        _awmcOAuthSession != null &&
+        !_saving) {
+      unawaited(_pollAwmcOAuthOnce());
+    }
+  }
+
+  void _stopAwmcOAuth({bool clearError = false}) {
+    _awmcOAuthGeneration++;
+    _awmcOAuthTimer?.cancel();
+    _awmcOAuthTimer = null;
+    _awmcOAuthPolling = false;
+    _awmcOAuthSession = null;
+    if (clearError) _awmcOAuthError = null;
+  }
+
+  Future<void> _startAwmcOAuth() async {
+    if (_saving || _awmcOAuthStarting) return;
+    setState(() {
+      _stopAwmcOAuth(clearError: true);
+      _awmcOAuthStarting = true;
+    });
+    final gen = _awmcOAuthGeneration;
+    final res = await AwmcForumOAuthManager.instance.startSession();
+    if (!mounted || gen != _awmcOAuthGeneration) return;
+    if (res.session == null) {
+      setState(() {
+        _awmcOAuthStarting = false;
+        _awmcOAuthError = res.error ?? '发起 AWMC 论坛授权失败，请稍后重试';
+      });
+      AppToast.show(_awmcOAuthError!, tone: AppToastTone.error);
+      return;
+    }
+    final session = res.session!;
+    setState(() {
+      _awmcOAuthStarting = false;
+      _awmcOAuthSession = session;
+      _awmcOAuthError = null;
+    });
+    _awmcOAuthTimer = Timer.periodic(
+      const Duration(seconds: 2),
+      (_) => unawaited(_pollAwmcOAuthOnce()),
+    );
+    await _openAwmcOAuthUrl(session.authorizeUrl);
+  }
+
+  Future<void> _openAwmcOAuthUrl(String url) async {
+    try {
+      if (await ExternalLaunchUtil.openString(url)) {
+        return;
+      }
+    } catch (e) {
+      debugPrint('打开 AWMC 论坛授权链接失败: $e');
+    }
+    if (!mounted) return;
+    launchUrlFallback(url, context);
+  }
+
+  Future<void> _pollAwmcOAuthOnce() async {
+    final session = _awmcOAuthSession;
+    if (session == null || _awmcOAuthPolling || _saving) return;
+    final gen = _awmcOAuthGeneration;
+    _awmcOAuthPolling = true;
+    try {
+      final result =
+          await AwmcForumOAuthManager.instance.pollStatus(session.sessionId);
+      if (!mounted || gen != _awmcOAuthGeneration) return;
+      switch (result.status) {
+        case AwmcForumOAuthPollStatus.pending:
+          return;
+        case AwmcForumOAuthPollStatus.completed:
+          _stopAwmcOAuth(clearError: true);
+          setState(() {
+            _boundAwmcQq = result.qq;
+            _saving = true;
+          });
+          try {
+            await _persistAwmcQq(result.qq);
+            if (!mounted) return;
+            final label = result.username.isNotEmpty
+                ? '${result.username}（QQ ${result.qq}）'
+                : 'QQ ${result.qq}';
+            AppToast.show('已通过 AWMC 论坛授权绑定 $label',
+                tone: AppToastTone.success);
+            Navigator.of(context).pop<String?>(result.qq);
+          } catch (_) {
+            if (!mounted) return;
+            setState(() {
+              _saving = false;
+              _awmcOAuthError = '已识别 QQ ${result.qq}，但本地保存失败，请重新发起授权重试';
+            });
+          }
+          return;
+        case AwmcForumOAuthPollStatus.failed:
+        case AwmcForumOAuthPollStatus.expired:
+          final msg = result.error ?? 'AWMC 论坛授权未完成，请重试';
+          setState(() {
+            _stopAwmcOAuth();
+            _awmcOAuthError = msg;
+          });
+          AppToast.show(msg, tone: AppToastTone.error);
+          return;
+      }
+    } finally {
+      _awmcOAuthPolling = false;
     }
   }
 
@@ -231,9 +359,9 @@ class _AccountAuthorizationDialogState
 
   Future<void> _initAwmcFromExternal({required bool fromFish}) async {
     if (_saving || _initializingProfile) return;
-    final qq = awmcQqController.text.trim();
+    final qq = _boundAwmcQq.trim();
     if (!RegExp(r'^\d{5,12}$').hasMatch(qq)) {
-      AppToast.show(context.l10n.flowInvalidQQID512DigitsRequired);
+      AppToast.show('请先通过 AWMC 论坛授权绑定 QQ');
       return;
     }
     setState(() {
@@ -241,7 +369,7 @@ class _AccountAuthorizationDialogState
       _initializingProfile = true;
     });
     try {
-      await AccountAuthorizationStore.saveAwmcQQ(qq);
+      await _persistAwmcQq(qq);
       final res = fromFish
           ? await AwmcQrSyncService.initAwmcProfileFromFish(
               awmcQq: qq,
@@ -273,16 +401,16 @@ class _AccountAuthorizationDialogState
 
   @override
   void dispose() {
+    _stopAwmcOAuth();
+    WidgetsBinding.instance.removeObserver(this);
     authCodeController.dispose();
-    awmcQqController.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
-    if (_saving) return;
-    final value =
-        (widget.luoxue ? authCodeController : awmcQqController).text.trim();
-    if (widget.luoxue && value.isEmpty) {
+    if (_saving || !widget.luoxue) return;
+    final value = authCodeController.text.trim();
+    if (value.isEmpty) {
       if (_hasSavedLuoXueToken) {
         Navigator.of(context).pop<String?>('');
       } else {
@@ -290,27 +418,20 @@ class _AccountAuthorizationDialogState
       }
       return;
     }
-    if (!widget.luoxue && !RegExp(r'^\d{5,12}$').hasMatch(value)) {
-      AppToast.show(context.l10n.flowInvalidQQID512DigitsRequired);
-      return;
-    }
     final failureMessage = context.l10n.accountAuthorizationFailed;
     setState(() => _saving = true);
     try {
-      if (widget.luoxue) {
-        final token = await LuoXueOAuthManager().exchangeCodeForToken(value);
-        if (token == null) throw StateError(failureMessage);
-      } else {
-        await AccountAuthorizationStore.saveAwmcQQ(value);
-      }
+      final token = await LuoXueOAuthManager().exchangeCodeForToken(value);
+      if (token == null) throw StateError(failureMessage);
       if (!mounted) return;
       AppToast.show(context.l10n.accountConfigurationSaved,
           tone: AppToastTone.success);
-      Navigator.of(context).pop<String?>(widget.luoxue ? 'ok' : value);
+      Navigator.of(context).pop<String?>('ok');
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         AppToast.show(context.l10n.accountAuthorizationFailed,
             tone: AppToastTone.error);
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -331,15 +452,24 @@ class _AccountAuthorizationDialogState
                     child: widget.luoxue
                         ? _buildLuoXuePanel(Theme.of(context).brightness)
                         : _buildAwmcPanel(Theme.of(context).brightness)))),
-        actions: [
-          TextButton(
-              onPressed: _saving ? null : () => Navigator.of(context).pop(),
-              child: Text(context.l10n.featureCancel)),
-          FilledButton(
-              onPressed: _saving ? null : _save,
-              child: Text(
-                  _saving ? context.l10n.flowLoading2 : context.l10n.save)),
-        ],
+        actions: widget.luoxue
+            ? [
+                TextButton(
+                    onPressed:
+                        _saving ? null : () => Navigator.of(context).pop(),
+                    child: Text(context.l10n.featureCancel)),
+                FilledButton(
+                    onPressed: _saving ? null : _save,
+                    child: Text(_saving
+                        ? context.l10n.flowLoading2
+                        : context.l10n.save)),
+              ]
+            : [
+                TextButton(
+                    onPressed:
+                        _saving ? null : () => Navigator.of(context).pop(),
+                    child: Text(context.l10n.featureClose)),
+              ],
       ));
 
   Widget _buildLuoXuePanel(Brightness brightness) {
@@ -437,18 +567,190 @@ class _AccountAuthorizationDialogState
   }
 
   Widget _buildAwmcPanel(Brightness brightness) {
+    final scheme = Theme.of(context).colorScheme;
+    final activeSession = _awmcOAuthSession;
+    final hasBoundQq = _hasBoundAwmcQq;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        TextField(
-          controller: awmcQqController,
-          keyboardType: TextInputType.number,
-          decoration: InputDecoration(
-            labelText: context.l10n.flowQQID,
-            hintText: context.l10n.flowEnterAQQIDAlreadyLinkedOn,
-          ).insetLabel(context),
+        if (hasBoundQq) ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.successSurface(brightness),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: AppColors.successForeground(brightness)
+                    .withValues(alpha: 0.28),
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.check_circle_rounded,
+                  size: 16,
+                  color: AppColors.successForeground(brightness),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '当前已绑定 QQ：$_boundAwmcQq',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.successForeground(brightness),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '原有绑定会继续保留；如需换绑，请通过下方 AWMC 论坛重新授权。',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: AppColors.greyHint(brightness),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: scheme.primaryContainer.withValues(alpha: 0.35),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: scheme.outlineVariant),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.verified_user_outlined,
+                      size: 16, color: scheme.primary),
+                  const SizedBox(width: 6),
+                  Text(
+                    'AWMC 论坛 OAuth 授权绑定',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: scheme.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '请登录 AWMC 论坛（bbs.wmc.pub）完成授权，系统将自动识别已验证的 QQ 邮箱并提取查分 QQ，不再支持手动输入 QQ 号。',
+                style: TextStyle(
+                    fontSize: 12, color: AppColors.greyHint(brightness)),
+              ),
+              const SizedBox(height: 10),
+              if (activeSession == null)
+                FilledButton.icon(
+                  icon: _awmcOAuthStarting
+                      ? SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: scheme.onPrimary,
+                          ),
+                        )
+                      : const Icon(Icons.login_rounded, size: 16),
+                  label: Text(
+                    _awmcOAuthStarting
+                        ? '正在发起授权…'
+                        : (hasBoundQq
+                            ? '通过 AWMC 论坛重新授权 / 换绑'
+                            : '通过 AWMC 论坛授权绑定'),
+                  ),
+                  onPressed: (_saving || _awmcOAuthStarting)
+                      ? null
+                      : _startAwmcOAuth,
+                )
+              else ...[
+                Row(
+                  children: [
+                    const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '等待在浏览器中完成 AWMC 论坛授权，完成后切回本应用即可自动识别…',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: scheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.open_in_new, size: 15),
+                      label: const Text('重新打开',
+                          style: TextStyle(fontSize: 12.5)),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                      ),
+                      onPressed: () =>
+                          _openAwmcOAuthUrl(activeSession.authorizeUrl),
+                    ),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.copy, size: 15),
+                      label: const Text('复制链接',
+                          style: TextStyle(fontSize: 12.5)),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                      ),
+                      onPressed: () {
+                        Clipboard.setData(
+                            ClipboardData(text: activeSession.authorizeUrl));
+                        AppToast.show('已复制 AWMC 论坛授权链接，请粘贴到浏览器打开');
+                      },
+                    ),
+                    TextButton(
+                      onPressed: () => setState(() => _stopAwmcOAuth()),
+                      child: const Text('取消等待',
+                          style: TextStyle(fontSize: 12.5)),
+                    ),
+                  ],
+                ),
+              ],
+              if (_awmcOAuthError != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _awmcOAuthError!,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: scheme.error,
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
@@ -465,7 +767,7 @@ class _AccountAuthorizationDialogState
                   Icon(Icons.info_outline,
                       size: 16, color: AppColors.linkBlue(brightness)),
                   const SizedBox(width: 6),
-                  Text(context.l10n.flowNoSignInNeeded,
+                  Text('AWMC NET 档案与初始化说明',
                       style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
@@ -474,11 +776,11 @@ class _AccountAuthorizationDialogState
               ),
               const SizedBox(height: 6),
               Text(
-                '${context.l10n.flowAWMCNETIsAThirdPartyScore}\n支持直接扫码同步自动建档，也可直接使用已绑定的水鱼/落雪成绩一键初始化档案。',
+                '${context.l10n.flowAWMCNETIsAThirdPartyScore}\n需使用绑定了 QQ 邮箱（数字@qq.com）的 AWMC 论坛账号完成授权；绑定后支持直接扫码同步自动建档，也可用已绑定的水鱼/落雪成绩一键初始化档案。',
                 style: TextStyle(
                     fontSize: 12, color: AppColors.greyHint(brightness)),
               ),
-              if (_boundFishQq != null || _hasLxAuth) ...[
+              if ((_boundFishQq != null || _hasLxAuth) && hasBoundQq) ...[
                 const SizedBox(height: 10),
                 Wrap(
                   spacing: 8,
@@ -516,12 +818,19 @@ class _AccountAuthorizationDialogState
                       ),
                   ],
                 ),
+              ] else if (_boundFishQq != null || _hasLxAuth) ...[
+                const SizedBox(height: 6),
+                Text(
+                  '完成上方论坛授权后，可在此一键使用已绑定的水鱼/落雪成绩初始化 AWMC NET 档案。',
+                  style: TextStyle(
+                      fontSize: 11.5, color: AppColors.greyHint(brightness)),
+                ),
               ],
               const SizedBox(height: 8),
               OutlinedButton.icon(
                 icon: const Icon(Icons.open_in_new, size: 16),
                 label: Text(context.l10n.flowLinkQQUploadScoresOnAWMCNET,
-                    style: TextStyle(fontSize: 13)),
+                    style: const TextStyle(fontSize: 13)),
                 style: OutlinedButton.styleFrom(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

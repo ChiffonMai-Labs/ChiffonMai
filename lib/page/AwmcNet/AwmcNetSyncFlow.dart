@@ -67,7 +67,9 @@ class AwmcNetSyncFlow {
         context: context,
         builder: (ctx) => AppAlertDialog(
           title: Text(ctx.l10n.accountLinkAWMC),
-          content: Text(ctx.l10n.flowAWMCNETQQNoTokenHint),
+          content: const Text(
+            '请先通过 AWMC 论坛（bbs.wmc.pub）授权绑定查分 QQ，无需再填写成绩导入 Token。',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(false),

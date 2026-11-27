@@ -1,10 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:my_first_flutter_app/l10n/FeatureLocalizations.dart';
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/ApiUrls.dart';
 import '../constant/CacheKeyConstant.dart';
@@ -12,7 +10,6 @@ import '../manager/DivingFish/DivingFishOAuthManager.dart';
 import '../manager/LuoXue/LuoXueOAuthManager.dart';
 import '../service/AWMC/AwmcQrSyncService.dart';
 import '../service/AWMC/AwmcQuickSyncService.dart';
-import '../service/Account/AccountAuthorizationStore.dart';
 import '../service/Sync/SyncRouteStore.dart';
 import '../service/Sync/SyncStatsService.dart';
 import '../utils/AppDesignTokens.dart';
@@ -83,10 +80,8 @@ class MultiScoreSyncDialog extends StatefulWidget {
 
 class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
   static final _qqPattern = AwmcQrSyncService.qqPattern;
-  final _qqController = TextEditingController();
   final _selected = <SyncPlatform>{};
   final _expanded = <SyncPlatform>{};
-  final _errors = <SyncPlatform, String>{};
   String _qq = '';
   String _dfQq = '';
   bool _dfOAuthWrite = false;
@@ -99,7 +94,6 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
   bool _submitting = false;
   final _refreshKey = GlobalKey<PostSyncRefreshOptionsState>();
   bool _quickUpdate = false;
-  SyncPlatform? _saving;
   int _credentialRevision = 0;
 
   void _setQuickUpdate(bool enabled) {
@@ -114,12 +108,6 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
   void initState() {
     super.initState();
     _loadCredentials();
-  }
-
-  @override
-  void dispose() {
-    _qqController.dispose();
-    super.dispose();
   }
 
   bool _hasFishOAuthWrite() =>
@@ -229,41 +217,27 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
     if (mounted) await _refreshOAuthState(SyncPlatform.luoXue);
   }
 
-  Future<void> _saveAwmcQq() async {
-    if (_saving != null) return;
-    final qq = _qqController.text.trim();
-    if (!_qqPattern.hasMatch(qq)) {
-      setState(() =>
-          _errors[SyncPlatform.awmc] = context.l10n.flowEnterA512DigitQQID);
-      return;
-    }
-    setState(() {
-      _saving = SyncPlatform.awmc;
-      _errors.remove(SyncPlatform.awmc);
-    });
+  Future<void> _openAwmcOAuth() async {
+    if (_openingAuth) return;
+    setState(() => _openingAuth = true);
     try {
-      await AccountAuthorizationStore.saveAwmcQQ(qq);
-      final prefs = await SharedPreferences.getInstance();
-      if (!await prefs.setString(CacheKeyConstant.awmcNetSyncQQ, qq)) {
-        throw StateError('save_qq_failed');
-      }
+      final res = await showAccountAuthorizationDialog(context, luoxue: false);
       if (!mounted) return;
-      FocusManager.instance.primaryFocus?.unfocus();
+      final latestQq = _qqPattern.hasMatch(res.awmcQQ)
+          ? res.awmcQQ.trim()
+          : (await AwmcQrSyncService.resolveAwmcNetQq() ?? '');
+      if (!mounted) return;
       setState(() {
-        _qq = qq;
+        _qq = latestQq;
         _credentialRevision++;
-        if (_ready(SyncPlatform.awmc)) _selected.add(SyncPlatform.awmc);
-        _expanded.remove(SyncPlatform.awmc);
-        _selectionError = null;
-        _qqController.clear();
+        if (_ready(SyncPlatform.awmc)) {
+          _selected.add(SyncPlatform.awmc);
+          _expanded.remove(SyncPlatform.awmc);
+          _selectionError = null;
+        }
       });
-    } catch (_) {
-      if (mounted) {
-        await showErrorMessageDialog(context,
-            message: context.l10n.flowCouldNotSaveCredentialsTryAgain);
-      }
     } finally {
-      if (mounted) setState(() => _saving = null);
+      if (mounted) setState(() => _openingAuth = false);
     }
   }
 
@@ -328,7 +302,7 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
       );
 
   void _togglePlatform(SyncPlatform platform) {
-    if (!_ready(platform) || _saving != null) return;
+    if (!_ready(platform) || _openingAuth) return;
     setState(() {
       if (!_selected.remove(platform)) {
         _selected.add(platform);
@@ -342,7 +316,6 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
     final ready = _ready(platform);
     final selected = _selected.contains(platform);
     final expanded = _expanded.contains(platform);
-    final saving = _saving == platform;
     final isFirst = platform == SyncPlatform.values.first;
 
     final statusChip = switch (platform) {
@@ -409,7 +382,7 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
                   splashFactory: NoSplash.splashFactory,
                   highlightColor: Colors.transparent,
                   hoverColor: Colors.transparent,
-                  onTap: ready && _saving == null
+                  onTap: ready && !_openingAuth
                       ? () => _togglePlatform(platform)
                       : null,
                   child: Padding(
@@ -422,7 +395,7 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
                           materialTapTargetSize:
                               MaterialTapTargetSize.shrinkWrap,
                           visualDensity: VisualDensity.compact,
-                          onChanged: ready && _saving == null
+                          onChanged: ready && !_openingAuth
                               ? (_) => _togglePlatform(platform)
                               : null,
                         ),
@@ -492,7 +465,7 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
                               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               visualDensity: VisualDensity.compact,
                             ),
-                            onPressed: _saving == null
+                            onPressed: !_openingAuth
                                 ? () {
                                     if (expanded) {
                                       FocusManager.instance.primaryFocus
@@ -538,7 +511,7 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
                                   SyncPlatform.luoXue =>
                                     context.l10n.flowMultiLxnsOAuthMissingHint,
                                   SyncPlatform.awmc =>
-                                    context.l10n.flowAWMCNETQQNoTokenHint,
+                                    '请先通过 AWMC 论坛（bbs.wmc.pub）授权绑定查分 QQ，无需填写成绩导入 Token。',
                                 },
                                 style: TextStyle(
                                   fontSize: 12,
@@ -551,6 +524,13 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
                                 spacing: 8,
                                 runSpacing: 8,
                                 children: [
+                                  if (platform == SyncPlatform.awmc)
+                                    FilledButton.tonal(
+                                      onPressed: _openingAuth
+                                          ? null
+                                          : _openAwmcOAuth,
+                                      child: const Text('通过 AWMC 论坛授权'),
+                                    ),
                                   if (platform == SyncPlatform.divingFish) ...[
                                     if (_qqPattern.hasMatch(_dfQq))
                                       FilledButton.tonal(
@@ -583,50 +563,6 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
                                   ),
                                 ],
                               ),
-                              if (platform == SyncPlatform.awmc &&
-                                  !_qqPattern.hasMatch(_qq)) ...[
-                                const SizedBox(height: 10),
-                                TextField(
-                                  key: const ValueKey('multi-sync-qq'),
-                                  controller: _qqController,
-                                  enabled: _saving == null,
-                                  keyboardType: TextInputType.number,
-                                  inputFormatters: [
-                                    FilteringTextInputFormatter.digitsOnly
-                                  ],
-                                  decoration: InputDecoration(
-                                    labelText: context.l10n.flowAWMCNETQQID,
-                                    filled: true,
-                                    fillColor: AppSurfaces.card(context),
-                                    contentPadding: const EdgeInsets.symmetric(
-                                        horizontal: 12, vertical: 10),
-                                  ).insetLabel(context),
-                                ),
-                                AnimatedReveal(
-                                  visible: _errors[platform] != null,
-                                  child: Padding(
-                                    padding: const EdgeInsets.only(top: 6),
-                                    child: Text(
-                                      _errors[platform] ?? '',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: scheme.error,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: FilledButton.tonal(
-                                    onPressed:
-                                        _saving == null ? _saveAwmcQq : null,
-                                    child: Text(saving
-                                        ? context.l10n.flowSaving
-                                        : context.l10n.flowSaveAndSelect),
-                                  ),
-                                ),
-                              ],
                             ],
                           ),
                         ),
@@ -776,13 +712,13 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: _saving == null ? () => Navigator.pop(context) : null,
+          onPressed: !_openingAuth ? () => Navigator.pop(context) : null,
           child: Text(context.l10n.featureCancel),
         ),
         SyncStartButton(
           label: context.l10n.flowStartSyncP0((_selected.length).toString()),
           onPressed:
-              _loading || _loadError != null || _saving != null || _submitting
+              _loading || _loadError != null || _openingAuth || _submitting
                   ? null
                   : _submit,
         ),
