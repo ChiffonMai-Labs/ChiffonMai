@@ -250,41 +250,56 @@ void main() {
       expect(series.last.rating, 16200);
     });
 
-    test('Rating 没变就不记新点（跨天也不记）', () {
-      final day1 = DateTime(2026, 9, 1, 10).millisecondsSinceEpoch;
-      final day2 = DateTime(2026, 9, 2, 9).millisecondsSinceEpoch;
-      final day3 = DateTime(2026, 9, 3, 20).millisecondsSinceEpoch;
+    test('Rating 按日去重：跨日同值保留每日首记，同日同值跳过、变化追加', () {
+      final d1 = DateTime(2026, 9, 1, 10).millisecondsSinceEpoch;
+      final d2a = DateTime(2026, 9, 2, 9).millisecondsSinceEpoch;
+      final d2b = DateTime(2026, 9, 2, 14).millisecondsSinceEpoch;
+      final d2c = DateTime(2026, 9, 2, 21).millisecondsSinceEpoch;
+      final d3a = DateTime(2026, 9, 3, 10).millisecondsSinceEpoch;
+      final d3b = DateTime(2026, 9, 3, 15).millisecondsSinceEpoch;
+      final d3c = DateTime(2026, 9, 3, 20).millisecondsSinceEpoch;
+      final d4a = DateTime(2026, 9, 4, 10).millisecondsSinceEpoch;
+      final d4b = DateTime(2026, 9, 4, 14).millisecondsSinceEpoch;
+      final d4c = DateTime(2026, 9, 4, 21).millisecondsSinceEpoch;
 
+      // 第 1 天：15000 → 记 1 条
       var r = appendRatingPoint(
-          <RatingPoint>[], RatingPoint(tMs: day1, rating: 15610));
-      expect(r.changed, isTrue, reason: '第一个点必须记');
+          <RatingPoint>[], RatingPoint(tMs: d1, rating: 15000));
+      expect(r.changed, isTrue);
       expect(r.series.length, 1);
 
-      // 第二天只是游玩记录变了，Rating 还是 15610 → 不该多一个点
-      r = appendRatingPoint(
-          r.series, RatingPoint(tMs: day2, rating: 15610, recordCount: 999));
-      expect(r.changed, isFalse, reason: 'Rating 没变 → changed 必须是 false');
-      expect(r.series.length, 1, reason: 'Rating 没变就不该记新点');
-      expect(r.series.single.rating, 15610);
-      expect(r.series.single.tMs, day1, reason: '原来的点不该被挪走');
+      // 第 2 天多次刷新都是 15000 → 仅第 2 天首次记录 1 条 15000
+      r = appendRatingPoint(r.series, RatingPoint(tMs: d2a, rating: 15000));
+      expect(r.changed, isTrue, reason: '跨天首次刷新需记当天一点');
+      r = appendRatingPoint(r.series, RatingPoint(tMs: d2b, rating: 15000));
+      expect(r.changed, isFalse, reason: '同日重复刷新同值不记');
+      r = appendRatingPoint(r.series, RatingPoint(tMs: d2c, rating: 15000));
+      expect(r.changed, isFalse);
 
-      // 连着好几天都没变，也只有一个点
-      for (var d = 3; d <= 10; d++) {
-        r = appendRatingPoint(
-          r.series,
-          RatingPoint(
-            tMs: DateTime(2026, 9, d, 12).millisecondsSinceEpoch,
-            rating: 15610,
-          ),
-        );
-      }
-      expect(r.series.length, 1, reason: '连续多天不变仍然只有一个点');
-
-      // 真的变了才新增
-      r = appendRatingPoint(r.series, RatingPoint(tMs: day3, rating: 15700));
+      // 第 3 天：先 15000，推到 15100 后再刷 15100 → 第 3 天记 15000、15100
+      r = appendRatingPoint(r.series, RatingPoint(tMs: d3a, rating: 15000));
       expect(r.changed, isTrue);
-      expect(r.series.length, 2);
-      expect(r.series.last.rating, 15700);
+      r = appendRatingPoint(r.series, RatingPoint(tMs: d3b, rating: 15100));
+      expect(r.changed, isTrue, reason: '同日内推分变化继续追加');
+      r = appendRatingPoint(r.series, RatingPoint(tMs: d3c, rating: 15100));
+      expect(r.changed, isFalse, reason: '同日同分再刷跳过');
+
+      // 第 4 天：前多次 15100，后续推到 15200 → 第 4 天记 15100、15200
+      r = appendRatingPoint(r.series, RatingPoint(tMs: d4a, rating: 15100));
+      expect(r.changed, isTrue);
+      r = appendRatingPoint(r.series, RatingPoint(tMs: d4b, rating: 15100));
+      expect(r.changed, isFalse);
+      r = appendRatingPoint(r.series, RatingPoint(tMs: d4c, rating: 15200));
+      expect(r.changed, isTrue);
+
+      expect(
+        r.series.map((p) => p.rating).toList(),
+        [15000, 15000, 15000, 15100, 15100, 15200],
+      );
+      expect(
+        r.series.map((p) => p.tMs).toList(),
+        [d1, d2a, d3a, d3b, d4a, d4c],
+      );
     });
 
     test('同一天内 Rating 没变：不新增点，保留原时间', () {

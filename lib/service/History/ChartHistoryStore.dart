@@ -202,11 +202,11 @@ class ChartHistoryStore {
         ),
       );
       if (!result.changed) {
-        // Rating 没变 → 不记新点，但"最近一次检查时间"仍然要更新，
+        // 今日同值已记录 → 不记新点，但"最近一次检查时间"仍然要更新，
         // 否则界面上会看不出数据其实是新的。
         doc.updatedAtMs = t;
         await _persist(source, doc);
-        debugPrint('[History] $source Rating=$rating 与上一个点相同，不记新点'
+        debugPrint('[History] $source 今日同值 Rating=$rating 已记录，不重复记点'
             '（${doc.rating.length} 个点）');
         return;
       }
@@ -223,15 +223,10 @@ class ChartHistoryStore {
   /// 批量回填 Rating 历史 —— 主要给「从 AWMC NET 同步趋势」按钮用。
   ///
   /// 与 [recordRating] 的差异（**重要，看完再用**）：
-  ///   * [recordRating] 是「逐点增量」：每次只跟当前序列最后一个点比，相同就跳过。
-  ///     假设旧序列 `[100, 110]`，再 `recordRating(110)` 仍然会写一个新点（序列
-  ///     变 `[100, 110, 110]`）——单点 API 不看后面有没有重复。
-  ///   * 本方法是**整批去重**：合并 + 按时间排序 + 跨整个序列的「和前一个 rating
-  ///     相同则跳过」压扁，一次落盘。
-  ///
-  /// 行为差异在「批量回填」场景里**正是想要的效果**：比如 AWMC NET 给的
-  /// 90 天序列尾部恰好等于旧序列最后一个 rating（连续若干天没打），合并后
-  /// 尾部应该只剩一条，不应该冒一长串同值的尾巴 —— 单点 API 做不到。
+  ///   * [recordRating] 是「逐点增量」：按 [appendRatingPoint] 与时间前驱比较，
+  ///     同日连续同值跳过，跨日或同日变化追加。
+  ///   * 本方法是**整批去重**：合并 + 按时间排序 + 对「同日内连续相同 rating」压扁，
+  ///     跨自然日的每日同值点仍保留，与单点按日去重口径一致。
   ///
   /// ⚠️ **不去重 AWMC 与手动的「同一秒」冲突**：同秒的新点会覆盖旧的（按时间戳），
   /// 不主动判断「哪个更新」。如果用户在同步窗口里还手动录了同秒点，会被
@@ -264,10 +259,12 @@ class ChartHistoryStore {
       final merged = bySecond.values.toList()
         ..sort((a, b) => a.tMs.compareTo(b.tMs));
 
-      // 2) 跨整个序列压扁「连续同 rating」尾巴
+      // 2) 同日连续相同 rating 去重；跨自然日保留每日首记
       final pruned = <RatingPoint>[];
       for (final p in merged) {
-        if (pruned.isEmpty || pruned.last.rating != p.rating) {
+        if (pruned.isEmpty ||
+            pruned.last.rating != p.rating ||
+            !isSameRatingDay(pruned.last.tMs, p.tMs)) {
           pruned.add(p);
         }
       }

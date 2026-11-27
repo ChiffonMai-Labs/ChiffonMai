@@ -190,9 +190,8 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
   /// 流程：取该源的 QQ → 拉 `/api/player/{qq}/trend` → 用
   /// [ChartHistoryStore.recordRatingSeries] 批量并入 → 重新加载页面。
   ///
-  /// ⚠️ **批量写入会按整秒压扁「连续同 rating」尾巴** —— 与单点 [recordRating] 的
-  /// 行为不同；详见 `recordRatingSeries` 注释。回填完后如果曲线尾巴出现意外变化，
-  /// 不要奇怪，那本来就是预期行为。
+  /// ⚠️ **批量写入会按整秒与同日连续同值去重**（跨自然日的每日同值点仍保留），
+  /// 与单点 [recordRating] 口径一致；详见 `recordRatingSeries` 注释。
   Future<void> _syncFromAwmcNet() async {
     if (_awmcSyncing) return;
     if (CurrentDataSourceNotifier.instance.value != RefreshDataSource.awmc)

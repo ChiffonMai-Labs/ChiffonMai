@@ -1,4 +1,4 @@
-/// 成绩历史（Rating / 单谱达成率 / 单谱 DX 分）的**纯逻辑核心**。
+/// 成绩历史（Rating / 单谱达成率 / DX 分）的**纯逻辑核心**。
 ///
 /// 为什么单独一层：历史只能靠「每次刷新成绩时存一份当前值 → 和上次比 → 只记变化」
 /// 攒出来（水鱼/落雪都只给最新成绩，没有历史接口）。这一层的每个函数都不碰 I/O，
@@ -93,9 +93,10 @@ class ChartHistoryEvent {
 /// Rating 曲线上的一个点。
 ///
 /// 记点规则见 [appendRatingPoint]：
-///   * **Rating 没变不记新点**（所以同值不会连着出现多条）；
-///   * 同一秒再刷新就替换那个点；
-///   * Rating 没变化时仍不新增自动采集点，但手动录入可保留同值的指定时间点；
+///   * 同一本地日历日内：连续相同 Rating 只保留当天首个点（多次同值刷新跳过），
+///     同日 Rating 发生变化则继续追加新点；
+///   * 跨自然日：新的一天首次采集即便 Rating 与前一天相同也会记录当天一点；
+///   * 同一秒再刷新就替换那个点；手动录入可保留同值的指定时间点；
 ///   * 自动采集最多保留 10000 个点；手动记录单独保存。
 class RatingPoint {
   const RatingPoint({
@@ -300,21 +301,28 @@ List<List<num>> mergeAndPruneEvents(
 
 /// [appendRatingPoint] 的结果：新序列 + 这次到底有没有动过曲线。
 ///
-/// 调用方靠 [changed] 区分"真的记了一笔"和"Rating 没变所以跳过"，
+/// 调用方靠 [changed] 区分"真的记了一笔"和"同日内 Rating 没变所以跳过"，
 /// 日志和界面提示都别把后者说成前者。
 class RatingAppendResult {
   const RatingAppendResult(this.series, {required this.changed});
 
   final List<RatingPoint> series;
 
-  /// false = Rating 与上一个点相同，序列原样返回。
+  /// false = 同一天内前一个点的 Rating 与本次相同，序列原样返回。
   final bool changed;
 }
 
 /// 保留毫秒文件格式，新记录对齐到整秒。
 int historySecond(int ms) => ms ~/ 1000 * 1000;
 
-/// 自动采集：同秒更新，不同秒保留变化；数值没变时不新增点。
+/// 两个毫秒时间戳是否落在同一个本地日历日。
+bool isSameRatingDay(int aMs, int bMs) {
+  final a = DateTime.fromMillisecondsSinceEpoch(aMs);
+  final b = DateTime.fromMillisecondsSinceEpoch(bMs);
+  return a.year == b.year && a.month == b.month && a.day == b.day;
+}
+
+/// 自动采集：同秒更新；同日连续相同 Rating 跳过；同日变化或跨日首记均追加。
 /// 自动记录最多保留 [maxPoints] 个点，手动记录不参与裁剪。
 RatingAppendResult appendRatingPoint(
   List<RatingPoint> series,
@@ -337,9 +345,13 @@ RatingAppendResult appendRatingPoint(
         next.lastIndexWhere((p) => historySecond(p.tMs) == normalized.tMs);
     if (sameTimestamp >= 0) {
       next[sameTimestamp] = normalized;
-    } else if (next.last.rating == normalized.rating) {
-      return RatingAppendResult(series, changed: false);
     } else {
+      final prevIndex = next.lastIndexWhere((p) => p.tMs < normalized.tMs);
+      if (prevIndex >= 0 &&
+          isSameRatingDay(next[prevIndex].tMs, normalized.tMs) &&
+          next[prevIndex].rating == normalized.rating) {
+        return RatingAppendResult(series, changed: false);
+      }
       next.add(normalized);
     }
   }
