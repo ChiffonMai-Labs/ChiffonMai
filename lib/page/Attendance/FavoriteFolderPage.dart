@@ -11,17 +11,20 @@ import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.d
 import 'package:my_first_flutter_app/service/Favorite/FavoriteFolderService.dart';
 import 'package:my_first_flutter_app/service/Favorite/FavoriteTransferService.dart';
 import 'package:my_first_flutter_app/utils/CoverUtil.dart';
+import 'package:my_first_flutter_app/utils/ColorUtil.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:my_first_flutter_app/utils/FavoriteImportFlow.dart';
 import 'package:my_first_flutter_app/utils/ExportPathUtil.dart';
 import 'package:my_first_flutter_app/widgets/BackgroundPageScaffold.dart';
-import 'package:my_first_flutter_app/manager/DXRating/MaiTagsManager.dart';
+import 'package:my_first_flutter_app/service/AWMC/AwmcChartTagService.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/UserPlayDataManager.dart';
+import 'package:my_first_flutter_app/entity/DivingFish/RecordItem.dart';
 import 'package:my_first_flutter_app/entity/DivingFish/UserPlayDataEntity.dart';
 import 'package:my_first_flutter_app/entity/DXRating/MaiTagsModel.dart';
 import '../song_info/SongInfoPage.dart';
 import '../../utils/AppDesignTokens.dart';
+import '../../widgets/AppUi.dart';
 import '../../widgets/MarqueeText.dart';
 import '../../widgets/AppDialogs.dart';
 import '../../widgets/AppToast.dart';
@@ -506,6 +509,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
   List<FavoriteChart> _sortedCharts = const [];
   bool _isLoading = true;
   Map<String, Song> _songMap = {};
+  Map<String, RecordItem> _bestRecordMap = {};
 
   // 标签统计相关
   MaiTagsEntity? _tagsEntity;
@@ -583,6 +587,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
       final userData = UserPlayDataEntity.fromJson(rawData);
       final records = userData.records;
       final updatedByKey = <String, FavoriteChart>{};
+      final bestRecordByKey = <String, RecordItem>{};
       for (final chart in _charts) {
         final matchedRecords = records.where((r) =>
             r.songId.toString() == chart.songId &&
@@ -590,21 +595,25 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
         if (matchedRecords.isNotEmpty) {
           final best = matchedRecords
               .reduce((a, b) => a.achievements > b.achievements ? a : b);
+          bestRecordByKey[chart.uniqueKey] = best;
           updatedByKey[chart.uniqueKey] = chart.copyWith(
             achievement: best.achievements.toDouble(),
             playCount: matchedRecords.length,
           );
         }
       }
-      if (updatedByKey.isNotEmpty && mounted) {
+      if (mounted) {
         setState(() {
-          for (int i = 0; i < _charts.length; i++) {
-            final updated = updatedByKey[_charts[i].uniqueKey];
-            if (updated != null) {
-              _charts[i] = updated;
+          _bestRecordMap = bestRecordByKey;
+          if (updatedByKey.isNotEmpty) {
+            for (int i = 0; i < _charts.length; i++) {
+              final updated = updatedByKey[_charts[i].uniqueKey];
+              if (updated != null) {
+                _charts[i] = updated;
+              }
             }
+            _refreshSortedCharts();
           }
-          _refreshSortedCharts();
         });
       }
     } catch (e) {
@@ -921,7 +930,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
     );
   }
 
-  /// 显示标签统计对话框（基于 MaiTagsManager 的标签系统）
+  /// 显示标签统计对话框（基于 AWMC 与自定义标签系统）
   void _showTagStatistics() {
     if (_tagStats.isEmpty) {
       AppToast.show(context.l10n.flowNoTagData, tone: AppToastTone.warning);
@@ -1073,7 +1082,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
     );
   }
 
-  // ========== 标签数据加载与统计（基于 MaiTagsManager） ==========
+  // ========== 标签数据加载与统计（基于 AWMC 与自定义标签） ==========
 
   /// 加载标签数据并计算当前收藏夹各标签出现次数
   Future<void> _loadTagDataAndCalculateStats() async {
@@ -1082,8 +1091,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
     });
 
     try {
-      final maiTagsManager = MaiTagsManager();
-      _tagsEntity = await maiTagsManager.getTags();
+      _tagsEntity = await AwmcChartTagService.getTagsEntity();
 
       if (_tagsEntity != null) {
         await _calculateTagGroupStats();
@@ -1101,9 +1109,8 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
   Future<void> _calculateTagGroupStats() async {
     if (_tagsEntity == null) return;
 
-    final maiTagsManager = MaiTagsManager();
-    final tagIdToNameMap = await maiTagsManager.getTagIdToNameMap();
-    final groupIdToNameMap = await maiTagsManager.getGroupIdToNameMap();
+    final tagIdToNameMap = await AwmcChartTagService.getTagIdToNameMap();
+    final groupIdToNameMap = await AwmcChartTagService.getGroupIdToNameMap();
 
     // 构建标签ID → 分组名称 的映射
     Map<int, String> tagIdToGroupName = {};
@@ -1192,70 +1199,29 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
     );
   }
 
-  Widget _buildTypeTag(String type, String songId) {
-    final brightness = Theme.of(context).brightness;
-    final isUtage = songId.length == 6;
-    if (isUtage) {
-      return Text(
-        'UT',
-        style: TextStyle(
-          fontSize: 15,
-          fontWeight: FontWeight.w600,
-          color: AppColors.errorRed(brightness),
-        ),
-      );
-    } else if (type == 'DX') {
-      return Text(
-        'DX',
-        style: TextStyle(
-          fontSize: 15,
-          fontWeight: FontWeight.w600,
-          color: AppColors.warningOrange(brightness),
-        ),
-      );
-    } else {
-      return Text(
-        'ST',
-        style: TextStyle(
-          fontSize: 15,
-          fontWeight: FontWeight.w600,
-          color: AppColors.linkBlue(brightness),
-        ),
-      );
-    }
-  }
-
-  Widget _buildDifficultyTag(
-      String difficultyLabel, int levelIndex, String songId) {
-    final scheme = Theme.of(context).colorScheme;
-    final Color bgColor;
-    final Color textColor;
-    if (songId.length == 6) {
-      bgColor = scheme.errorContainer;
-      textColor = scheme.onErrorContainer;
-    } else if (levelIndex >= 0 && levelIndex <= ChartDifficulty.reMaster) {
-      final badge =
-          AppColors.difficultyBadge(levelIndex, Theme.of(context).brightness);
-      bgColor = badge.background;
-      textColor = badge.foreground;
-    } else {
-      bgColor = AppSurfaces.inset(context);
-      textColor = scheme.onSurfaceVariant;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        difficultyLabel,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          color: textColor,
-        ),
+  Widget _buildChartCover(
+    BuildContext context,
+    String songId,
+    Color diffBorderColor,
+    double size,
+  ) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+            child: CoverUtil.buildCoverWidgetWithContext(context, songId, size),
+          ),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+              border: Border.all(color: diffBorderColor, width: 2),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1272,41 +1238,54 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
           : 'Lv.${chart.levelIndex}';
     }
 
-    // 获取歌曲详细信息
+    // 获取歌曲详细信息与玩家最佳成绩
     final song = _songMap[chart.songId];
+    final record = _bestRecordMap[chart.uniqueKey];
     final genre = song?.basicInfo.genre ?? '';
     final version = StringUtil.formatVersion2WithFlag(
         song?.basicInfo.from ?? '', song?.isExtra ?? false);
     final songType =
         chart.songType.isNotEmpty ? chart.songType : (song?.type ?? '');
+    final double? achievement =
+        record != null ? record.achievements.toDouble() : chart.achievement;
+    final diffBorderColor = isUtage
+        ? AppColors.utageCard()
+        : ColorUtil.getCardColor(chart.levelIndex);
+
+    if (_isReorderMode) {
+      return _buildReorderChartCard(
+        chart: chart,
+        index: index,
+        levelName: levelName,
+        songType: songType,
+        diffBorderColor: diffBorderColor,
+        achievement: achievement,
+        record: record,
+      );
+    }
 
     final isSelected = _selectedKeys.contains(chart.uniqueKey);
-    final isSwapSelected =
-        _isReorderMode && _isSwapMode && _swapFirstIndex == index;
-    final isHighlighted = isSelected || isSwapSelected;
     final scheme = Theme.of(context).colorScheme;
+    const double coverSize = 60;
+    final metaLine = [
+      if (record != null && record.ra > 0) 'RA ${record.ra}',
+      if (version.isNotEmpty) version,
+      if (genre.isNotEmpty) genre,
+    ].join(' · ');
 
-    return Card(
-      margin: EdgeInsets.zero,
-      elevation: 0,
-      color: isHighlighted ? scheme.primaryContainer : AppSurfaces.card(context),
+    return Material(
+      color: isSelected ? scheme.primaryContainer : AppSurfaces.card(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
-        side: isHighlighted
+        side: isSelected
             ? BorderSide(color: scheme.primary, width: 1.5)
-            : BorderSide.none,
+            : BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.5)),
       ),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
         splashFactory: NoSplash.splashFactory,
         highlightColor: Colors.transparent,
         onTap: () {
-          if (_isReorderMode) {
-            if (_isSwapMode) {
-              _handleSwapTap(index);
-            }
-            return;
-          }
           if (_isBatchMode) {
             setState(() {
               if (isSelected) {
@@ -1327,35 +1306,22 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
             );
           }
         },
-        onLongPress: _isReorderMode
-            ? null
-            : () {
-                if (!_isBatchMode) {
-                  setState(() {
-                    _isReorderMode = false;
-                    _isSwapMode = false;
-                    _swapFirstIndex = null;
-                    _isBatchMode = true;
-                    _selectedKeys.add(chart.uniqueKey);
-                  });
-                }
-              },
+        onLongPress: () {
+          if (!_isBatchMode) {
+            setState(() {
+              _isReorderMode = false;
+              _isSwapMode = false;
+              _swapFirstIndex = null;
+              _isBatchMode = true;
+              _selectedKeys.add(chart.uniqueKey);
+            });
+          }
+        },
         child: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: _isReorderMode ? 8 : 12,
-            vertical: 10,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
           child: Row(
             children: [
-              if (_isReorderMode) ...[
-                _ReorderLeadingControls(
-                  index: index,
-                  isSelected: isSwapSelected,
-                  onTapIndex: () => _promptMoveChartToIndex(index),
-                ),
-                const SizedBox(width: 6),
-              ] else if (_isBatchMode) ...[
-                // 批量选择模式下显示复选框
+              if (_isBatchMode) ...[
                 Checkbox(
                   value: isSelected,
                   activeColor: scheme.primary,
@@ -1372,69 +1338,103 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
                 ),
                 const SizedBox(width: 4),
               ],
-              // 左侧：曲绘
-              ClipRRect(
-                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-                child: CoverUtil.buildCoverWidget(
-                  chart.songId,
-                  _isReorderMode ? 44 : 60,
-                ),
-              ),
-              SizedBox(width: _isReorderMode ? 8 : 12),
-              // 右侧：信息
+              // 左侧：带难度色框的曲绘（与 Best50StripCard 保持一致）
+              _buildChartCover(context, chart.songId, diffBorderColor, coverSize),
+              const SizedBox(width: 10),
+              // 中间：标题 + 难度定数/成绩徽章 + 版本流派
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    // 第一行：类型标签 + 歌名
                     Row(
                       children: [
-                        _buildTypeTag(songType, chart.songId),
+                        SongTypeBadge(
+                          songId: chart.songId,
+                          type: songType,
+                          fontSize: 9.5,
+                        ),
                         const SizedBox(width: 6),
                         Expanded(
                           child: MarqueeText(
                             text: chart.songTitle,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 15,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14.5,
+                              color: scheme.onSurface,
                             ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    // 第二行：难度标签
-                    _buildDifficultyTag(
-                        levelName, chart.levelIndex, chart.songId),
-                    const SizedBox(height: 4),
-                    // 第三行：定数 | 达成率 | 版本 | 流派
-                    Text(
-                      _buildChartInfoLine(chart, version, genre),
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: scheme.onSurfaceVariant,
+                    const SizedBox(height: 5),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ChartDifficultyBadge(
+                            levelIndex: chart.levelIndex,
+                            songId: chart.songId,
+                            label: '$levelName ${chart.ds.toStringAsFixed(1)}',
+                            fontSize: 10,
+                          ),
+                          if (achievement != null) ...[
+                            const SizedBox(width: 6),
+                            Text(
+                              '${achievement.toStringAsFixed(4)}%',
+                              maxLines: 1,
+                              style: AppTheme.number(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w800,
+                                color: scheme.onSurface,
+                              ),
+                            ),
+                            const SizedBox(width: 5),
+                            RankBadge(
+                              rank: StringUtil.formatRate(
+                                StringUtil.rateCodeFromAchievement(
+                                    achievement),
+                              ),
+                              fontSize: 9.5,
+                            ),
+                            if (record != null && record.fc.isNotEmpty) ...[
+                              const SizedBox(width: 3),
+                              ComboLabelBadge(raw: record.fc, fontSize: 9.5),
+                            ],
+                            if (record != null && record.fs.isNotEmpty) ...[
+                              const SizedBox(width: 3),
+                              ComboLabelBadge(raw: record.fs, fontSize: 9.5),
+                            ],
+                          ],
+                        ],
                       ),
                     ),
+                    if (metaLine.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        metaLine,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
               const SizedBox(width: 4),
-              // 排序模式下显示排序控制，普通模式下显示移除按钮
-              if (_isReorderMode)
-                _ReorderTrailingControls(
-                  index: index,
-                  totalCount: _sortedCharts.length,
-                  onMoveUp: () => _moveChartTo(index, index - 1),
-                  onMoveDown: () => _moveChartTo(index, index + 1),
-                  onMoveToTop: () => _moveChartTo(index, 0),
-                  onMoveToBottom: () =>
-                      _moveChartTo(index, _sortedCharts.length - 1),
-                  onMoveToIndex: () => _promptMoveChartToIndex(index),
-                  onSwap: () => _startSwapFromItem(index),
-                )
-              else if (!_isBatchMode)
+              if (!_isBatchMode)
                 IconButton(
-                  icon: Icon(Icons.remove_circle_outline, color: scheme.error),
+                  icon: Icon(
+                    Icons.remove_circle_outline_rounded,
+                    color: scheme.error,
+                  ),
+                  visualDensity: VisualDensity.compact,
+                  iconSize: 20,
                   tooltip: context.l10n.flowRemoveFromFavoritesFolder,
                   onPressed: () => _removeChart(chart),
                 ),
@@ -1445,17 +1445,197 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
     );
   }
 
-  /// 构建卡片第三行：定数 | [达成率] | 版本 | 流派
-  String _buildChartInfoLine(
-      FavoriteChart chart, String version, String genre) {
-    // 曲库没有这首歌时版本和流派为空，不留空的分隔符。
-    return [
-      chart.ds.toStringAsFixed(1),
-      if (chart.achievement != null)
-        '${chart.achievement!.toStringAsFixed(1)}%',
-      version,
-      genre,
-    ].where((part) => part.isNotEmpty).join(' | ');
+  /// 排序模式专用两段式单曲卡片：上段占满宽度展示曲名与核心成绩，下段集中摆放排序控件，避免信息区被左右挤压。
+  Widget _buildReorderChartCard({
+    required FavoriteChart chart,
+    required int index,
+    required String levelName,
+    required String songType,
+    required Color diffBorderColor,
+    required double? achievement,
+    required RecordItem? record,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    final isSwapSelected = _isSwapMode && _swapFirstIndex == index;
+
+    return Material(
+      color: isSwapSelected ? scheme.primaryContainer : AppSurfaces.card(context),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
+        side: isSwapSelected
+            ? BorderSide(color: scheme.primary, width: 1.5)
+            : BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.5)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        splashFactory: NoSplash.splashFactory,
+        highlightColor: Colors.transparent,
+        onTap: _isSwapMode ? () => _handleSwapTap(index) : null,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(6, 9, 12, 8),
+              child: Row(
+                children: [
+                  ReorderableDragStartListener(
+                    index: index,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 10,
+                      ),
+                      child: Icon(
+                        Icons.drag_handle_rounded,
+                        size: 20,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  _buildChartCover(context, chart.songId, diffBorderColor, 44),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            SongTypeBadge(
+                              songId: chart.songId,
+                              type: songType,
+                              fontSize: 9.5,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: MarqueeText(
+                                text: chart.songTitle,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 14.5,
+                                  color: scheme.onSurface,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 5),
+                        Row(
+                          children: [
+                            ChartDifficultyBadge(
+                              levelIndex: chart.levelIndex,
+                              songId: chart.songId,
+                              label:
+                                  '$levelName ${chart.ds.toStringAsFixed(1)}',
+                              fontSize: 10,
+                            ),
+                            if (achievement != null) ...[
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: Text(
+                                  '${achievement.toStringAsFixed(4)}%',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppTheme.number(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: scheme.onSurface,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            if (record != null && record.ra > 0) ...[
+                              const SizedBox(width: 6),
+                              Text(
+                                'RA ${record.ra}',
+                                maxLines: 1,
+                                style: AppTheme.number(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: scheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Divider(
+              height: 1,
+              thickness: 0.5,
+              color: AppSurfaces.hairline(context),
+            ),
+            Container(
+              color: isSwapSelected
+                  ? scheme.primary.withValues(alpha: 0.08)
+                  : AppSurfaces.inset(context).withValues(alpha: 0.55),
+              padding: const EdgeInsets.fromLTRB(10, 4, 4, 4),
+              child: Row(
+                children: [
+                  Material(
+                    color: isSwapSelected
+                        ? scheme.primary
+                        : AppSurfaces.card(context),
+                    borderRadius:
+                        BorderRadius.circular(AppDesignTokens.radiusPill),
+                    child: InkWell(
+                      borderRadius:
+                          BorderRadius.circular(AppDesignTokens.radiusPill),
+                      splashFactory: NoSplash.splashFactory,
+                      highlightColor: Colors.transparent,
+                      onTap: () => _promptMoveChartToIndex(index),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(
+                            AppDesignTokens.radiusPill,
+                          ),
+                          border: Border.all(
+                            color: isSwapSelected
+                                ? scheme.primary
+                                : scheme.outlineVariant,
+                          ),
+                        ),
+                        child: Text(
+                          '#${index + 1}',
+                          style: AppTheme.number(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: isSwapSelected
+                                ? scheme.onPrimary
+                                : scheme.onSurface,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  _ReorderTrailingControls(
+                    index: index,
+                    totalCount: _sortedCharts.length,
+                    onMoveUp: () => _moveChartTo(index, index - 1),
+                    onMoveDown: () => _moveChartTo(index, index + 1),
+                    onMoveToTop: () => _moveChartTo(index, 0),
+                    onMoveToBottom: () =>
+                        _moveChartTo(index, _sortedCharts.length - 1),
+                    onMoveToIndex: () => _promptMoveChartToIndex(index),
+                    onSwap: () => _startSwapFromItem(index),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   /// 批量操作工具栏

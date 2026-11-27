@@ -694,7 +694,7 @@ extension _SongInfoWidgets on _SongInfoPageState {
   /// 分段条下方的图例：色点 + 名称 + 滚动数字。[counts] 为 null 表示没有数据，显示「-」。
   Widget _buildDistributionLegend(
       List<String> labels, List<int?> counts, List<Color> colors,
-      {double dotOffsetY = 1.5}) {
+      {double dotOffsetY = 1.5, double textOffsetY = 0.0}) {
     final scheme = Theme.of(context).colorScheme;
     final numberStyle = AppTheme.number(
         fontSize: 15, fontWeight: FontWeight.w600, color: scheme.onSurface);
@@ -720,13 +720,16 @@ extension _SongInfoWidgets on _SongInfoPageState {
                     ),
                     const SizedBox(width: 4),
                     Flexible(
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(labels[i],
-                            style: AppTheme.number(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w500,
-                                color: scheme.onSurfaceVariant)),
+                      child: Transform.translate(
+                        offset: Offset(0, textOffsetY),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(labels[i],
+                              style: AppTheme.number(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w500,
+                                  color: scheme.onSurfaceVariant)),
+                        ),
                       ),
                     ),
                   ],
@@ -820,7 +823,12 @@ extension _SongInfoWidgets on _SongInfoPageState {
           _buildDistributionBar(
               [for (final count in group.$3) count ?? 0], group.$4),
           const SizedBox(height: 10),
-          _buildDistributionLegend(group.$2, group.$3, group.$4),
+          _buildDistributionLegend(
+            group.$2,
+            group.$3,
+            group.$4,
+            textOffsetY: 1.5,
+          ),
         ],
         const SizedBox(height: 8),
         Text(

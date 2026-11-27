@@ -2095,9 +2095,14 @@ Future<Set<String>?> showBest50TieSelectionDialog(
                       final data = candidates[index];
                       final key = candidateKeys[index];
                       final checked = selected.contains(key);
-                      final sub =
-                          '${data.difficultyLabel} ${data.dsText} · ${data.achievementText} · RA ${data.rating}'
-                          '${data.badge != null ? ' · ${data.badge}' : ''}';
+                      final songId = data.songId.toString();
+                      final diffColor = data.difficultyColor;
+                      final diffTextColor = data.isUtage
+                          ? AppColors.utageAccent(brightness: brightness)
+                          : AppColors.difficultyForegroundByIndex(
+                              data.levelIndex,
+                              brightness: brightness,
+                            );
                       return Material(
                         color: checked
                             ? scheme.primary.withValues(alpha: 0.10)
@@ -2134,16 +2139,34 @@ Future<Set<String>?> showBest50TieSelectionDialog(
                             }
                           },
                           child: Padding(
-                            padding: const EdgeInsets.fromLTRB(10, 8, 6, 8),
+                            padding: const EdgeInsets.fromLTRB(8, 8, 6, 8),
                             child: Row(
                               children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(
-                                      AppDesignTokens.radiusSmall),
-                                  child: CoverUtil.buildCoverWidgetWithContext(
-                                      ctx, data.songId.toString(), 44),
+                                SizedBox(
+                                  width: 46,
+                                  height: 46,
+                                  child: Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(
+                                            AppDesignTokens.radiusSmall),
+                                        child: CoverUtil
+                                            .buildCoverWidgetWithContext(
+                                                ctx, songId, 46),
+                                      ),
+                                      DecoratedBox(
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(
+                                              AppDesignTokens.radiusSmall),
+                                          border: Border.all(
+                                              color: diffColor, width: 2),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                                const SizedBox(width: 10),
+                                const SizedBox(width: 8),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment:
@@ -2153,46 +2176,137 @@ Future<Set<String>?> showBest50TieSelectionDialog(
                                       Row(
                                         children: [
                                           SongTypeBadge(
-                                            songId: data.songId.toString(),
+                                            songId: songId,
                                             type: data.type,
+                                            fontSize: 9.5,
                                           ),
-                                          const SizedBox(width: 6),
+                                          const SizedBox(width: 5),
                                           Expanded(
                                             child: MarqueeText(
                                               text: data.title,
                                               style: TextStyle(
-                                                fontSize: 14,
+                                                fontSize: 13.5,
                                                 fontWeight: FontWeight.w600,
-                                                height: 1.3,
+                                                height: 1.25,
                                                 color: scheme.onSurface,
                                               ),
                                             ),
                                           ),
                                         ],
                                       ),
+                                      const SizedBox(height: 3),
+                                      FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        alignment: Alignment.centerLeft,
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            ChartDifficultyBadge(
+                                              levelIndex: data.levelIndex,
+                                              songId: songId,
+                                              label: data.dsText,
+                                              fontSize: 9.5,
+                                            ),
+                                            const SizedBox(width: 5),
+                                            Text(
+                                              data.achievementText,
+                                              maxLines: 1,
+                                              style: AppTheme.number(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w700,
+                                                color: scheme.onSurface,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            RankBadge(
+                                              rank: StringUtil.formatRate(
+                                                StringUtil
+                                                    .rateCodeFromAchievement(
+                                                        data.achievement),
+                                              ),
+                                              fontSize: 9.5,
+                                            ),
+                                            if (data.fc.isNotEmpty) ...[
+                                              const SizedBox(width: 3),
+                                              ComboLabelBadge(
+                                                raw: data.fc,
+                                                fontSize: 9.5,
+                                              ),
+                                            ],
+                                            if (data.fs.isNotEmpty) ...[
+                                              const SizedBox(width: 3),
+                                              ComboLabelBadge(
+                                                raw: data.fs,
+                                                fontSize: 9.5,
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
                                       const SizedBox(height: 2),
-                                      Text(
-                                        sub,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontSize: 11.5,
-                                          color: scheme.onSurfaceVariant,
+                                      FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        alignment: Alignment.centerLeft,
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              data.difficultyLabel,
+                                              maxLines: 1,
+                                              style: TextStyle(
+                                                fontSize: 10.5,
+                                                fontWeight: FontWeight.w600,
+                                                color: diffTextColor,
+                                              ),
+                                            ),
+                                            Text(
+                                              ' · RA ${data.rating}',
+                                              maxLines: 1,
+                                              style: AppTheme.number(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                                color: scheme.onSurfaceVariant,
+                                              ),
+                                            ),
+                                            if (data.stars.isNotEmpty) ...[
+                                              const SizedBox(width: 4),
+                                              StarBadge(
+                                                stars: data.stars,
+                                                fontSize: 9,
+                                              ),
+                                            ],
+                                            if (data.badge != null) ...[
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                '· ${data.badge}',
+                                                maxLines: 1,
+                                                style: AppTheme.number(
+                                                  fontSize: 10.5,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: scheme.primary,
+                                                ),
+                                              ),
+                                            ],
+                                          ],
                                         ),
                                       ),
                                     ],
                                   ),
                                 ),
+                                const SizedBox(width: 2),
                                 IconButton(
                                   onPressed: data.onOpenSong,
                                   tooltip: l10n.flowViewSongDetails,
-                                  visualDensity: VisualDensity.compact,
-                                  iconSize: 18,
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints.tightFor(
+                                      width: 30, height: 30),
+                                  iconSize: 17,
                                   icon: Icon(
                                     Icons.open_in_new_rounded,
                                     color: scheme.onSurfaceVariant,
                                   ),
                                 ),
+                                const SizedBox(width: 2),
                                 Icon(
                                   checked
                                       ? Icons.check_circle_rounded

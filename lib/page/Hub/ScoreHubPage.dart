@@ -519,11 +519,13 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
       );
       return LayoutBuilder(
         builder: (context, constraints) {
-          const coverSize = 26.0, gap = 4.0;
+          const coverSize = 26.0, gap = 4.0, moreGap = 6.0, moreRightInset = 4.0;
           final labelWidth =
               math.max(26.0, measureTextWidth(labelText, labelStyle) + 5.0);
           final moreReserve =
-              measureTextWidth('+${covers.length}', moreStyle) + 5.0;
+              measureTextWidth('+${covers.length}', moreStyle) +
+                  moreGap +
+                  moreRightInset;
           final available =
               (constraints.maxWidth - labelWidth).clamp(0.0, double.infinity);
           final maxFull = ((available + gap) / (coverSize + gap)).floor();
@@ -551,7 +553,7 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
                   ),
                 ),
               if (covers.length > shown.length) ...[
-                const Spacer(),
+                const SizedBox(width: moreGap),
                 Text('+${covers.length - shown.length}', style: moreStyle),
               ],
             ],

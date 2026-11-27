@@ -536,6 +536,7 @@ extension _SongInfoLayout on _SongInfoPageState {
   Widget _buildDifficultySelector(dynamic levels) {
     final brightness = Theme.of(context).brightness;
     final count = (levels as List).length;
+    final forceZeroLevel = widget.songId.trim() == '11879';
     return Row(
       children: [
         for (var i = 0; i < count; i++) ...[
@@ -543,8 +544,11 @@ extension _SongInfoLayout on _SongInfoPageState {
           Expanded(
             child: PressScale(
               scale: 0.94,
-              child:
-                  _buildDifficultyButton(i, levels[i].toString(), brightness),
+              child: _buildDifficultyButton(
+                i,
+                forceZeroLevel ? '0' : levels[i].toString(),
+                brightness,
+              ),
             ),
           ),
         ],
@@ -1005,7 +1009,8 @@ extension _SongInfoLayout on _SongInfoPageState {
   }
 
   /// 上分潜力：成绩卡底部的凹槽，左边说明、右边能加多少分。
-  /// 结果未算出前先占位渲染，算出后通过 [FadeSwitcher] 淡入淡出切换到真实内容。
+  /// 结果未算出前先占位渲染，算出后淡入淡出切换到真实内容；
+  /// 有潜力切到有潜力且加分变化时，复用 [RollingNumber] 滚动过渡。
   Widget _buildBest50OpportunityBanner() {
     final scheme = Theme.of(context).colorScheme;
     final brightness = scheme.brightness;
@@ -1017,6 +1022,7 @@ extension _SongInfoLayout on _SongInfoPageState {
         ? const <Best50OpportunityTier>[]
         : _best50OpportunityTiers;
     final canOpenDialog = tiers.isNotEmpty;
+    final showTrailing = gain != null || canOpenDialog;
     final banner = Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
@@ -1043,9 +1049,10 @@ extension _SongInfoLayout on _SongInfoPageState {
                     ),
                   ),
                   const SizedBox(height: 2),
-                  FadeSwitcher(
+                  _OpportunityTextSwitcher(
                     value: text ?? '__calculating__',
-                    sizeFollowsCurrent: true,
+                    duration: AppDesignTokens.motion(
+                        context, AppDesignTokens.mediumMotion),
                     child: Text(
                       text ?? context.l10n.flowCalculating2,
                       style: AppTheme.number(
@@ -1062,38 +1069,61 @@ extension _SongInfoLayout on _SongInfoPageState {
                 ],
               ),
             ),
-            FadeSwitcher(
-              value: '${gain ?? ''}|$canOpenDialog',
-              alignment: AlignmentDirectional.centerEnd,
-              child: (gain != null || canOpenDialog)
-                  ? Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (gain != null) ...[
-                          const SizedBox(width: 12),
-                          Text(
-                            '+$gain',
-                            maxLines: 1,
-                            style: AppTheme.number(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w700,
-                              color: positive
-                                  ? AppColors.successGreen(brightness)
-                                  : scheme.onSurfaceVariant,
+            AnimatedSwitcher(
+              duration:
+                  AppDesignTokens.motion(context, AppDesignTokens.mediumMotion),
+              switchInCurve: Curves.easeOut,
+              switchOutCurve: Curves.easeIn,
+              layoutBuilder: (current, previous) => Stack(
+                alignment: AlignmentDirectional.centerEnd,
+                clipBehavior: Clip.none,
+                children: [
+                  for (final old in previous)
+                    PositionedDirectional(
+                      end: 0,
+                      child: IgnorePointer(
+                        child: ExcludeFocus(
+                          child: ExcludeSemantics(child: old),
+                        ),
+                      ),
+                    ),
+                  if (current != null) current,
+                ],
+              ),
+              child: KeyedSubtree(
+                // 仅按「是否有数值 / 是否有详情箭头」区分键值，保证有潜力→有潜力时
+                // 复用同一个 RollingNumber 实例以播放数字滚动过渡。
+                key: ValueKey('${gain != null}|$canOpenDialog'),
+                child: showTrailing
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (gain != null) ...[
+                            const SizedBox(width: 12),
+                            RollingNumber(
+                              value: gain,
+                              prefix: '+',
+                              style: AppTheme.number(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w700,
+                                color: positive
+                                    ? AppColors.successGreen(brightness)
+                                    : scheme.onSurfaceVariant,
+                              ),
                             ),
-                          ),
+                          ],
+                          if (canOpenDialog) ...[
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.chevron_right_rounded,
+                              size: 20,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ],
                         ],
-                        if (canOpenDialog) ...[
-                          const SizedBox(width: 4),
-                          Icon(
-                            Icons.chevron_right_rounded,
-                            size: 20,
-                            color: scheme.onSurfaceVariant,
-                          ),
-                        ],
-                      ],
-                    )
-                  : const SizedBox.shrink(),
+                      )
+                    : const SizedBox.shrink(),
+              ),
             ),
           ],
         ),
@@ -1401,6 +1431,7 @@ extension _SongInfoLayout on _SongInfoPageState {
                 breakLabels,
                 breakCounts,
                 AppColors.breakDistribution,
+                textOffsetY: 1.5,
               ),
             ],
             _buildProtectionDistributions(protectionStats, breakCounts),
@@ -2117,6 +2148,132 @@ class _MoreSongActionsSheetState extends State<_MoreSongActionsSheet> {
             ),
         ],
       ),
+    );
+  }
+}
+
+/// 专用于「上分潜力」说明文案的淡入淡出切换器：
+/// 切出旧文案时锁定其上次布局宽度并在容器边界裁切，避免右侧「+分」突然出现挤压宽度，
+/// 导致旧文案在淡出途中短暂折行闪过。
+class _OpportunityTextSwitcher extends StatefulWidget {
+  final Object value;
+  final Duration duration;
+  final Widget child;
+
+  const _OpportunityTextSwitcher({
+    required this.value,
+    required this.duration,
+    required this.child,
+  });
+
+  @override
+  State<_OpportunityTextSwitcher> createState() =>
+      _OpportunityTextSwitcherState();
+}
+
+class _OpportunityTextSwitcherState extends State<_OpportunityTextSwitcher>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    value: 1.0,
+  );
+  late final CurvedAnimation _fadeInCurve = CurvedAnimation(
+    parent: _controller,
+    curve: Curves.easeOut,
+  );
+  late final CurvedAnimation _fadeOutCurve = CurvedAnimation(
+    parent: _controller,
+    curve: Curves.easeIn,
+  );
+  late final Animation<double> _fadeOut = ReverseAnimation(_fadeOutCurve);
+
+  Widget? _outgoing;
+  double? _outgoingWidth;
+  double? _lastWidth;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addStatusListener(_handleStatus);
+  }
+
+  void _handleStatus(AnimationStatus status) {
+    if (status == AnimationStatus.completed && _outgoing != null && mounted) {
+      setState(() {
+        _outgoing = null;
+        _outgoingWidth = null;
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _OpportunityTextSwitcher oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.value != oldWidget.value) {
+      if (widget.duration == Duration.zero) {
+        _outgoing = null;
+        _outgoingWidth = null;
+        _controller.value = 1.0;
+      } else {
+        _outgoing = oldWidget.child;
+        _outgoingWidth = _lastWidth;
+        _controller
+          ..duration = widget.duration
+          ..forward(from: 0.0);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.removeStatusListener(_handleStatus);
+    _fadeInCurve.dispose();
+    _fadeOutCurve.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth;
+        if (maxWidth.isFinite && maxWidth > 0) {
+          _lastWidth = maxWidth;
+        }
+        final outgoing = _outgoing;
+        if (outgoing == null) {
+          return widget.child;
+        }
+        final frozenWidth = _outgoingWidth ?? maxWidth;
+        return ClipRect(
+          child: Stack(
+            alignment: AlignmentDirectional.topStart,
+            children: [
+              PositionedDirectional(
+                top: 0,
+                start: 0,
+                child: IgnorePointer(
+                  child: ExcludeFocus(
+                    child: ExcludeSemantics(
+                      child: FadeTransition(
+                        opacity: _fadeOut,
+                        child: frozenWidth.isFinite && frozenWidth > 0
+                            ? SizedBox(width: frozenWidth, child: outgoing)
+                            : outgoing,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              FadeTransition(
+                opacity: _fadeInCurve,
+                child: widget.child,
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
