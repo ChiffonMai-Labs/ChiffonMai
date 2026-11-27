@@ -287,12 +287,13 @@ class AwmcApiService {
   static Future<AwmcCallResult> rivalMusic({
     required int rivalId,
     int nextIndex = 0,
+    bool includeUtage = false,
   }) =>
       _call('POST', '/v1/rival/music', token: '', body: {
         'rivalId': rivalId,
         'nextIndex': nextIndex,
         // 上游实测不接受 maxCount=1000；沿用默认批量大小，按 nextIndex 翻页。
-        'includeUtage': false,
+        'includeUtage': includeUtage,
       });
 
   static Future<AwmcCallResult> userCharge({

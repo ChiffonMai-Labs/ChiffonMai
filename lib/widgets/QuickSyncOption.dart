@@ -340,10 +340,17 @@ class _BindQuickIdentityDialogState extends State<_BindQuickIdentityDialog> {
       _error = null;
     });
     try {
-      await AwmcQuickSyncService.bindIdentityWithQr(value);
+      final bindRes = await AwmcQuickSyncService.bindIdentityWithQrDetailed(value);
       if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
-      AppToast.show(context.l10n.flowCabinetIdentityCachedQuickSyncIsReady,
-          tone: AppToastTone.success);
+      final label = bindRes.userName != null && bindRes.userName!.isNotEmpty
+          ? '（${bindRes.userName}）'
+          : '';
+      AppToast.show(
+        bindRes.changedAccount
+            ? '已切换机台身份$label，旧机台账号的自动同步任务已自动停用'
+            : '${context.l10n.flowCabinetIdentityCachedQuickSyncIsReady}$label',
+        tone: AppToastTone.success,
+      );
       Navigator.of(context).pop();
     } catch (error) {
       if (mounted)
@@ -367,6 +374,13 @@ class _BindQuickIdentityDialogState extends State<_BindQuickIdentityDialog> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(context.l10n.flowReadsOnlyUserIdForQuickSyncDoes),
+                  const SizedBox(height: 6),
+                  Text(
+                    '提示：绑定机台身份会消耗本次一次性二维码；绑定成功后即可直接使用免二维码快速同步。',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                  ),
                   const SizedBox(height: 12),
                   QrQuickFillButtons(
                     controller: _controller,

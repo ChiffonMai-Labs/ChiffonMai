@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../constant/CacheKeyConstant.dart';
+import '../../widgets/AppToast.dart';
 import '../../service/AWMC/AwmcApiService.dart';
 import '../../service/AWMC/AwmcGatewaySettings.dart';
 import '../../service/AWMC/AwmcQrSyncService.dart';
@@ -221,6 +223,9 @@ class AwmcNetSyncFlow {
       String? refreshError;
       if (result.ok) {
         ticker.cancel();
+        if (useBotSync && AwmcQrSyncService.qqPattern.hasMatch(qq)) {
+          await _maybeNotifyFirstProfileCreated(qq);
+        }
         refreshError = await refresh.run(
             sharedRefresh: sharedRefresh,
             onProgress: (p, text) {
@@ -241,6 +246,24 @@ class AwmcNetSyncFlow {
 
   static String _busyLabel(int seconds) =>
       appL10n.flowImportingScoresWaitingP0Seconds((seconds).toString());
+
+  static Future<void> _maybeNotifyFirstProfileCreated(String qq) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final noticed = prefs
+              .getStringList(CacheKeyConstant.awmcNetFirstProfileNoticedQqs) ??
+          const <String>[];
+      if (noticed.contains(qq)) return;
+      await prefs.setStringList(
+        CacheKeyConstant.awmcNetFirstProfileNoticedQqs,
+        [...noticed, qq],
+      );
+      AppToast.show(
+        '已自动在 AWMC NET 创建/同步档案，后续可用 QQ 邮箱登录 net.wmc.pub 查看',
+        tone: AppToastTone.success,
+      );
+    } catch (_) {}
+  }
 
   static String toastFor(AwmcNetSyncOutcome outcome) {
     final r = outcome.result;

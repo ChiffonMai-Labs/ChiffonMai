@@ -42,7 +42,8 @@ class AwmcParsedScore {
   });
 
   double get percent => achievement / 10000.0;
-  String get type => songId >= 10000 ? 'DX' : 'SD';
+  bool get isUtage => songId >= 100000;
+  String get type => isUtage ? 'UTAGE' : (songId >= 10000 ? 'DX' : 'SD');
   String get key => '$songId/$levelIndex/$type';
 
   factory AwmcParsedScore.fromJson(Map<String, dynamic> json) =>
@@ -143,6 +144,8 @@ class AwmcQrSyncResponse {
   final String? errorMessage;
   final String? requestId;
   final AppError? error;
+  final int? expectedUserId;
+  final int? actualUserId;
 
   const AwmcQrSyncResponse({
     required this.ok,
@@ -158,10 +161,14 @@ class AwmcQrSyncResponse {
     this.errorMessage,
     this.requestId,
     this.error,
+    this.expectedUserId,
+    this.actualUserId,
   });
 
   bool get fishConsentRequired =>
       code == 'FISH_CONSENT_REQUIRED' || fish?.code == 'FISH_CONSENT_REQUIRED';
+
+  bool get qrUserMismatch => code == 'QR_USER_MISMATCH';
 }
 
 class AwmcQuickServerTargetResult {
@@ -288,6 +295,8 @@ class AwmcQrSyncService {
     String? fishQq,
     String? awmcQq,
     bool includeLx = false,
+    int? expectedUserId,
+    bool checkBoundIdentity = true,
   }) =>
       AppTaskActivity.run(() async {
         final qr = qrCode.trim();
@@ -314,6 +323,13 @@ class AwmcQrSyncService {
           );
         }
 
+        int? resolvedExpectedUserId = expectedUserId;
+        if (resolvedExpectedUserId == null && checkBoundIdentity) {
+          try {
+            resolvedExpectedUserId = await AwmcQuickIdentityStore.read();
+          } catch (_) {}
+        }
+
         final sw = Stopwatch()..start();
         try {
           final response = await ApiClient.post(
@@ -322,7 +338,12 @@ class AwmcQrSyncService {
               'Accept': 'application/json',
               'Content-Type': 'application/json',
             },
-            body: json.encode({'qrcode': qr, 'targets': targets}),
+            body: json.encode({
+              'qrcode': qr,
+              'targets': targets,
+              if (resolvedExpectedUserId != null)
+                'expectedUserId': resolvedExpectedUserId,
+            }),
             timeout: _syncTimeout,
           );
           final elapsed = sw.elapsedMilliseconds;
@@ -370,11 +391,17 @@ class AwmcQrSyncService {
               errorMessage: msg,
               requestId: errWithMsg.requestId,
               error: errWithMsg,
+              expectedUserId: (decoded?['expectedUserId'] as num?)?.toInt(),
+              actualUserId: (decoded?['actualUserId'] as num?)?.toInt(),
             );
           }
 
           final userId = (decoded!['userId'] as num?)?.toInt();
-          if (userId != null && userId > 0 && userId <= 0xFFFFFFFF) {
+          if (userId != null &&
+              userId > 0 &&
+              userId <= 0xFFFFFFFF &&
+              (resolvedExpectedUserId == null ||
+                  resolvedExpectedUserId == userId)) {
             // 顺手保存机台身份（忽略写入失败，不影响主同步结果）
             try {
               await AwmcQuickIdentityStore.write(userId);
@@ -700,6 +727,176 @@ class AwmcQrSyncService {
     return 'HTTP ${response.statusCode}';
   }
 
+  static final RegExp _lxInvalidScoreRe = RegExp(
+    r'invalid score \(id:\s*(\d+),\s*type:\s*([a-zA-Z_]+),\s*level_index:\s*(\d+)\)',
+    caseSensitive: false,
+  );
+
+  static ({int id, String type, int levelIndex})? parseLxInvalidScore(
+      String? message) {
+    final match = _lxInvalidScoreRe.firstMatch(message ?? '');
+    if (match == null) return null;
+    final id = int.tryParse(match.group(1) ?? '');
+    final levelIndex = int.tryParse(match.group(3) ?? '');
+    if (id == null || levelIndex == null) return null;
+    return (
+      id: id,
+      type: (match.group(2) ?? '').toLowerCase(),
+      levelIndex: levelIndex,
+    );
+  }
+
+  static String _lxScoreKey(Map<String, dynamic> item) =>
+      '${item['id']}/${(item['type'] ?? '').toString().toLowerCase()}/${item['level_index']}';
+
+  static int? _findLxInvalidIndex(
+    List<Map<String, dynamic>> pending,
+    int badId,
+    String badType,
+    int badLevel,
+  ) {
+    final normalizedType = badType.toLowerCase();
+    for (var i = 0; i < pending.length; i++) {
+      final item = pending[i];
+      if (item['id'] == badId &&
+          (item['type'] ?? '').toString().toLowerCase() == normalizedType &&
+          item['level_index'] == badLevel) {
+        return i;
+      }
+    }
+    if (normalizedType != 'dx') return null;
+    for (var i = 0; i < pending.length; i++) {
+      final item = pending[i];
+      if ((item['type'] ?? '').toString().toLowerCase() != 'dx' ||
+          item['level_index'] != badLevel) {
+        continue;
+      }
+      final id = item['id'] as int?;
+      final rawId = item['_raw_music_id'] as int?;
+      if (id == null) continue;
+      final variants = <int>{
+        id,
+        if (rawId != null && rawId > 0) rawId,
+        id >= 10000 ? id % 10000 : id + 10000,
+      };
+      if (variants.contains(badId)) return i;
+    }
+    return null;
+  }
+
+  static Map<String, dynamic>? _dxRawIdFallback(Map<String, dynamic> item) {
+    if ((item['type'] ?? '').toString().toLowerCase() != 'dx') return null;
+    final id = item['id'] as int?;
+    if (id == null || id <= 0) return null;
+    final rawId = item['_raw_music_id'] as int?;
+    final int? altId = (rawId != null && rawId >= 10000)
+        ? rawId
+        : (id < 10000 ? id + 10000 : null);
+    if (altId == null || altId == id) return null;
+    return {...item, 'id': altId};
+  }
+
+  static List<Map<String, dynamic>> _stripLxPrivateFields(
+          List<Map<String, dynamic>> items) =>
+      items
+          .map((item) => {
+                for (final entry in item.entries)
+                  if (!entry.key.startsWith('_')) entry.key: entry.value,
+              })
+          .toList(growable: false);
+
+  /// 落雪单批上传并自愈 `invalid score`：DX 优先尝试 Sega 原始 ID 回退一次，
+  /// 仍被拒时仅剔除该条记入跳过并续传同批其余成绩，避免单曲差异拖垮整批。
+  static Future<({int submitted, int skipped})> uploadLxBatchWithRepair(
+    List<Map<String, dynamic>> initialBatch, {
+    required Future<http.Response> Function(List<Map<String, dynamic>> wire)
+        send,
+    required DateTime deadline,
+    void Function(http.Response response, Map<String, dynamic>? decoded)?
+        onFatalError,
+  }) async {
+    final pending = [for (final item in initialBatch) Map<String, dynamic>.from(item)];
+    final triedAlt = <String>{};
+    var skipped = 0;
+    var repairs = 0;
+    final maxRepairs = pending.length * 2 > 40 ? pending.length * 2 : 40;
+
+    while (pending.isNotEmpty) {
+      if (DateTime.now().isAfter(deadline)) {
+        throw AppError(
+          code: 'SRV-LXNS-TIMEOUT',
+          userMessage: appL10n.flowRequestTimedOutP0S('120'),
+          stage: '上传成绩至落雪',
+          source: 'luoxue',
+        ).asStateError();
+      }
+      final response = await send(_stripLxPrivateFields(pending));
+      Map<String, dynamic>? decoded;
+      try {
+        final raw = json.decode(utf8.decode(response.bodyBytes));
+        if (raw is Map) decoded = Map<String, dynamic>.from(raw);
+      } catch (_) {}
+
+      if (response.statusCode >= 200 &&
+          response.statusCode < 300 &&
+          decoded != null &&
+          decoded['success'] == true) {
+        return (submitted: pending.length, skipped: skipped);
+      }
+
+      if (response.statusCode == 400 || response.statusCode == 422) {
+        final detail =
+            decoded?['message']?.toString() ?? decoded?['error']?.toString();
+        final invalid = parseLxInvalidScore(detail);
+        if (invalid != null && repairs < maxRepairs) {
+          final targetIdx = _findLxInvalidIndex(
+            pending,
+            invalid.id,
+            invalid.type,
+            invalid.levelIndex,
+          );
+          if (targetIdx != null) {
+            final bad = pending[targetIdx];
+            final alt = _dxRawIdFallback(bad);
+            final badKey = _lxScoreKey(bad);
+            final altKey = alt != null ? _lxScoreKey(alt) : null;
+            if (alt != null &&
+                altKey != null &&
+                !triedAlt.contains(badKey) &&
+                !triedAlt.contains(altKey)) {
+              triedAlt.add(badKey);
+              triedAlt.add(altKey);
+              pending[targetIdx] = alt;
+              repairs++;
+              continue;
+            }
+            pending.removeAt(targetIdx);
+            skipped++;
+            repairs++;
+            continue;
+          }
+        }
+      }
+
+      if (onFatalError != null) {
+        onFatalError(response, decoded);
+      }
+      throw AppError(
+        code: 'SRV-LXNS-UPLOAD',
+        userMessage: appL10n.svcUploadToP0FailedHTTPP1Remaining(
+          appLocalizeLabel(SyncPlatform.luoXue.label),
+          response.statusCode.toString(),
+        ),
+        stage: '上传成绩至落雪',
+        source: 'luoxue',
+        httpStatus: response.statusCode,
+        requestId: ApiClient.requestIdOf(response),
+      ).asStateError();
+    }
+
+    return (submitted: 0, skipped: skipped);
+  }
+
   /// 直接把解析好的机台成绩推送到落雪：OAuth (`write_player`) Bearer 优先，无 OAuth 时回退个人 API 密钥。
   static Future<({int submitted, int skipped})> uploadLxScores(
     List<AwmcParsedScore> scores, {
@@ -722,18 +919,21 @@ class AwmcQrSyncService {
         final payload = <Map<String, dynamic>>[];
         var skipped = 0;
         for (final score in scores) {
-          if (!supportedCharts.contains(score.key)) {
+          if (!score.isUtage && !supportedCharts.contains(score.key)) {
             skipped++;
             continue;
           }
           payload.add({
-            'id': score.songId % 10000,
-            'type': score.songId >= 10000 ? 'dx' : 'standard',
+            'id': score.isUtage ? score.songId : (score.songId % 10000),
+            'type': score.isUtage
+                ? 'utage'
+                : (score.songId >= 10000 ? 'dx' : 'standard'),
             'level_index': score.levelIndex,
             'achievements': score.percent,
             'dx_score': score.dxScore,
             if (score.fc != null && score.fc!.isNotEmpty) 'fc': score.fc,
             if (score.fs != null && score.fs!.isNotEmpty) 'fs': score.fs,
+            '_raw_music_id': score.songId,
           });
         }
         if (payload.isEmpty) {
@@ -766,6 +966,7 @@ class AwmcQrSyncService {
 
         var retriedAuth = false;
         var submitted = 0;
+        final deadline = DateTime.now().add(const Duration(seconds: 120));
         for (var start = 0; start < payload.length; start += _lxBatchSize) {
           final end = (start + _lxBatchSize).clamp(0, payload.length);
           onProgress?.call(
@@ -777,67 +978,64 @@ class AwmcQrSyncService {
             ),
           );
           final batch = payload.sublist(start, end);
-          var response = await _postLxBatch(
+          final batchRes = await uploadLxBatchWithRepair(
             batch,
-            oauthToken: usingOAuth ? oauthToken : null,
-            apiKey: usingOAuth ? null : apiKey,
+            deadline: deadline,
+            send: (wire) async {
+              var response = await _postLxBatch(
+                wire,
+                oauthToken: usingOAuth ? oauthToken : null,
+                apiKey: usingOAuth ? null : apiKey,
+              );
+              if (usingOAuth && response.statusCode == 401 && !retriedAuth) {
+                retriedAuth = true;
+                final refreshed = await LuoXueOAuthManager().refreshToken();
+                if (refreshed != null && refreshed.accessToken.isNotEmpty) {
+                  oauthToken = refreshed.accessToken;
+                  response = await _postLxBatch(wire, oauthToken: oauthToken);
+                }
+              }
+              return response;
+            },
+            onFatalError: (response, _) {
+              if (response.statusCode == 401) {
+                throw AppError(
+                  code: 'AUTH-LXNS-EXPIRED',
+                  userMessage: appL10n.svcLXNSAuthorizationExpiredOrTheKeyIs,
+                  stage: '上传成绩至落雪',
+                  source: 'luoxue',
+                  httpStatus: 401,
+                  requestId: ApiClient.requestIdOf(response),
+                  suggestion: appL10n.errSuggestionReauth,
+                  retryable: false,
+                ).asStateError();
+              }
+              if (response.statusCode == 403) {
+                throw AppError(
+                  code: 'AUTH-LXNS-FORBIDDEN',
+                  userMessage: appL10n
+                      .svcLXNSRejectedThisWriteInsufficientPermissions,
+                  stage: '上传成绩至落雪',
+                  source: 'luoxue',
+                  httpStatus: 403,
+                  requestId: ApiClient.requestIdOf(response),
+                  suggestion: appL10n.errSuggestionReauth,
+                  retryable: false,
+                ).asStateError();
+              }
+            },
           );
-          if (usingOAuth && response.statusCode == 401 && !retriedAuth) {
-            retriedAuth = true;
-            final refreshed = await LuoXueOAuthManager().refreshToken();
-            if (refreshed != null && refreshed.accessToken.isNotEmpty) {
-              oauthToken = refreshed.accessToken;
-              response = await _postLxBatch(batch, oauthToken: oauthToken);
-            }
-          }
-          Map<String, dynamic>? decoded;
-          try {
-            final raw = json.decode(utf8.decode(response.bodyBytes));
-            if (raw is Map) decoded = Map<String, dynamic>.from(raw);
-          } catch (_) {}
+          submitted += batchRes.submitted;
+          skipped += batchRes.skipped;
+        }
 
-          if (response.statusCode == 401) {
-            throw AppError(
-              code: 'AUTH-LXNS-EXPIRED',
-              userMessage: appL10n.svcLXNSAuthorizationExpiredOrTheKeyIs,
-              stage: '上传成绩至落雪',
-              source: 'luoxue',
-              httpStatus: 401,
-              requestId: ApiClient.requestIdOf(response),
-              suggestion: appL10n.errSuggestionReauth,
-              retryable: false,
-            ).asStateError();
-          }
-          if (response.statusCode == 403) {
-            throw AppError(
-              code: 'AUTH-LXNS-FORBIDDEN',
-              userMessage:
-                  appL10n.svcLXNSRejectedThisWriteInsufficientPermissions,
-              stage: '上传成绩至落雪',
-              source: 'luoxue',
-              httpStatus: 403,
-              requestId: ApiClient.requestIdOf(response),
-              suggestion: appL10n.errSuggestionReauth,
-              retryable: false,
-            ).asStateError();
-          }
-          if (response.statusCode < 200 ||
-              response.statusCode >= 300 ||
-              decoded == null ||
-              decoded['success'] != true) {
-            throw AppError(
-              code: 'SRV-LXNS-UPLOAD',
-              userMessage: appL10n.svcUploadToP0FailedHTTPP1Remaining(
-                appLocalizeLabel(SyncPlatform.luoXue.label),
-                response.statusCode.toString(),
-              ),
-              stage: '上传成绩至落雪',
-              source: 'luoxue',
-              httpStatus: response.statusCode,
-              requestId: ApiClient.requestIdOf(response),
-            ).asStateError();
-          }
-          submitted += batch.length;
+        if (submitted == 0) {
+          throw AppError(
+            code: 'DATA-SYNC-NO-MATCH',
+            userMessage: appL10n.svcNoValidScoresMatchedTheLocalSong,
+            stage: '上传成绩至落雪',
+            source: 'luoxue',
+          ).asStateError();
         }
 
         return (submitted: submitted, skipped: skipped);
@@ -887,18 +1085,19 @@ class AwmcQrSyncService {
     final charts = <String>{};
     for (final song in data.whereType<Map>()) {
       final id = int.tryParse('${song['id']}');
-      if (id == null || id <= 0 || id >= 100000) continue;
+      if (id == null || id <= 0) continue;
       final difficulties = song['difficulties'];
       if (difficulties is! Map) continue;
-      for (final type in ['standard', 'dx']) {
+      for (final type in ['standard', 'dx', 'utage']) {
         final levels = difficulties[type];
         if (levels is! List) continue;
+        final isUtage = type == 'utage';
         final dx = type == 'dx';
-        final songId = dx && id < 10000 ? id + 10000 : id;
+        final songId = !isUtage && dx && id < 10000 ? id + 10000 : id;
         for (final level in levels.whereType<Map>()) {
           final index = int.tryParse('${level['difficulty']}');
           if (index != null && ChartDifficulty.isStandard(index)) {
-            charts.add('$songId/$index/${dx ? 'DX' : 'SD'}');
+            charts.add('$songId/$index/${isUtage ? 'UTAGE' : (dx ? 'DX' : 'SD')}');
           }
         }
       }
@@ -918,4 +1117,340 @@ class AwmcQrSyncService {
   /// 检查水鱼写入授权（更新 `DivingFishOAuthManager` 状态）。
   static Future<bool?> checkFishWriteAuthorized(String qq) =>
       DivingFishOAuthManager().checkWriteAuthorization(qq);
+
+  /// 使用已绑定的水鱼 OAuth 成绩一键初始化 AWMC NET 档案（服务端含水鱼打码拦截）。
+  static Future<AwmcProfileMigrationResult> initAwmcProfileFromFish({
+    required String awmcQq,
+    required String fishQq,
+  }) =>
+      AppTaskActivity.run(() async {
+        final uri = Uri.parse(ApiUrls.AwmcInitProfileUrl);
+        try {
+          final response = await ApiClient.post(
+            uri,
+            headers: const {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+            },
+            body: json.encode({
+              'source': 'fish',
+              'awmcQq': awmcQq.trim(),
+              'fishQq': fishQq.trim(),
+            }),
+            timeout: _syncTimeout,
+          );
+          Map<String, dynamic>? decoded;
+          try {
+            final raw = json.decode(utf8.decode(response.bodyBytes));
+            if (raw is Map) decoded = Map<String, dynamic>.from(raw);
+          } catch (_) {}
+          if (response.statusCode >= 200 &&
+              response.statusCode < 300 &&
+              decoded?['ok'] == true) {
+            final awmc = decoded!['awmc'] is Map
+                ? Map<String, dynamic>.from(decoded['awmc'] as Map)
+                : const <String, dynamic>{};
+            return AwmcProfileMigrationResult(
+              ok: true,
+              totalRecords: (awmc['totalRecords'] as num?)?.toInt() ??
+                  (decoded['scoreCount'] as num?)?.toInt() ??
+                  0,
+              imported: (awmc['imported'] as num?)?.toInt() ?? 0,
+              updated: (awmc['updated'] as num?)?.toInt() ?? 0,
+              skipped: (awmc['skipped'] as num?)?.toInt() ?? 0,
+            );
+          }
+          final code = decoded?['code']?.toString();
+          return AwmcProfileMigrationResult(
+            ok: false,
+            code: code,
+            message: _formatError(response, decoded, code),
+          );
+        } catch (e) {
+          return AwmcProfileMigrationResult(
+            ok: false,
+            message: AwmcApiService.redact('$e'),
+          );
+        }
+      });
+
+  /// 使用已授权的落雪成绩一键初始化 AWMC NET 档案。
+  static Future<AwmcProfileMigrationResult> initAwmcProfileFromLuoXue({
+    required String awmcQq,
+  }) =>
+      AppTaskActivity.run(() async {
+        try {
+          var oauthToken = await LuoXueOAuthManager().getAccessToken();
+          String? apiKey;
+          final usingOAuth = oauthToken != null && oauthToken.isNotEmpty;
+          if (!usingOAuth) {
+            apiKey = (await SecureCredentialStore.read(
+                    CacheKeyConstant.probeLxnsImportToken))
+                ?.trim();
+            if (apiKey == null || apiKey.isEmpty) {
+              return AwmcProfileMigrationResult(
+                ok: false,
+                code: 'AUTH_LXNS_NOT_AUTHORIZED',
+                message: appL10n.svcYourLXNSAccountIsNotAuthorizedComplete,
+              );
+            }
+          }
+          Future<http.Response> fetchScores({String? bearer}) => ApiClient.get(
+                Uri.parse(ApiUrls.LuoXuePlayerScoresApi),
+                headers: {
+                  'Accept': 'application/json',
+                  if (bearer != null)
+                    'Authorization': 'Bearer $bearer'
+                  else if (apiKey != null)
+                    'X-User-Token': apiKey,
+                },
+                timeout: const Duration(seconds: 45),
+              );
+          var scoreRes =
+              await fetchScores(bearer: usingOAuth ? oauthToken : null);
+          if (usingOAuth && scoreRes.statusCode == 401) {
+            final refreshed = await LuoXueOAuthManager().refreshToken();
+            if (refreshed != null && refreshed.accessToken.isNotEmpty) {
+              oauthToken = refreshed.accessToken;
+              scoreRes = await fetchScores(bearer: oauthToken);
+            }
+          }
+          if (scoreRes.statusCode != 200) {
+            return AwmcProfileMigrationResult(
+              ok: false,
+              code: 'LXNS_READ_FAILED',
+              message: '读取落雪成绩失败（HTTP ${scoreRes.statusCode}）',
+            );
+          }
+          dynamic decodedScores;
+          try {
+            decodedScores = json.decode(utf8.decode(scoreRes.bodyBytes));
+          } catch (_) {}
+          for (var i = 0; i < 4 && decodedScores is Map; i++) {
+            if (decodedScores['success'] == false) break;
+            decodedScores = decodedScores['data'] ??
+                decodedScores['records'] ??
+                decodedScores['scores'];
+          }
+          if (decodedScores is! List || decodedScores.isEmpty) {
+            return const AwmcProfileMigrationResult(
+              ok: false,
+              code: 'EMPTY_SOURCE_SCORES',
+              message: '落雪账号暂无可迁移的成绩记录',
+            );
+          }
+
+          final response = await ApiClient.post(
+            Uri.parse(ApiUrls.AwmcInitProfileUrl),
+            headers: const {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+            },
+            body: json.encode({
+              'source': 'lx',
+              'awmcQq': awmcQq.trim(),
+              'records': decodedScores,
+            }),
+            timeout: _syncTimeout,
+          );
+          Map<String, dynamic>? decoded;
+          try {
+            final raw = json.decode(utf8.decode(response.bodyBytes));
+            if (raw is Map) decoded = Map<String, dynamic>.from(raw);
+          } catch (_) {}
+          if (response.statusCode >= 200 &&
+              response.statusCode < 300 &&
+              decoded?['ok'] == true) {
+            final awmc = decoded!['awmc'] is Map
+                ? Map<String, dynamic>.from(decoded['awmc'] as Map)
+                : const <String, dynamic>{};
+            return AwmcProfileMigrationResult(
+              ok: true,
+              totalRecords: (awmc['totalRecords'] as num?)?.toInt() ??
+                  (decoded['scoreCount'] as num?)?.toInt() ??
+                  0,
+              imported: (awmc['imported'] as num?)?.toInt() ?? 0,
+              updated: (awmc['updated'] as num?)?.toInt() ?? 0,
+              skipped: (awmc['skipped'] as num?)?.toInt() ?? 0,
+            );
+          }
+          final code = decoded?['code']?.toString();
+          return AwmcProfileMigrationResult(
+            ok: false,
+            code: code,
+            message: _formatError(response, decoded, code),
+          );
+        } catch (e) {
+          return AwmcProfileMigrationResult(
+            ok: false,
+            message: AwmcApiService.redact('$e'),
+          );
+        }
+      });
+
+  /// 反向迁移：将 AWMC NET 已有成绩一次性写入新授权的水鱼账号。
+  static Future<AwmcProfileMigrationResult> migrateAwmcToFish({
+    required String awmcQq,
+    required String fishQq,
+  }) =>
+      AppTaskActivity.run(() async {
+        try {
+          final response = await ApiClient.post(
+            Uri.parse(ApiUrls.AwmcMigrateToFishUrl),
+            headers: const {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+            },
+            body: json.encode({
+              'awmcQq': awmcQq.trim(),
+              'fishQq': fishQq.trim(),
+            }),
+            timeout: _syncTimeout,
+          );
+          Map<String, dynamic>? decoded;
+          try {
+            final raw = json.decode(utf8.decode(response.bodyBytes));
+            if (raw is Map) decoded = Map<String, dynamic>.from(raw);
+          } catch (_) {}
+          if (response.statusCode >= 200 &&
+              response.statusCode < 300 &&
+              decoded?['ok'] == true) {
+            final fish = decoded!['fish'] is Map
+                ? Map<String, dynamic>.from(decoded['fish'] as Map)
+                : const <String, dynamic>{};
+            return AwmcProfileMigrationResult(
+              ok: true,
+              totalRecords: (fish['submitted'] as num?)?.toInt() ?? 0,
+              imported: (fish['creates'] as num?)?.toInt() ?? 0,
+              updated: (fish['updates'] as num?)?.toInt() ?? 0,
+              skipped: (fish['skipped'] as num?)?.toInt() ?? 0,
+            );
+          }
+          final code = decoded?['code']?.toString();
+          return AwmcProfileMigrationResult(
+            ok: false,
+            code: code,
+            message: _formatError(response, decoded, code),
+          );
+        } catch (e) {
+          return AwmcProfileMigrationResult(
+            ok: false,
+            message: AwmcApiService.redact('$e'),
+          );
+        }
+      });
+
+  /// 反向迁移：读取 AWMC NET 已有成绩并一次性推送至新授权的落雪账号。
+  static Future<AwmcProfileMigrationResult> migrateAwmcToLuoXue({
+    required String awmcQq,
+    void Function(double progress, String text)? onProgress,
+  }) =>
+      AppTaskActivity.run(() async {
+        try {
+          onProgress?.call(0.1, '正在读取 AWMC NET 已有成绩…');
+          final uri = Uri.parse(ApiUrls.AwmcNetRecordsProxyApi)
+              .replace(queryParameters: {'qq': awmcQq.trim()});
+          final res = await ApiClient.get(
+            uri,
+            headers: const {'Accept': 'application/json'},
+            timeout: const Duration(seconds: 45),
+          );
+          if (res.statusCode == 404) {
+            return const AwmcProfileMigrationResult(
+              ok: false,
+              code: 'AWMC_NET_TARGET_NOT_FOUND',
+              message: '未在 AWMC NET 找到该 QQ 的成绩记录',
+            );
+          }
+          if (res.statusCode != 200) {
+            return AwmcProfileMigrationResult(
+              ok: false,
+              code: 'AWMC_NET_READ_FAILED',
+              message: '读取 AWMC NET 成绩失败（HTTP ${res.statusCode}）',
+            );
+          }
+          dynamic decoded;
+          try {
+            decoded = json.decode(utf8.decode(res.bodyBytes));
+          } catch (_) {}
+          final rawList = decoded is Map
+              ? (decoded['records'] ?? decoded['data'])
+              : decoded;
+          if (rawList is! List || rawList.isEmpty) {
+            return const AwmcProfileMigrationResult(
+              ok: false,
+              code: 'EMPTY_SOURCE_SCORES',
+              message: 'AWMC NET 档案暂无可迁移的成绩记录',
+            );
+          }
+          final scores = <AwmcParsedScore>[];
+          for (final item in rawList.whereType<Map>()) {
+            final songId = int.tryParse('${item['song_id'] ?? item['id']}');
+            final rawLevel = int.tryParse('${item['level_index']}');
+            final achNum = num.tryParse('${item['achievements']}');
+            if (songId == null ||
+                songId <= 0 ||
+                rawLevel == null ||
+                achNum == null ||
+                achNum <= 0) {
+              continue;
+            }
+            final levelIndex =
+                (songId >= 100000 && rawLevel == 10) ? 0 : rawLevel;
+            if (levelIndex < 0 || levelIndex > 4) continue;
+            final dxScore =
+                int.tryParse('${item['dxScore'] ?? item['dx_score'] ?? 0}') ??
+                    0;
+            final fc = item['fc']?.toString().trim();
+            final fs = item['fs']?.toString().trim();
+            scores.add(AwmcParsedScore(
+              songId: songId,
+              levelIndex: levelIndex,
+              achievement: (achNum * 10000).round(),
+              dxScore: dxScore < 0 ? 0 : dxScore,
+              fc: fc != null && fc.isNotEmpty ? fc : null,
+              fs: fs != null && fs.isNotEmpty ? fs : null,
+            ));
+          }
+          if (scores.isEmpty) {
+            return const AwmcProfileMigrationResult(
+              ok: false,
+              code: 'EMPTY_SOURCE_SCORES',
+              message: 'AWMC NET 档案暂无有效谱面成绩',
+            );
+          }
+          final uploadRes = await uploadLxScores(scores, onProgress: onProgress);
+          return AwmcProfileMigrationResult(
+            ok: true,
+            totalRecords: uploadRes.submitted,
+            imported: uploadRes.submitted,
+            skipped: uploadRes.skipped,
+          );
+        } catch (e) {
+          return AwmcProfileMigrationResult(
+            ok: false,
+            message: AwmcApiService.redact('$e'),
+          );
+        }
+      });
+}
+
+class AwmcProfileMigrationResult {
+  final bool ok;
+  final int totalRecords;
+  final int imported;
+  final int updated;
+  final int skipped;
+  final String? code;
+  final String? message;
+
+  const AwmcProfileMigrationResult({
+    required this.ok,
+    this.totalRecords = 0,
+    this.imported = 0,
+    this.updated = 0,
+    this.skipped = 0,
+    this.code,
+    this.message,
+  });
 }

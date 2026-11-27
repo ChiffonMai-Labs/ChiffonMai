@@ -24,6 +24,14 @@ class CacheKeyConstant {
   /// 三个数据源共用的快速同步凭据，仅存入系统安全存储；兼容旧的逐源映射。
   static const String awmcQuickIdentities = 'awmc_quick_identities_v1';
 
+  /// AWMC NET 首次自动建档/同步提示是否已展示（按 QQ 记录列表）。
+  static const String awmcNetFirstProfileNoticedQqs =
+      'awmc_net_first_profile_noticed_qqs_v1';
+
+  /// 反向迁移提示是否已询问（按 `platform:id` 记录列表，避免重复弹窗）。
+  static const String proberReverseMigrationPrompted =
+      'prober_reverse_migration_prompted_v1';
+
   /// 自动同步任务的专用管理令牌，仅存入系统安全存储，不参与备份。
   static const String autoSyncTasks = 'auto_sync_tasks_v1';
   // 音乐数据相关

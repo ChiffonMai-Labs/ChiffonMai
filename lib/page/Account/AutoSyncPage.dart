@@ -1310,11 +1310,15 @@ class _IdentityBindCardState extends State<_IdentityBindCard> {
       _error = null;
     });
     try {
-      await AwmcQuickSyncService.bindIdentityWithQr(value);
+      final bindRes = await AwmcQuickSyncService.bindIdentityWithQrDetailed(value);
       if (!mounted) return;
       FocusManager.instance.primaryFocus?.unfocus();
       _controller.clear();
-      AppToast.show(context.l10n.flowCabinetIdentityLinked);
+      AppToast.show(
+        bindRes.changedAccount
+            ? '已切换机台身份，旧机台账号的自动同步任务已停用，请按需重新开启'
+            : context.l10n.flowCabinetIdentityLinked,
+      );
       await widget.onBound();
     } on FormatException catch (error) {
       if (mounted) setState(() => _error = error.message);

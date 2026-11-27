@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../constant/CacheKeyConstant.dart';
 import '../l10n/LocalizationsExtension.dart';
 import '../manager/LuoXue/LuoXueOAuthManager.dart';
 import '../manager/LuoXue/LuoXueUserPlayDataManager.dart';
+import '../service/AWMC/AwmcQrSyncService.dart';
 import '../service/Account/AccountAuthorizationStore.dart';
 import '../utils/AppTaskActivity.dart';
 import '../utils/AppTheme.dart';
@@ -59,12 +62,129 @@ Future<AccountAuthorizationResult> showAccountAuthorizationDialog(
       final saved = result != null && result.isNotEmpty;
       final becameSuccessful = saved && !hadBefore;
       final savedAwmcQQ = !luoxue && saved ? result : qq;
+      if (luoxue && becameSuccessful && context.mounted) {
+        await maybeOfferReverseMigrationToLuoXue(context);
+      }
       return AccountAuthorizationResult(
         saved: saved,
         becameSuccessful: becameSuccessful,
         awmcQQ: savedAwmcQQ,
       );
     });
+
+/// 若用户已绑定 AWMC NET，首次完成落雪授权后可选一次性将 AWMC NET 成绩迁入落雪。
+Future<void> maybeOfferReverseMigrationToLuoXue(BuildContext context) async {
+  try {
+    final awmcQq = await AwmcQrSyncService.resolveAwmcNetQq();
+    if (awmcQq == null || !AwmcQrSyncService.qqPattern.hasMatch(awmcQq)) return;
+    final prefs = await SharedPreferences.getInstance();
+    final prompted =
+        prefs.getStringList(CacheKeyConstant.proberReverseMigrationPrompted) ??
+            const <String>[];
+    final key = 'lx:$awmcQq';
+    if (prompted.contains(key)) return;
+    await prefs.setStringList(
+      CacheKeyConstant.proberReverseMigrationPrompted,
+      [...prompted, key],
+    );
+    if (!context.mounted) return;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AppAlertDialog(
+        title: const Text('同步已有成绩到落雪？'),
+        content: const Text(
+          '检测到你已绑定 AWMC NET，是否将 AWMC NET 上已有的成绩一次性迁移至刚授权的落雪账号？（不会消耗机台二维码）',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('暂不'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('立即迁移'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !context.mounted) return;
+    AppToast.show('正在从 AWMC NET 迁移成绩至落雪…');
+    final res = await AwmcQrSyncService.migrateAwmcToLuoXue(awmcQq: awmcQq);
+    if (!context.mounted) return;
+    if (res.ok) {
+      AppToast.show(
+        '已迁移 ${res.totalRecords} 条成绩到落雪'
+        '${res.skipped > 0 ? '（跳过 ${res.skipped} 条）' : ''}',
+        tone: AppToastTone.success,
+      );
+    } else {
+      AppToast.show(
+        res.message ?? '迁移至落雪失败',
+        tone: AppToastTone.error,
+      );
+    }
+  } catch (_) {}
+}
+
+/// 若用户已绑定 AWMC NET，首次完成水鱼写入授权后可选一次性将 AWMC NET 成绩迁入水鱼。
+Future<void> maybeOfferReverseMigrationToFish(
+  BuildContext context, {
+  required String fishQq,
+}) async {
+  try {
+    final awmcQq = await AwmcQrSyncService.resolveAwmcNetQq();
+    if (awmcQq == null || !AwmcQrSyncService.qqPattern.hasMatch(awmcQq)) return;
+    final prefs = await SharedPreferences.getInstance();
+    final prompted =
+        prefs.getStringList(CacheKeyConstant.proberReverseMigrationPrompted) ??
+            const <String>[];
+    final key = 'fish:$fishQq';
+    if (prompted.contains(key)) return;
+    await prefs.setStringList(
+      CacheKeyConstant.proberReverseMigrationPrompted,
+      [...prompted, key],
+    );
+    if (!context.mounted) return;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AppAlertDialog(
+        title: const Text('同步已有成绩到水鱼？'),
+        content: const Text(
+          '检测到你已绑定 AWMC NET，是否将 AWMC NET 上已有的成绩一次性迁移至刚授权的水鱼账号？（不会消耗机台二维码）',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('暂不'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('立即迁移'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !context.mounted) return;
+    AppToast.show('正在从 AWMC NET 迁移成绩至水鱼…');
+    final res = await AwmcQrSyncService.migrateAwmcToFish(
+      awmcQq: awmcQq,
+      fishQq: fishQq,
+    );
+    if (!context.mounted) return;
+    if (res.ok) {
+      AppToast.show(
+        '已迁移 ${res.totalRecords} 条成绩到水鱼'
+        '${res.skipped > 0 ? '（跳过 ${res.skipped} 条）' : ''}',
+        tone: AppToastTone.success,
+      );
+    } else {
+      AppToast.show(
+        res.message ?? '迁移至水鱼失败',
+        tone: AppToastTone.error,
+      );
+    }
+  } catch (_) {}
+}
 
 class _AccountAuthorizationDialog extends StatefulWidget {
   const _AccountAuthorizationDialog(
@@ -84,11 +204,71 @@ class _AccountAuthorizationDialogState
   final authCodeController = TextEditingController();
   final awmcQqController = TextEditingController();
   bool _saving = false;
+  bool _initializingProfile = false;
+  String? _boundFishQq;
+  bool _hasLxAuth = false;
   late final bool _hasSavedLuoXueToken = widget.authorized;
   @override
   void initState() {
     super.initState();
     awmcQqController.text = widget.initialQQ;
+    if (!widget.luoxue) {
+      _loadExternalSources();
+    }
+  }
+
+  Future<void> _loadExternalSources() async {
+    try {
+      final fishQq = await AwmcQrSyncService.resolveDivingFishQq();
+      final lxAuth = await AwmcQrSyncService.hasLuoXueSyncAuth();
+      if (!mounted) return;
+      setState(() {
+        _boundFishQq = fishQq;
+        _hasLxAuth = lxAuth;
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _initAwmcFromExternal({required bool fromFish}) async {
+    if (_saving || _initializingProfile) return;
+    final qq = awmcQqController.text.trim();
+    if (!RegExp(r'^\d{5,12}$').hasMatch(qq)) {
+      AppToast.show(context.l10n.flowInvalidQQID512DigitsRequired);
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _initializingProfile = true;
+    });
+    try {
+      await AccountAuthorizationStore.saveAwmcQQ(qq);
+      final res = fromFish
+          ? await AwmcQrSyncService.initAwmcProfileFromFish(
+              awmcQq: qq,
+              fishQq: _boundFishQq!,
+            )
+          : await AwmcQrSyncService.initAwmcProfileFromLuoXue(awmcQq: qq);
+      if (!mounted) return;
+      if (res.ok) {
+        AppToast.show(
+          '已用${fromFish ? '水鱼' : '落雪'}成绩初始化 AWMC NET 档案（${res.totalRecords} 条）',
+          tone: AppToastTone.success,
+        );
+        Navigator.of(context).pop<String?>(qq);
+      } else {
+        AppToast.show(
+          res.message ?? '初始化 AWMC NET 档案失败',
+          tone: AppToastTone.error,
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _initializingProfile = false;
+        });
+      }
+    }
   }
 
   @override
@@ -294,10 +474,49 @@ class _AccountAuthorizationDialogState
               ),
               const SizedBox(height: 6),
               Text(
-                context.l10n.flowAWMCNETIsAThirdPartyScore,
+                '${context.l10n.flowAWMCNETIsAThirdPartyScore}\n支持直接扫码同步自动建档，也可直接使用已绑定的水鱼/落雪成绩一键初始化档案。',
                 style: TextStyle(
                     fontSize: 12, color: AppColors.greyHint(brightness)),
               ),
+              if (_boundFishQq != null || _hasLxAuth) ...[
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    if (_boundFishQq != null)
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.sync_alt, size: 16),
+                        label: Text(
+                          _initializingProfile ? '正在初始化…' : '用水鱼成绩初始化档案',
+                          style: const TextStyle(fontSize: 12.5),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
+                        ),
+                        onPressed: _saving
+                            ? null
+                            : () => _initAwmcFromExternal(fromFish: true),
+                      ),
+                    if (_hasLxAuth)
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.sync_alt, size: 16),
+                        label: Text(
+                          _initializingProfile ? '正在初始化…' : '用落雪成绩初始化档案',
+                          style: const TextStyle(fontSize: 12.5),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
+                        ),
+                        onPressed: _saving
+                            ? null
+                            : () => _initAwmcFromExternal(fromFish: false),
+                      ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 8),
               OutlinedButton.icon(
                 icon: const Icon(Icons.open_in_new, size: 16),

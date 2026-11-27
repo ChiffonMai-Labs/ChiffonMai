@@ -15,6 +15,10 @@ class ApiUrls {
       '$BackendBaseUrl/api/auto-sync/overview';
   static const String AwmcQrSyncUrl = '$BackendBaseUrl/api/awmc/qr-sync';
   static const String AwmcQuickSyncUrl = '$BackendBaseUrl/api/awmc/quick-sync';
+  static const String AwmcInitProfileUrl =
+      '$BackendBaseUrl/api/awmc/init-profile';
+  static const String AwmcMigrateToFishUrl =
+      '$BackendBaseUrl/api/awmc/migrate-to-fish';
   static const String LoadingTipsUrl = '$BackendBaseUrl/api/loading-tips';
   static const String FriendLinksUrl = '$BackendBaseUrl/api/friend-links';
   static const String AnnouncementsUrl = '$BackendBaseUrl/api/announcements';

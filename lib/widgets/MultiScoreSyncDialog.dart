@@ -172,6 +172,7 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
     setState(() => _openingAuth = true);
     try {
       if (platform == SyncPlatform.divingFish) {
+        final wasWriteOk = _dfOAuthWrite;
         final dfQq = await AwmcQrSyncService.resolveDivingFishQq() ?? '';
         final writeOk = _qqPattern.hasMatch(dfQq) &&
             await AwmcQrSyncService.checkFishWriteAuthorized(dfQq) == true;
@@ -185,6 +186,9 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
             _expanded.remove(SyncPlatform.divingFish);
           }
         });
+        if (!wasWriteOk && writeOk && mounted) {
+          await maybeOfferReverseMigrationToFish(context, fishQq: dfQq);
+        }
       } else if (platform == SyncPlatform.luoXue) {
         final lxOk = await LuoXueOAuthManager().isLoggedIn();
         if (!mounted) return;

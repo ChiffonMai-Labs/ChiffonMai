@@ -12,12 +12,19 @@ class AwmcQuickScore {
       this.songId, this.levelIndex, this.achievement, this.dxScore,
       {this.fc, this.fs});
 
-  String get type => songId >= 10000 ? 'DX' : 'SD';
+  bool get isUtage => songId >= 100000;
+  String get type => isUtage ? 'UTAGE' : (songId >= 10000 ? 'DX' : 'SD');
   String get key => '$songId/$levelIndex/$type';
   double get percent => achievement / 10000;
 
   static int? _int(dynamic value) =>
       value is int ? value : int.tryParse('$value');
+
+  static int? _normalizeLevel(int songId, int? rawLevel) {
+    if (rawLevel == null) return null;
+    if (songId >= 100000 && rawLevel == 10) return 0;
+    return ChartDifficulty.isStandard(rawLevel) ? rawLevel : null;
+  }
 
   static List<AwmcQuickScore> parse(dynamic businessData) {
     final result = <AwmcQuickScore>[];
@@ -28,17 +35,17 @@ class AwmcQuickScore {
         }
       } else if (value is Map) {
         final id = _int(value['musicId'] ?? value['song_id']) ?? parentSongId;
-        final level = _int(value['level'] ?? value['level_index']);
+        final rawLevel = _int(value['level'] ?? value['level_index']);
+        final level = id == null ? null : _normalizeLevel(id, rawLevel);
         final achievement = _int(value['achievement']);
         final dx = _int(value['deluxscoreMax'] ?? value['dxScore']);
+        final maxAch = (id != null && id >= 100000) ? 2020000 : 1010000;
         if (id != null &&
             id > 0 &&
-            id < 100000 &&
             level != null &&
-            ChartDifficulty.isStandard(level) &&
             achievement != null &&
             achievement > 0 &&
-            achievement <= 1010000 &&
+            achievement <= maxAch &&
             dx != null &&
             dx >= 0) {
           result.add(AwmcQuickScore(id, level, achievement, dx,
@@ -86,9 +93,10 @@ class AwmcQuickScore {
         !target.containsKey('fs')) return false;
     final percent = _number(target['achievements']);
     final dx = _number(target['dxScore'] ?? target['dx_score']);
+    final maxPercent = isUtage ? 202 : 101;
     if (percent == null ||
         percent < 0 ||
-        percent > 101 ||
+        percent > maxPercent ||
         dx == null ||
         dx < 0 ||
         dx != dx.round()) return false;
@@ -103,23 +111,49 @@ class AwmcQuickScore {
     for (final raw in targetRecords) {
       if (raw is! Map) continue;
       final id = _int(raw['song_id']);
-      final level = _int(raw['level_index']);
-      if (id == null || level == null) continue;
-      final type =
-          '${raw['type'] ?? (id >= 10000 ? 'DX' : 'SD')}'.toUpperCase();
+      final rawLevel = _int(raw['level_index']);
+      if (id == null || rawLevel == null) continue;
+      final rawType = '${raw['type'] ?? ''}'.trim().toUpperCase();
+      final genre = '${raw['genre'] ?? ''}'.trim();
+      final isUtage = id >= 100000 ||
+          rawType == 'UTAGE' ||
+          rawType == 'UTAGE2P' ||
+          genre == '宴会場' ||
+          genre == '宴会场';
+      final level = isUtage && rawLevel == 10 ? 0 : rawLevel;
+      final type = isUtage
+          ? 'UTAGE'
+          : (rawType.isNotEmpty ? rawType : (id >= 10000 ? 'DX' : 'SD'));
       result['$id/$level/$type'] = raw;
     }
     return result;
   }
 
   /// 调用方只能传入本次目标账号的成绩快照，不接受跨数据源的共享活动槽。
+  ///
+  /// 合并时保留目标源已有 FC/FS 标记，并对达成率与 DX 分取最大值，
+  /// 避免 rival 偶发返回低分或旧数据时反向覆盖目标已有更高记录。
   static List<AwmcQuickScore> backfill(
       List<AwmcQuickScore> incoming, List<dynamic> targetRecords) {
     final badges = indexTargets(targetRecords);
     return incoming.map((score) {
       final old = badges[score.key];
-      return AwmcQuickScore(
-          score.songId, score.levelIndex, score.achievement, score.dxScore,
+      var achievement = score.achievement;
+      var dxScore = score.dxScore;
+      final maxPercent = score.isUtage ? 202 : 101;
+      if (old != null) {
+        final oldPercent = _number(old['achievements']);
+        if (oldPercent != null && oldPercent >= 0 && oldPercent <= maxPercent) {
+          final oldAch = (oldPercent * 10000).round();
+          if (oldAch > achievement) achievement = oldAch;
+        }
+        final oldDx = _number(old['dxScore'] ?? old['dx_score']);
+        if (oldDx != null && oldDx >= 0 && oldDx == oldDx.round()) {
+          final oldDxInt = oldDx.toInt();
+          if (oldDxInt > dxScore) dxScore = oldDxInt;
+        }
+      }
+      return AwmcQuickScore(score.songId, score.levelIndex, achievement, dxScore,
           fc: score.fc ?? _badge(old?['fc'], false),
           fs: score.fs ?? _badge(old?['fs'], true));
     }).toList();

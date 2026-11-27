@@ -15,6 +15,7 @@ import '../../utils/AppError.dart';
 import '../../utils/CurrentDataSourceNotifier.dart';
 import '../../utils/SecureCredentialStore.dart';
 import '../Account/AccountStore.dart';
+import '../Sync/AutoSyncService.dart';
 import '../Sync/SyncStatsService.dart';
 import 'AwmcApiService.dart';
 import 'AwmcGatewaySettings.dart';
@@ -42,6 +43,23 @@ class AwmcQuickSyncResult {
   final int skipped;
   final int unchanged;
   const AwmcQuickSyncResult(this.submitted, this.skipped, {this.unchanged = 0});
+}
+
+class AwmcIdentityBindResult {
+  final int userId;
+  final int? previousUserId;
+  final String? userName;
+  final int? rating;
+
+  const AwmcIdentityBindResult({
+    required this.userId,
+    this.previousUserId,
+    this.userName,
+    this.rating,
+  });
+
+  bool get changedAccount =>
+      previousUserId != null && previousUserId != userId;
 }
 
 /// 仅在一次多端同步中共享原始机台成绩；不会保存个人 key 或目标源标记。
@@ -278,16 +296,23 @@ class AwmcQuickSyncService {
     await AwmcQuickIdentityStore.forget();
   }
 
-  /// 只用二维码绑定机台身份，供快速同步首次启用时使用。
+  /// 只用二维码绑定机台身份，供快速同步首次启用或换绑时使用。
   ///
   /// `/v1/user/data` 只读取基础用户信息（含 userId），不会读取成绩、
   /// 游玩次数，也不会向任何目标查分器推送数据。二维码本身不落盘，
-  /// 只把上游返回的 userId 写入安全存储。
-  static Future<int> bindIdentityWithQr(String qrCode) async {
+  /// 只把上游返回的 userId 写入安全存储。若检测到切换至不同的机台账号，
+  /// 会自动撤销旧账号遗留的自动同步任务，防止后台继续按旧身份拉取。
+  static Future<AwmcIdentityBindResult> bindIdentityWithQrDetailed(
+      String qrCode) async {
     final qrcode = qrCode.trim();
     if (!qrcode.startsWith('SGWCMAID') || qrcode.length <= 20) {
       throw const FormatException('无效的机台登入二维码');
     }
+    int? previousUserId;
+    try {
+      previousUserId = await AwmcQuickIdentityStore.read();
+    } catch (_) {}
+
     final result = await AwmcApiService.userData(token: '', qrcode: qrcode);
     await AwmcAuditLog.record(result, note: '二维码绑定快速同步机台身份');
     if (!result.ok) {
@@ -309,8 +334,55 @@ class AwmcQuickSyncService {
         source: 'awmc',
       ).asStateError();
     }
+    if (previousUserId != null && previousUserId != userId) {
+      for (final platform in SyncPlatform.values) {
+        try {
+          await AutoSyncService.instance.disable(platform);
+        } catch (_) {}
+      }
+    }
     await AwmcQuickIdentityStore.write(userId);
-    return userId;
+    final meta = _extractUserMeta(result.businessData);
+    return AwmcIdentityBindResult(
+      userId: userId,
+      previousUserId: previousUserId,
+      userName: meta.userName,
+      rating: meta.rating,
+    );
+  }
+
+  static Future<int> bindIdentityWithQr(String qrCode) async =>
+      (await bindIdentityWithQrDetailed(qrCode)).userId;
+
+  static ({String? userName, int? rating}) _extractUserMeta(dynamic value,
+      [int depth = 0]) {
+    if (depth > 6) return (userName: null, rating: null);
+    if (value is Map) {
+      String? userName;
+      int? rating;
+      for (final entry in value.entries) {
+        final key = '${entry.key}'.replaceAll('_', '').toLowerCase();
+        if (key == 'username' && entry.value != null) {
+          final text = '${entry.value}'.trim();
+          if (text.isNotEmpty) userName ??= text;
+        } else if (key == 'playerrating' || key == 'rating') {
+          rating ??= int.tryParse('${entry.value}');
+        }
+      }
+      if (userName != null || rating != null) {
+        return (userName: userName, rating: rating);
+      }
+      for (final child in value.values) {
+        final nested = _extractUserMeta(child, depth + 1);
+        if (nested.userName != null || nested.rating != null) return nested;
+      }
+    } else if (value is Iterable) {
+      for (final child in value) {
+        final nested = _extractUserMeta(child, depth + 1);
+        if (nested.userName != null || nested.rating != null) return nested;
+      }
+    }
+    return (userName: null, rating: null);
   }
 
   static int? _extractUserId(dynamic value, [int depth = 0]) {
@@ -507,9 +579,10 @@ class AwmcQuickSyncService {
           final payload = <Map<String, dynamic>>[];
           for (final score in records) {
             final Song? song = byId[score.songId];
-            if (song == null ||
-                score.levelIndex >= song.charts.length ||
-                !supportedCharts.contains(score.key)) {
+            if (!score.isUtage &&
+                (song == null ||
+                    score.levelIndex >= song.charts.length ||
+                    !supportedCharts.contains(score.key))) {
               skipped++;
               continue;
             }
@@ -519,7 +592,7 @@ class AwmcQuickSyncService {
             }
             payload.add({
               'song_id': score.songId,
-              'title': song.title,
+              'title': song?.title ?? '',
               'type': score.type,
               'level_index': score.levelIndex,
               'achievements': score.percent,
@@ -536,7 +609,8 @@ class AwmcQuickSyncService {
               source: platform.name,
             ).asStateError();
           }
-          // 每批串行上传；失败立即停止，不自动重试，避免不确定的重复写入。
+          // 每批串行上传；单曲无效自动自愈跳过，其余错误立即停止避免不确定重复写入。
+          final uploadDeadline = DateTime.now().add(const Duration(seconds: 120));
           for (var start = 0; start < payload.length; start += 100) {
             final end = (start + 100).clamp(0, payload.length);
             onProgress?.call(
@@ -545,8 +619,21 @@ class AwmcQuickSyncService {
                     appLocalizeLabel(platform.label),
                     (start).toString(),
                     (payload.length).toString()));
-            await _upload(account, payload.sublist(start, end));
-            submitted += end - start;
+            final batchRes = await _upload(
+              account,
+              payload.sublist(start, end),
+              deadline: uploadDeadline,
+            );
+            submitted += batchRes.submitted;
+            skipped += batchRes.skipped;
+          }
+          if (payload.isNotEmpty && submitted == 0 && unchanged == 0) {
+            throw AppError(
+              code: 'DATA-SYNC-NO-MATCH',
+              userMessage: appL10n.svcNoValidScoresMatchedTheLocalSong,
+              stage: '上传成绩至落雪',
+              source: platform.name,
+            ).asStateError();
           }
           syncOk = true;
           onProgress?.call(
@@ -580,8 +667,9 @@ class AwmcQuickSyncService {
     }
     final incoming = <String, AwmcQuickScore>{};
     final visited = <int>{};
+    var cursor = 0;
     while (true) {
-      if (!visited.add(0) || visited.length > 1) {
+      if (!visited.add(cursor) || visited.length > 100) {
         throw AppError(
           code: 'SYNC-QUICK-PAGING',
           userMessage: appL10n.svcScorePagingWasAbnormalTheUpdateStopped,
@@ -589,9 +677,16 @@ class AwmcQuickSyncService {
           source: 'awmc',
         ).asStateError();
       }
-      onProgress?.call(.2, appL10n.flowQuicklyReadingCabinetScores);
-      final result =
-          await AwmcApiService.rivalMusic(rivalId: userId, nextIndex: 0);
+      onProgress?.call(
+        (0.08 + 0.18 * (visited.length / (visited.length + 1)))
+            .clamp(0.08, 0.25),
+        appL10n.flowQuicklyReadingCabinetScores,
+      );
+      final result = await AwmcApiService.rivalMusic(
+        rivalId: userId,
+        nextIndex: cursor,
+        includeUtage: true,
+      );
       if (!result.ok) {
         if (result.httpStatus == 404) {
           throw AppError(
@@ -647,15 +742,16 @@ class AwmcQuickSyncService {
           source: 'awmc',
         ).asStateError();
       }
-      if (next != 0) {
+      if (next == 0) break;
+      if (visited.contains(next)) {
         throw AppError(
           code: 'SYNC-QUICK-PAGING',
-          userMessage: appL10n.svcTheAWMCGatewayReturnedPagedResultsReading,
+          userMessage: appL10n.svcScorePagingWasAbnormalTheUpdateStopped,
           stage: '解析机台成绩分页',
           source: 'awmc',
         ).asStateError();
       }
-      break;
+      cursor = next;
     }
     if (incoming.isEmpty) {
       throw AppError(
@@ -699,23 +795,26 @@ class AwmcQuickSyncService {
     final charts = <String>{};
     for (final song in data.whereType<Map>()) {
       final id = int.tryParse('${song['id']}');
-      if (id == null || id <= 0 || id >= 100000) continue;
+      if (id == null || id <= 0) continue;
       if (platform == SyncPlatform.luoXue) {
         final difficulties = song['difficulties'];
         if (difficulties is! Map) continue;
-        for (final type in ['standard', 'dx']) {
+        for (final type in ['standard', 'dx', 'utage']) {
           final levels = difficulties[type];
           if (levels is! List) continue;
+          final isUtage = type == 'utage';
           final dx = type == 'dx';
-          final songId = dx && id < 10000 ? id + 10000 : id;
+          final songId = !isUtage && dx && id < 10000 ? id + 10000 : id;
           for (final level in levels.whereType<Map>()) {
             final index = int.tryParse('${level['difficulty']}');
             if (index != null && ChartDifficulty.isStandard(index)) {
-              charts.add('$songId/$index/${dx ? 'DX' : 'SD'}');
+              charts.add(
+                  '$songId/$index/${isUtage ? 'UTAGE' : (dx ? 'DX' : 'SD')}');
             }
           }
         }
       } else {
+        if (id >= 100000 && platform == SyncPlatform.divingFish) continue;
         final levels = song['charts'];
         final type = '${song['type']}'.toUpperCase();
         if (levels is! List || (type != 'DX' && type != 'SD')) continue;
@@ -818,11 +917,15 @@ class AwmcQuickSyncService {
     }
     return data.whereType<Map>().map((record) {
       final id = int.tryParse('${record['id']}');
-      final dx = '${record['type']}'.toLowerCase() == 'dx';
+      final rawType = '${record['type']}'.toLowerCase();
+      final isUtage = rawType == 'utage' || (id != null && id >= 100000);
+      final dx = rawType == 'dx';
       return {
-        'song_id': id == null ? null : (dx && id < 10000 ? id + 10000 : id),
+        'song_id': id == null
+            ? null
+            : (isUtage ? id : (dx && id < 10000 ? id + 10000 : id)),
         'level_index': record['level_index'],
-        'type': dx ? 'DX' : 'SD',
+        'type': isUtage ? 'UTAGE' : (dx ? 'DX' : 'SD'),
         'fc': record['fc'],
         'fs': record['fs'],
         'achievements': record['achievements'],
@@ -831,54 +934,54 @@ class AwmcQuickSyncService {
     }).toList();
   }
 
-  static Future<void> _upload(
-      AwmcQuickAccount account, List<Map<String, dynamic>> records) async {
+  static Future<({int submitted, int skipped})> _upload(
+    AwmcQuickAccount account,
+    List<Map<String, dynamic>> records, {
+    required DateTime deadline,
+  }) async {
     final uri = Uri.parse(ApiUrls.LuoXuePlayerScoresApi);
-    final body = jsonEncode({
-      'scores': records
-          .map((r) => {
-                'id': (r['song_id'] as int) % 10000,
-                'type': r['type'] == 'DX' ? 'dx' : 'standard',
-                'level_index': r['level_index'],
-                'achievements': r['achievements'],
-                'dx_score': r['dxScore'],
-                if (r['fc'] != null) 'fc': r['fc'],
-                if (r['fs'] != null) 'fs': r['fs'],
-              })
-          .toList()
-    });
-    Future<http.Response> send(Map<String, String> authHeaders) => ApiClient.post(
+    final batch = records.map((r) {
+      final rawId = r['song_id'] as int;
+      final isUtage = r['type'] == 'UTAGE' || rawId >= 100000;
+      return <String, dynamic>{
+        'id': isUtage ? rawId : (rawId % 10000),
+        'type': isUtage ? 'utage' : (r['type'] == 'DX' ? 'dx' : 'standard'),
+        'level_index': r['level_index'],
+        'achievements': r['achievements'],
+        'dx_score': r['dxScore'],
+        if (r['fc'] != null) 'fc': r['fc'],
+        if (r['fs'] != null) 'fs': r['fs'],
+        '_raw_music_id': rawId,
+      };
+    }).toList();
+    Future<http.Response> send(
+      List<Map<String, dynamic>> wire,
+      Map<String, String> authHeaders,
+    ) =>
+        ApiClient.post(
           uri,
           headers: {
             'Content-Type': 'application/json',
             ...authHeaders,
           },
-          body: body,
+          body: jsonEncode({'scores': wire}),
           timeout: const Duration(seconds: 60),
         );
-    var response = await send(await _lxAuthHeaders(account));
-    if (account.useOAuth && response.statusCode == 401) {
-      response = await send(await _lxAuthHeaders(account, forceRefresh: true));
-    }
-    dynamic data;
-    try {
-      data = jsonDecode(utf8.decode(response.bodyBytes));
-    } catch (_) {}
-    if (response.statusCode < 200 ||
-        response.statusCode >= 300 ||
-        data is! Map ||
-        data['success'] != true) {
-      // 不回显第三方原始响应，避免请求凭据或机台身份被错误信息带出。
-      throw AppError(
-        code: 'SRV-LXNS-UPLOAD',
-        userMessage: appL10n.svcUploadToP0FailedHTTPP1Remaining(
-            (appLocalizeLabel(SyncPlatform.luoXue.label)).toString(),
-            response.statusCode.toString()),
-        stage: '上传成绩至落雪',
-        source: 'luoxue',
-        httpStatus: response.statusCode,
-        requestId: ApiClient.requestIdOf(response),
-      ).asStateError();
-    }
+    var retriedAuth = false;
+    return AwmcQrSyncService.uploadLxBatchWithRepair(
+      batch,
+      deadline: deadline,
+      send: (wire) async {
+        var response = await send(wire, await _lxAuthHeaders(account));
+        if (account.useOAuth && response.statusCode == 401 && !retriedAuth) {
+          retriedAuth = true;
+          response = await send(
+            wire,
+            await _lxAuthHeaders(account, forceRefresh: true),
+          );
+        }
+        return response;
+      },
+    );
   }
 }
