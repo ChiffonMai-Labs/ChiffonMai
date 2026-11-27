@@ -24,7 +24,6 @@ import '../manager/DivingFish/UserPlayDataManager.dart';
 import '../manager/LuoXue/CollectionsManager.dart';
 import '../manager/LuoXue/LuoXueUserPlayDataManager.dart';
 import '../manager/LuoXue/LuoXueOAuthManager.dart';
-import '../manager/DXRating/MaiTagsManager.dart';
 import '../manager/Song/SongAliasManager.dart';
 import '../service/History/ChartHistoryStore.dart';
 import '../service/Account/AccountSwitchService.dart';
@@ -253,7 +252,6 @@ Future<bool> executeRefreshData(
 ///
 /// 与 [executeRefreshData] 的差别：
 ///   - 每个 groupKey 单独决定是否 forceNetwork（不再用单一 forceFullRefresh）
-///   - 标签缓存 force 时直接调 MaiTagsManager.refreshCache()
 ///   - maidata force 时把 MaimaiMusicDataManager 的 forceMaidataRefresh 置 true
 Future<bool> executeAdvancedRefreshData(
   RefreshDataRequest request, {
@@ -455,13 +453,6 @@ class SharedRefreshData {
           () => DiffMusicDataManager()
               .fetchAndUpdateDiffData(forceNetwork: force('diff'))),
       _refresh(
-          'tags',
-          appL10n.flowTagDataRefreshed,
-          onComplete,
-          () => force('tags')
-              ? MaiTagsManager().refreshCache()
-              : RecommendByTagsService.initializeTags()),
-      _refresh(
           'coll_trophies',
           appL10n.flowCollectibleDataRefreshed,
           onComplete,
@@ -479,7 +470,7 @@ class SharedRefreshData {
     return _tasks = tasks;
   }
 
-  int get pendingTaskCount => _tasks == null ? 6 : 0;
+  int get pendingTaskCount => _tasks == null ? 5 : 0;
 
   Future<void> _refresh(String sourceId, String doneLabel,
       void Function(String) onComplete, Future<dynamic> Function() task) async {

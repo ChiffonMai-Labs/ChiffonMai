@@ -116,8 +116,6 @@ extension _SongInfoLoaders on _SongInfoPageState {
     _songData = result['songData'];
     _diffData = result['diffData'];
     _userData = result['userData'];
-    _tagData = result['tagData'];
-    _tagSongsData = result['tagSongsData'];
   }
 
   int get _availableDifficultyCount {
@@ -338,8 +336,6 @@ extension _SongInfoLoaders on _SongInfoPageState {
           _diffData != null && _diffData!.isNotEmpty) {
         _diffData = [_diffData![0], _diffData![0]];
       }
-      _tagData = result['tagData'];
-      _tagSongsData = result['tagSongsData'];
     });
     debugPrint('[SongInfo] chart-metadata: ${stopwatch.elapsedMilliseconds}ms');
   }
@@ -1420,63 +1416,20 @@ extension _SongInfoLoaders on _SongInfoPageState {
     }
   }
 
-  // 获取标签分组
+  // 获取 AWMC 标签分组（自定义标签在下方单独展示）
   Map<String, List<dynamic>> _getTagsByGroup() {
     final awmc = _awmcChartTags;
-    if (awmc != null && awmc.isNotEmpty &&
-        _awmcTagChartKey == AwmcChartTagService.chartKey(widget.songId, _currentDiffIndex)) {
+    if (awmc != null &&
+        awmc.isNotEmpty &&
+        _awmcTagChartKey ==
+            AwmcChartTagService.chartKey(widget.songId, _currentDiffIndex)) {
       return awmc;
     }
-    final Map<String, List<dynamic>> groupedTags = {
+    return {
       '配置': [],
       '评价': [],
-      '难度': []
+      '难度': [],
     };
-
-    if (_tagData != null && _tagSongsData != null && _songData != null) {
-      // 获取当前曲目的相关信息
-      final String songTitle = _songData!['basic_info']['title'];
-      final String songType = _songData!['type'];
-      final String sheetType = songType == 'DX' ? 'dx' : 'std';
-
-      // 映射难度索引到sheet_difficulty
-      final sheetDifficulty =
-          ChartDifficulty.apiNameOf(_currentDiffIndex, fallback: 'master');
-
-      // 过滤出当前曲目的当前难度的标签ID
-      final List<int> tagIds = _tagSongsData!
-          .where((item) =>
-              item['song_id'] == songTitle &&
-              item['sheet_type'] == sheetType &&
-              item['sheet_difficulty'] == sheetDifficulty)
-          .map((item) => item['tag_id'] as int)
-          .toList();
-
-      // 根据标签ID获取标签详情
-      for (int tagId in tagIds) {
-        final tag = _tagData!.firstWhere((t) => t['id'] == tagId,
-            orElse: () => <String, Object>{});
-
-        if (tag != null) {
-          int groupId = tag['group_id'] ?? 0;
-          // 自定义标签在下方单独显示（带用户颜色），这里只处理 DXRating 标签。
-          if (groupId == CustomTagStore.groupId) continue;
-          // 分组键只用于取配色（AppColors.tagGroup*），界面不显示分组名，
-          // 所以固定用中文键；原先用本地化名称，英文等语言下键对不上，标签整组消失。
-          final String groupName = switch (groupId) {
-            2 => '难度',
-            3 => '评价',
-            _ => '配置',
-          };
-
-          if (groupedTags.containsKey(groupName)) {
-            groupedTags[groupName]!.add(tag);
-          }
-        }
-      }
-    }
-
-    return groupedTags;
   }
 
   // 根据难度索引获取强调颜色

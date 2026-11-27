@@ -2,7 +2,7 @@ import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/foundation.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/UserPlayDataManager.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.dart';
-import 'package:my_first_flutter_app/manager/DXRating/MaiTagsManager.dart';
+import 'package:my_first_flutter_app/service/AWMC/AwmcChartTagService.dart';
 import 'package:my_first_flutter_app/service/AWMC/AwmcPlayCountStore.dart';
 import 'package:my_first_flutter_app/service/Score/PersonalizedScoreService.dart';
 import 'package:my_first_flutter_app/utils/SongFilterUtil.dart';
@@ -1128,7 +1128,8 @@ class PersonalizedBest50Service {
       final songMap = {for (var song in allSongs) song.id: song};
 
       // 获取标签-歌曲映射
-      final songIdToTagIdsMap = await MaiTagsManager().getSongIdToTagIdsMap();
+      final songIdToTagIdsMap =
+          await AwmcChartTagService.getSongIdToTagIdsMap();
 
       // 难度索引 → 难度字符串映射（需与标签API中的格式一致：全小写）
       const diffNames = ChartDifficulty.apiNames;

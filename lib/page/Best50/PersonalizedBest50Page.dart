@@ -18,7 +18,7 @@ import '../../constant/VersionListConstant.dart';
 import '../../service/Best50/PersonalizedBest50ConvertToImgService.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
-import 'package:my_first_flutter_app/manager/DXRating/MaiTagsManager.dart';
+import 'package:my_first_flutter_app/service/AWMC/AwmcChartTagService.dart';
 import 'package:my_first_flutter_app/entity/DXRating/MaiTagsModel.dart';
 import 'package:my_first_flutter_app/utils/ExportQualitySelector.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
@@ -1286,7 +1286,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
   // 显示标签选择对话框
   void _showTagSelectionDialog() async {
     // 加载标签数据
-    final tagsEntity = await MaiTagsManager().getTags();
+    final tagsEntity = await AwmcChartTagService.getTagsEntity();
     if (tagsEntity == null || tagsEntity.tags.isEmpty) {
       if (!mounted) return;
       showDialog(
@@ -1348,9 +1348,10 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
                         ),
                       ),
                       ...entry.value.map((tag) {
+                        final desc = tag.localizedDescription.zhHans.trim();
                         return ListTile(
                           title: Text(tag.localizedName.zhHans),
-                          subtitle: Text(tag.localizedDescription.zhHans),
+                          subtitle: desc.isNotEmpty ? Text(desc) : null,
                           dense: true,
                           selected: _selectedTagId == tag.id,
                           onTap: () {
@@ -1362,7 +1363,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
                             setState(() {
                               _selectedType = 'tag_50';
                               _selectedTagId = tag.id;
-                              // 自定义标签可能与 DXRating 标签同名，显示时加标记区分。
+                              // 自定义标签可能与 AWMC 标签同名，显示时加标记区分。
                               _selectedTagName = CustomTagStore.instance
                                       .isCustomTagId(tag.id)
                                   ? context.l10n.customTagMarked(

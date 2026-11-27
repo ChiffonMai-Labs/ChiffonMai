@@ -13,7 +13,6 @@ import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.d
 import 'package:my_first_flutter_app/manager/DivingFish/UserPlayDataManager.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/DiffMusicDataManager.dart';
 import 'package:my_first_flutter_app/manager/LuoXue/CollectionsManager.dart';
-import 'package:my_first_flutter_app/manager/DXRating/MaiTagsManager.dart';
 import 'package:my_first_flutter_app/entity/LuoXue/Collection.dart';
 import 'package:my_first_flutter_app/utils/ApiClient.dart';
 import 'package:my_first_flutter_app/utils/AppError.dart';
@@ -273,39 +272,15 @@ class SongInfoService {
     return result;
   }
 
-  /// 定数分布和标签在没有本地缓存时会联网，不应阻塞详情首屏。
+  /// 定数分布在没有本地缓存时会联网，不应阻塞详情首屏。
   Future<Map<String, dynamic>> loadSupplementaryData(String songId) async {
     final result = <String, dynamic>{
       'diffData': null,
-      'tagData': null,
-      'tagSongsData': null,
     };
     try {
       final diffSong = await DiffMusicDataManager().getCachedDiffData();
       if (diffSong != null) {
         result['diffData'] = diffSong.charts[songId];
-      }
-
-      // 加载标签数据
-      final maiTagsManager = MaiTagsManager();
-      final tagsEntity = await maiTagsManager.getTags();
-      if (tagsEntity != null) {
-        result['tagData'] = tagsEntity.tags
-            .map((tag) => {
-                  'id': tag.id,
-                  'name': tag.localizedName.zhHans,
-                  'description': tag.localizedDescription.zhHans,
-                  'group_id': tag.groupId
-                })
-            .toList();
-        result['tagSongsData'] = tagsEntity.tagSongs
-            .map((tagSong) => {
-                  'song_id': tagSong.songId,
-                  'sheet_type': tagSong.sheetType,
-                  'sheet_difficulty': tagSong.sheetDifficulty,
-                  'tag_id': tagSong.tagId
-                })
-            .toList();
       }
     } catch (e) {
       debugPrint('加载歌曲附加数据失败: $e');

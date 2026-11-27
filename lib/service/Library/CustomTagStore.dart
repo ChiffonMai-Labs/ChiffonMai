@@ -9,14 +9,14 @@ import '../../utils/ChartDifficulty.dart';
 
 /// 自定义标签里的一张谱面。
 ///
-/// 现有标签系统按「曲名 + 谱面类型 + 难度」关联谱面（见 [MaiTagsManager]），
+/// 现有标签系统按「曲名 + 谱面类型 + 难度」关联谱面（见 [AwmcChartTagService]），
 /// 所以这里同时保存曲名和类型；songId 用于跳转、曲绘与去重。
 @immutable
 class CustomTagChart {
   final String songId;
   final String title;
 
-  /// std / dx / utage，与 DXRating 的 sheet_type 一致。
+  /// std / dx / utage，与谱面标签映射的 sheet_type 一致。
   final String sheetType;
   final int levelIndex;
 
@@ -64,7 +64,7 @@ class CustomTagChart {
 
 @immutable
 class CustomTag {
-  /// 与 DXRating 标签共用 int 编号空间，从 [CustomTagStore.idBase] 起分配，避免冲突。
+  /// 与 AWMC 标签共用 int 编号空间，从 [CustomTagStore.idBase] 起分配，避免冲突。
   final int id;
   final String name;
 
@@ -116,14 +116,14 @@ class CustomTag {
 
 /// 用户自定义标签：名称、颜色、谱面都由用户决定，并合并进现有标签系统。
 ///
-/// 合并方式见 [MaiTagsManager.getTags]：自定义标签作为 [groupId] 分组下的
+/// 合并方式见 [AwmcChartTagService.getTagsEntity]：自定义标签作为 [groupId] 分组下的
 /// 普通标签出现，乐曲查询的标签筛选、Best50 / 收藏夹的标签统计、个性化
 /// Best50 的「标签50」等现有入口都会直接看到它们。
 class CustomTagStore extends ChangeNotifier {
   CustomTagStore._();
   static final CustomTagStore instance = CustomTagStore._();
 
-  /// 自定义标签所在分组的编号（DXRating 只用 1–3）。
+  /// 自定义标签所在分组的编号（AWMC 预设分组只用 1–3）。
   static const int groupId = 900000;
 
   /// 自定义标签编号起点。
@@ -135,7 +135,7 @@ class CustomTagStore extends ChangeNotifier {
   bool _loaded = false;
   Future<void>? _loading;
 
-  /// 每次变更递增，[MaiTagsManager] 据此判断合并结果是否过期。
+  /// 每次变更递增，[AwmcChartTagService] 据此判断合并结果是否过期。
   int _revision = 0;
   int get revision => _revision;
 
@@ -252,7 +252,7 @@ class CustomTagStore extends ChangeNotifier {
 
   // ── 接入现有标签系统 ──
 
-  /// 把自定义标签合并进 DXRating 标签数据（返回新对象，不改动 [base]）。
+  /// 把自定义标签合并进 AWMC 标签数据（返回新对象，不改动 [base]）。
   MaiTagsEntity mergeInto(MaiTagsEntity? base, String groupName) {
     LocalizedName same(String text) =>
         LocalizedName(en: text, ja: text, ko: text, zhHans: text);

@@ -98,8 +98,6 @@ class CacheKeyConstant {
   static const int collectionCatalogTtlDays = 1;
 
   // 标签数据相关
-  static const String maiTagsCache = 'mai_tags_cache';
-  static const String maiTagsCacheTimestamp = 'mai_tags_cache_timestamp';
   /// 用户自定义标签（名称、颜色、谱面），属于用户数据，随备份导出。
   static const String customTags = 'custom_tags_v1';
   /// 谱面代码页的字体选择（默认 / Inconsolata）。

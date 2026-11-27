@@ -1,10 +1,10 @@
-import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../manager/DivingFish/UserPlayDataManager.dart';
 import '../../manager/DivingFish/DiffMusicDataManager.dart';
 import '../../manager/DivingFish/MaimaiMusicDataManager.dart';
-import '../../manager/DXRating/MaiTagsManager.dart';
+import '../AWMC/AwmcChartTagService.dart';
+import '../Library/CustomTagStore.dart';
 import '../../utils/Best50Tie.dart';
 import '../../utils/Best50Order.dart';
 
@@ -118,11 +118,19 @@ class PersonalizedDiffBest50Service {
       // 构建歌曲ID到歌曲信息的映射
       final songMap = { for (var song in allSongs) song.id: song };
 
-      // 获取标签-歌曲映射
-      final songIdToTagIdsMap = await MaiTagsManager().getSongIdToTagIdsMap();
-
-      // 难度索引 → 难度字符串映射
-      const diffNames = ChartDifficulty.apiNames;
+      // 获取 AWMC 标签或自定义标签映射
+      final isCustomTag = CustomTagStore.instance.isCustomTagId(tagId);
+      Set<String> customChartKeys = const {};
+      Map<String, List<int>> chartKeyToTagIdsMap = const {};
+      if (isCustomTag) {
+        await CustomTagStore.instance.ensureLoaded();
+        final customTag = CustomTagStore.instance.byId(tagId);
+        customChartKeys = {
+          for (final chart in customTag?.charts ?? const []) chart.uniqueKey,
+        };
+      } else {
+        chartKeyToTagIdsMap = await AwmcChartTagService.getChartKeyToTagIdsMap();
+      }
 
       // 存储计算结果
       List<Map<String, dynamic>> diffBest50 = [];
@@ -138,17 +146,15 @@ class PersonalizedDiffBest50Service {
 
         if (song == null) continue;
 
-        // 检查该谱面是否有指定标签
-        final String sheetType;
-        if (song.basicInfo.genre == '宴会场') {
-          sheetType = 'utage';
+        // 检查该谱面是否有指定标签（AWMC 按精确 chartKey 匹配，自定义标签按 songId_levelIndex 匹配）
+        if (isCustomTag) {
+          if (!customChartKeys.contains('${songId}_$levelIndex')) continue;
         } else {
-          sheetType = song.type == 'DX' ? 'dx' : 'std';
+          final awmcKey = AwmcChartTagService.chartKey(songId, levelIndex);
+          final tagIds =
+              awmcKey == null ? const <int>[] : (chartKeyToTagIdsMap[awmcKey] ?? const <int>[]);
+          if (!tagIds.contains(tagId)) continue;
         }
-        final sheetDifficulty = diffNames[levelIndex.clamp(0, 4)];
-        final songKey = '${song.title}#$sheetType#$sheetDifficulty';
-        final tagIds = songIdToTagIdsMap[songKey] ?? [];
-        if (!tagIds.contains(tagId)) continue;
 
         // 查找对应的拟合定数
         double fitDiff = 0.0;

@@ -146,8 +146,9 @@ bool matchesPortableSongQuery(
 }
 
 class _TitleForms {
-  const _TitleForms(this.textForms, this.pinyinTokens);
+  const _TitleForms(this.compact, this.textForms, this.pinyinTokens);
 
+  final String compact;
   final Set<String> textForms;
   final List<String> pinyinTokens;
 }
@@ -221,11 +222,28 @@ List<String> _extractPinyinTokens(String compact) {
 
 _TitleForms _buildTitleForms(String title) {
   final compact = _compactTitle(title);
-  if (compact.isEmpty) return const _TitleForms(<String>{}, <String>[]);
+  if (compact.isEmpty) return const _TitleForms('', <String>{}, <String>[]);
   return _TitleForms(
+    compact,
     _buildTextFormsFromCompact(compact),
     _extractPinyinTokens(compact),
   );
+}
+
+void _ensureFuzzyQueryCache(String query) {
+  if (_cachedQuery == query) return;
+  _cachedQuery = query;
+  final compact = _compactTitle(query);
+  _cachedQueryTextForms = _buildTextFormsFromCompact(compact);
+  _cachedLatinPinyinNeedle =
+      compact.length >= 2 && _latinQueryPattern.hasMatch(compact)
+          ? compact
+          : null;
+}
+
+_TitleForms _getOrBuildTitleForms(String title) {
+  if (_titleForms.length >= 12000) _titleForms.clear();
+  return _titleForms.putIfAbsent(title, () => _buildTitleForms(title));
 }
 
 bool _matchesSyllableSequence(String needle, List<String> tokens) {
@@ -243,46 +261,45 @@ bool _matchesSyllableSequence(String needle, List<String> tokens) {
   return false;
 }
 
-bool matchesFuzzySongTitle(String query, Iterable<String> titles) {
-  if (_cachedQuery != query) {
-    _cachedQuery = query;
-    final compact = _compactTitle(query);
-    _cachedQueryTextForms = _buildTextFormsFromCompact(compact);
-    _cachedLatinPinyinNeedle =
-        compact.length >= 2 && _latinQueryPattern.hasMatch(compact)
-            ? compact
-            : null;
-  }
+/// 若 [title] 通过假名/罗马音/拼音/去标点/容错规则命中 [query]，返回对应的命中读音形式：
+/// - 命中罗马音、假名转换或拼音时返回对应的转换串（便于搜索结果「显示匹配字段」解释命中原因）；
+/// - 仅通过去标点或编辑距离命中原文本时返回空串 `''`；
+/// - 未命中返回 `null`。
+String? describeFuzzySongTitleMatch(String query, String title) {
+  _ensureFuzzyQueryCache(query);
 
   final hasTextNeedles = _cachedQueryTextForms.any(
     (needle) => needle.length >= 2 && !_digits.hasMatch(needle),
   );
   final latinPinyinNeedle = _cachedLatinPinyinNeedle;
-  if (!hasTextNeedles && latinPinyinNeedle == null) return false;
+  if (!hasTextNeedles && latinPinyinNeedle == null) return null;
 
-  for (final title in titles) {
-    if (_titleForms.length >= 12000) _titleForms.clear();
-    final forms =
-        _titleForms.putIfAbsent(title, () => _buildTitleForms(title));
-    if (latinPinyinNeedle != null &&
-        forms.pinyinTokens.isNotEmpty &&
-        _matchesSyllableSequence(latinPinyinNeedle, forms.pinyinTokens)) {
-      return true;
-    }
-    for (final needle in _cachedQueryTextForms) {
-      if (needle.length < 2 || _digits.hasMatch(needle)) continue;
-      for (final candidate in forms.textForms) {
-        if (candidate.contains(needle)) return true;
-        final maxEdits = needle.length >= 8
-            ? 2
-            : needle.length >= 5
-                ? 1
-                : 0;
-        if (maxEdits > 0 && _withinEdits(needle, candidate, maxEdits)) {
-          return true;
-        }
+  final forms = _getOrBuildTitleForms(title);
+  if (latinPinyinNeedle != null &&
+      forms.pinyinTokens.isNotEmpty &&
+      _matchesSyllableSequence(latinPinyinNeedle, forms.pinyinTokens)) {
+    return forms.pinyinTokens.join();
+  }
+  for (final needle in _cachedQueryTextForms) {
+    if (needle.length < 2 || _digits.hasMatch(needle)) continue;
+    final maxEdits = needle.length >= 8
+        ? 2
+        : needle.length >= 5
+            ? 1
+            : 0;
+    for (final candidate in forms.textForms) {
+      if (candidate.contains(needle) ||
+          (maxEdits > 0 && _withinEdits(needle, candidate, maxEdits))) {
+        return candidate == forms.compact ? '' : candidate;
       }
     }
+  }
+  return null;
+}
+
+bool matchesFuzzySongTitle(String query, Iterable<String> titles) {
+  for (final title in titles) {
+    if (describeFuzzySongTitleMatch(query, title) != null) return true;
   }
   return false;
 }

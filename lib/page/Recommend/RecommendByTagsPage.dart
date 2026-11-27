@@ -127,6 +127,7 @@ class _RecommendByTagsState extends State<RecommendByTags> {
       if (!mounted || _isDisposed) return;
       setState(() {
         _recommendations = _prioritizeByRange(result);
+        _currentPage = 1;
         _isLoading = false;
         _errorMessage = null; // 成功时清除错误信息
       });
@@ -483,7 +484,51 @@ class _RecommendByTagsState extends State<RecommendByTags> {
   // 构建推荐内容
   Widget _buildRecommendationContent(Brightness brightness) {
     final screenWidth = MediaQuery.of(context).size.width;
+    final scheme = Theme.of(context).colorScheme;
     List<RecommendationResult> results = _recommendations[_currentTab] ?? [];
+    if (results.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.label_off_outlined,
+                size: 46,
+                color: scheme.onSurfaceVariant,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '当前条件暂未匹配到推荐谱面',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: scheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '可能是本地已缓存的 AWMC 谱面标签较少，或当前定数区间内暂无匹配项。点击重试可补充拉取更多谱面标签。',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  height: 1.45,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 14),
+              FilledButton.tonalIcon(
+                onPressed: _fetchRecommendations,
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: Text(context.l10n.flowRetry),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     int totalItems = results.length;
     int startIndex = (_currentPage - 1) * _pageSize;
     int endIndex = min(startIndex + _pageSize, totalItems);

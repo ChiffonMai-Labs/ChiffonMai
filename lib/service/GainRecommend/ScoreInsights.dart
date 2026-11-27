@@ -1,12 +1,10 @@
 import 'package:flutter/foundation.dart';
 
 import '../../entity/DXRating/DXDataEntity.dart';
-import '../../entity/DXRating/MaiTagsModel.dart';
 import '../../entity/DivingFish/Song.dart';
 import '../../manager/DXRating/DXDataManager.dart';
 import '../../manager/DivingFish/MaimaiMusicDataManager.dart';
 import '../../manager/DivingFish/UserPlayDataManager.dart';
-import '../../manager/DXRating/MaiTagsManager.dart';
 import '../../utils/ChartDifficulty.dart';
 import '../../utils/SongFilterUtil.dart';
 import '../AWMC/AwmcChartTagService.dart';
@@ -171,15 +169,11 @@ class ScoreInsights {
     if (songs.isEmpty) return null;
 
     Map<String, Set<String>> awmcTags = const {};
-    MaiTagsEntity? maiTags;
     try {
       awmcTags = await AwmcChartTagService.loadAllCachedTagLabels();
     } catch (_) {}
-    try {
-      maiTags = await MaiTagsManager().getTags();
-    } catch (_) {}
 
-    final chartTags = _buildChartTags(songs, awmcTags, maiTags);
+    final chartTags = _buildChartTags(songs, awmcTags);
     final calculated = await compute(_build, (songs, raw, chartTags));
     return ScoreInsights(
       records: calculated.records,
@@ -196,24 +190,7 @@ class ScoreInsights {
   static Map<GainChartKey, Set<String>> _buildChartTags(
     List<Song> songs,
     Map<String, Set<String>> awmcTags,
-    MaiTagsEntity? maiTags,
   ) {
-    final maiSongTags = <String, Set<String>>{};
-    if (maiTags != null) {
-      final tagNames = <int, String>{
-        for (final tag in maiTags.tags)
-          // 跳过“难度”分组（groupId == 2），只分析配置与评价类弱项。
-          if (tag.groupId != 2 && tag.localizedName.zhHans.trim().isNotEmpty)
-            tag.id: tag.localizedName.zhHans.trim(),
-      };
-      for (final ts in maiTags.tagSongs) {
-        final name = tagNames[ts.tagId];
-        if (name == null) continue;
-        final key = '${ts.songId}#${ts.sheetType}#${ts.sheetDifficulty}';
-        (maiSongTags[key] ??= <String>{}).add(name);
-      }
-    }
-
     final result = <GainChartKey, Set<String>>{};
     for (final song in songs) {
       final id = int.tryParse(song.id);
@@ -222,7 +199,6 @@ class ScoreInsights {
           ChartDifficulty.isUtageSong(id, type: song.type)) {
         continue;
       }
-      final sheetType = song.type == 'DX' ? 'dx' : 'std';
       for (final (level, ds) in song.ds.indexed) {
         if (!ChartDifficulty.isStandard(level) || !ds.isFinite || ds <= 0) {
           continue;
@@ -231,13 +207,6 @@ class ScoreInsights {
         final awmcLabels = awmcKey == null ? null : awmcTags[awmcKey];
         if (awmcLabels != null && awmcLabels.isNotEmpty) {
           result[GainChartKey(id, level)] = awmcLabels;
-          continue;
-        }
-        final diffName = ChartDifficulty.apiNameByIndex[level];
-        if (diffName == null) continue;
-        final maiLabels = maiSongTags['${song.title}#$sheetType#$diffName'];
-        if (maiLabels != null && maiLabels.isNotEmpty) {
-          result[GainChartKey(id, level)] = maiLabels;
         }
       }
     }

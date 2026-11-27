@@ -19,6 +19,13 @@ class ApiUrls {
       '$BackendBaseUrl/api/awmc/init-profile';
   static const String AwmcMigrateToFishUrl =
       '$BackendBaseUrl/api/awmc/migrate-to-fish';
+
+  /// AWMC 论坛（bbs.wmc.pub）OAuth 2.0 + PKCE 登录接口（回调由后端接管换票，不落盘论坛 token）。
+  static const String AwmcOAuthStartUrl = '$BackendBaseUrl/api/awmc/oauth/start';
+  static const String AwmcOAuthStatusUrl =
+      '$BackendBaseUrl/api/awmc/oauth/status';
+  static const String AwmcOAuthCallbackUrl =
+      '$BackendBaseUrl/api/awmc/oauth/callback';
   static const String LoadingTipsUrl = '$BackendBaseUrl/api/loading-tips';
   static const String FriendLinksUrl = '$BackendBaseUrl/api/friend-links';
   static const String AnnouncementsUrl = '$BackendBaseUrl/api/announcements';
@@ -65,7 +72,6 @@ class ApiUrls {
 
   /// union 歌曲元数据（含 cn/jp 可游玩地区、releaseDate 等）
   static const String UnionApi = 'https://union.godserver.cn//api/union/uni';
-  static const String TagDataApi = 'https://miruku.dxrating.net/api/v1/tags';
   static const String SongAliasApi =
       'https://www.yuzuchan.moe/api/maimaidx/maimaidxalias';
   static const String AwmcCommunityAliasesApi =

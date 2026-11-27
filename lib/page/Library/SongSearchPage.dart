@@ -8,7 +8,7 @@ import 'package:my_first_flutter_app/service/Library/SongSearchHistoryStore.dart
 import 'package:my_first_flutter_app/utils/SongQueryMatcher.dart';
 import 'package:my_first_flutter_app/page/song_info/SongInfoPage.dart';
 import 'package:my_first_flutter_app/manager/Song/SongAliasManager.dart';
-import 'package:my_first_flutter_app/manager/DXRating/MaiTagsManager.dart';
+import 'package:my_first_flutter_app/service/AWMC/AwmcChartTagService.dart';
 import 'package:my_first_flutter_app/entity/DXRating/MaiTagsModel.dart';
 import 'dart:async';
 
@@ -406,11 +406,11 @@ class _SongSearchPageState extends State<SongSearchPage> {
       _isLoadingTags = true;
     });
     try {
-      final maiTagsEntity = await MaiTagsManager().getTags();
+      final maiTagsEntity = await AwmcChartTagService.getTagsEntity();
       if (maiTagsEntity != null) {
         _tagGroups = maiTagsEntity.tagGroups;
-        _tagIdToNameMap = await MaiTagsManager().getTagIdToNameMap();
-        _tagIdToInfoMap = await MaiTagsManager().getTagIdToInfoMap();
+        _tagIdToNameMap = await AwmcChartTagService.getTagIdToNameMap();
+        _tagIdToInfoMap = await AwmcChartTagService.getTagIdToInfoMap();
       }
     } catch (e) {
       debugPrint('加载标签数据失败: $e');
@@ -749,8 +749,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
         debugPrint('所选标签ID: $_selectedTagIds');
 
         // 获取标签数据
-        final maiTagsManager = MaiTagsManager();
-        final tagsEntity = await maiTagsManager.getTags();
+        final tagsEntity = await AwmcChartTagService.getTagsEntity();
 
         // 缓存标签数据供后续使用
         _cachedTagsEntity = tagsEntity;
@@ -766,7 +765,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
           Set<int> selectedTagSet = Set.from(_selectedTagIds);
 
           // 获取标签名称映射
-          final tagIdToNameMap = await maiTagsManager.getTagIdToNameMap();
+          final tagIdToNameMap = await AwmcChartTagService.getTagIdToNameMap();
 
           // 清空并重建歌曲标签信息缓存
           _songTagInfoCache.clear();
@@ -2183,33 +2182,38 @@ class _SongSearchPageState extends State<SongSearchPage> {
                       else
                         ConstrainedBox(
                           constraints: const BoxConstraints(maxHeight: 400),
-                          child: ListView.builder(
-                            shrinkWrap: false,
-                            itemCount: filtered.length,
-                            itemBuilder: (_, i) {
-                              final item = filtered[i];
-                              final isSelected = item == selectedValue;
-                              return ListTile(
-                                title: Text(item,
-                                    style: TextStyle(
-                                      color: isSelected
-                                          ? AppColors.linkBlue(
-                                              Theme.of(context).brightness)
-                                          : null,
-                                      fontWeight:
-                                          isSelected ? FontWeight.bold : null,
-                                    )),
-                                trailing: isSelected
-                                    ? Icon(Icons.check,
-                                        color: AppColors.linkBlue(
-                                            Theme.of(context).brightness))
-                                    : null,
-                                onTap: () {
-                                  onSelected(item);
-                                  Navigator.pop(ctx);
+                          child: ClipRect(
+                            child: Material(
+                              type: MaterialType.transparency,
+                              child: ListView.builder(
+                                shrinkWrap: false,
+                                itemCount: filtered.length,
+                                itemBuilder: (_, i) {
+                                  final item = filtered[i];
+                                  final isSelected = item == selectedValue;
+                                  return ListTile(
+                                    title: Text(item,
+                                        style: TextStyle(
+                                          color: isSelected
+                                              ? AppColors.linkBlue(
+                                                  Theme.of(context).brightness)
+                                              : null,
+                                          fontWeight:
+                                              isSelected ? FontWeight.bold : null,
+                                        )),
+                                    trailing: isSelected
+                                        ? Icon(Icons.check,
+                                            color: AppColors.linkBlue(
+                                                Theme.of(context).brightness))
+                                        : null,
+                                    onTap: () {
+                                      onSelected(item);
+                                      Navigator.pop(ctx);
+                                    },
+                                  );
                                 },
-                              );
-                            },
+                              ),
+                            ),
                           ),
                         ),
                       if (selectedValue != null) ...[
@@ -3129,10 +3133,20 @@ class _SongSearchPageState extends State<SongSearchPage> {
       matchInfos
           .add({'type': context.l10n.flowSongID, 'value': song.id.toString()});
     }
-    // 检查标题匹配
-    if (includeTitle && song.basicInfo.title.toLowerCase().contains(query)) {
-      matchInfos.add(
-          {'type': context.l10n.flowSongTitle, 'value': song.basicInfo.title});
+    // 检查标题匹配（含假名/罗马音/拼音/模糊命中）
+    if (includeTitle) {
+      final title = song.basicInfo.title.toString();
+      if (title.toLowerCase().contains(query)) {
+        matchInfos.add({'type': context.l10n.flowSongTitle, 'value': title});
+      } else {
+        final fuzzyHint = describeFuzzySongTitleMatch(query, title);
+        if (fuzzyHint != null) {
+          matchInfos.add({
+            'type': context.l10n.flowSongTitle,
+            'value': fuzzyHint.isEmpty ? title : '$title ($fuzzyHint)',
+          });
+        }
+      }
     }
     // 检查艺术家匹配
     if (includeAllFields &&
@@ -3175,15 +3189,25 @@ class _SongSearchPageState extends State<SongSearchPage> {
             StringUtil.formatVersionWithFlag(song.basicInfo.from, song.isExtra)
       });
     }
-    // 检查别名匹配
+    // 检查别名匹配（含假名/罗马音/拼音/模糊命中）
     if (includeAlias) {
       final aliasMap = SongAliasManager.instance.aliases;
       final aliases = {
         ...?aliasMap[song.basicInfo.title],
         ...?aliasMap[song.title],
       };
-      final matchingAliases =
-          aliases.where((alias) => alias.toLowerCase().contains(query)).toList();
+      final matchingAliases = <String>[];
+      for (final alias in aliases) {
+        if (alias.toLowerCase().contains(query)) {
+          matchingAliases.add(alias);
+        } else {
+          final fuzzyHint = describeFuzzySongTitleMatch(query, alias);
+          if (fuzzyHint != null) {
+            matchingAliases
+                .add(fuzzyHint.isEmpty ? alias : '$alias ($fuzzyHint)');
+          }
+        }
+      }
       if (matchingAliases.isNotEmpty) {
         matchInfos.add({
           'type': context.l10n.flowAlias,

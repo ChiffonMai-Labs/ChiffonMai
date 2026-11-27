@@ -10,7 +10,7 @@ import '../constant/CacheTimestampConstant.dart';
 /// 设计要点：
 /// - [cacheKey] / [timestampKey] 用作 SharedPreferences 查询；
 ///   cacheKey 用来判断"有没有缓存"，timestampKey 用来算剩余有效期。
-/// - [ttlDays] = -1 表示该缓存永不过期（如 MaiTagsManager）；其它正整数 = 有效期天数。
+/// - [ttlDays] = -1 表示该缓存永不过期；其它正整数 = 有效期天数。
 /// - [groupKey] 把多个 UI 行映射到底层同一个缓存组（force refresh 时整组一起刷），
 ///   例如收藏品 6 类共享 CollectionsManager.refreshAllCollections。
 class CacheSourceInfo {
@@ -75,18 +75,6 @@ class CacheSourceRegistry {
       timestampKey: CacheKeyConstant.diffMusicDataTimestamp,
       ttlDays: 7,
       groupKey: 'diff',
-    ),
-
-    // ── 标签数据 ─────────────────────────────────────────────
-    CacheSourceInfo(
-      id: 'tags',
-      displayName: '标签数据',
-      description: 'DXRating 谱面标签',
-      apiUrl: ApiUrls.TagDataApi,
-      cacheKey: CacheKeyConstant.maiTagsCache,
-      timestampKey: CacheKeyConstant.maiTagsCacheTimestamp,
-      ttlDays: -1, // MaiTagsManager 内部标记为永不过期
-      groupKey: 'tags',
     ),
 
     // ── 别名 ────────────────────────────────────────────────

@@ -159,10 +159,8 @@ void main() {
     slowResponse.complete(http.Response('{"charts":{"1":[]}}', 200));
     final result = await metadata.timeout(const Duration(seconds: 3));
     expect(result['diffData'], isEmpty);
-    expect(result['tagData'], isEmpty);
-    expect(result['tagSongsData'], isEmpty);
     expect(requests.map((uri) => uri.toString()),
-        [ApiUrls.DiffMusicDataApi, ApiUrls.TagDataApi]);
+        [ApiUrls.DiffMusicDataApi]);
   });
 
   test('ALL、越界和缺失难度统一使用偏好，合法索引全数保留', () {

@@ -13,7 +13,7 @@ import '../song_info/SongInfoPage.dart';
 import '../../service/Best50/PersonalizedDiffBest50ConvertToImgService.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
-import 'package:my_first_flutter_app/manager/DXRating/MaiTagsManager.dart';
+import 'package:my_first_flutter_app/service/AWMC/AwmcChartTagService.dart';
 import 'package:my_first_flutter_app/entity/DXRating/MaiTagsModel.dart';
 import 'package:my_first_flutter_app/utils/ExportQualitySelector.dart';
 import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
@@ -66,7 +66,7 @@ class _PersonalizedDiffBest50PageState
   Future<void> _selectFirstTag() async {
     if (_selectedTagId != null) return;
     try {
-      final tagsEntity = await MaiTagsManager().getTags();
+      final tagsEntity = await AwmcChartTagService.getTagsEntity();
       if (!mounted || _selectedTagId != null) return;
       final tags = tagsEntity?.tags;
       if (tags == null || tags.isEmpty) return;
@@ -76,7 +76,7 @@ class _PersonalizedDiffBest50PageState
     }
   }
 
-  /// 选中标签并加载对应数据。自定义标签可能与 DXRating 标签同名，显示时加标记区分。
+  /// 选中标签并加载对应数据。自定义标签可能与 AWMC 标签同名，显示时加标记区分。
   void _selectTag(TagItem tag) {
     setState(() {
       _selectedTagId = tag.id;
@@ -240,7 +240,7 @@ class _PersonalizedDiffBest50PageState
 
   // 显示标签选择对话框
   void _showTagSelectionDialog() async {
-    final tagsEntity = await MaiTagsManager().getTags();
+    final tagsEntity = await AwmcChartTagService.getTagsEntity();
     if (tagsEntity == null || tagsEntity.tags.isEmpty) {
       if (!mounted) return;
       showDialog(
@@ -302,9 +302,10 @@ class _PersonalizedDiffBest50PageState
                         ),
                       ),
                       ...entry.value.map((tag) {
+                        final desc = tag.localizedDescription.zhHans.trim();
                         return ListTile(
                           title: Text(tag.localizedName.zhHans),
-                          subtitle: Text(tag.localizedDescription.zhHans),
+                          subtitle: desc.isNotEmpty ? Text(desc) : null,
                           dense: true,
                           selected: _selectedTagId == tag.id,
                           onTap: () {

@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:my_first_flutter_app/manager/Song/SongAliasManager.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.dart';
-import 'package:my_first_flutter_app/manager/DXRating/MaiTagsManager.dart';
+import 'package:my_first_flutter_app/service/AWMC/AwmcChartTagService.dart';
 import 'package:my_first_flutter_app/entity/DivingFish/Song.dart';
 import 'package:my_first_flutter_app/utils/SongQueryMatcher.dart';
 
@@ -139,7 +139,8 @@ class SongSearchService {
     }
 
     // 获取歌曲ID到标签ID列表的映射
-    final songIdToTagIdsMap = await MaiTagsManager().getSongIdToTagIdsMap();
+    final songIdToTagIdsMap =
+        await AwmcChartTagService.getSongIdToTagIdsMap();
     
     // 筛选满足条件的歌曲
     return allSongs.where((song) {

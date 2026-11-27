@@ -15,7 +15,7 @@ import '../../service/Best50/Best50ConvertToImgService.dart';
 import '../../manager/DivingFish/UserBest50Manager.dart';
 import '../../manager/DivingFish/MaimaiMusicDataManager.dart';
 import '../../manager/DivingFish/UserPlayDataManager.dart';
-import '../../manager/DXRating/MaiTagsManager.dart';
+import '../../service/AWMC/AwmcChartTagService.dart';
 import '../../entity/DXRating/MaiTagsModel.dart';
 import '../song_info/SongInfoPage.dart';
 import '../../utils/CoverUtil.dart';
@@ -552,8 +552,7 @@ class _B50PageState extends State<B50Page> {
     });
 
     try {
-      final maiTagsManager = MaiTagsManager();
-      _tagsEntity = await maiTagsManager.getTags();
+      _tagsEntity = await AwmcChartTagService.getTagsEntity();
 
       if (_tagsEntity != null) {
         await _calculateTagGroupStats();
@@ -573,9 +572,8 @@ class _B50PageState extends State<B50Page> {
       return;
     }
 
-    final maiTagsManager = MaiTagsManager();
-    final tagIdToNameMap = await maiTagsManager.getTagIdToNameMap();
-    final groupIdToNameMap = await maiTagsManager.getGroupIdToNameMap();
+    final tagIdToNameMap = await AwmcChartTagService.getTagIdToNameMap();
+    final groupIdToNameMap = await AwmcChartTagService.getGroupIdToNameMap();
 
     // 构建标签ID → 分组名称 的映射
     Map<int, String> tagIdToGroupName = {};

@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:my_first_flutter_app/entity/GuessChartGame/GuessSong.dart';
 import 'package:my_first_flutter_app/entity/DXRating/MaiTagsModel.dart';
 import 'package:my_first_flutter_app/entity/DivingFish/Song.dart';
-import 'package:my_first_flutter_app/manager/DXRating/MaiTagsManager.dart';
+import 'package:my_first_flutter_app/service/AWMC/AwmcChartTagService.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.dart';
 import 'package:my_first_flutter_app/constant/VersionListConstant.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
@@ -22,23 +22,10 @@ class GuessChartByBlurredCoverService {
   // 处理版本字符串，使其在前端简化展示
   // 使用StringUtil.formatVersion方法
 
-  // 从缓存中尝试加载出标签数据并解析
+  // 从缓存中尝试加载出 AWMC 及自定义标签数据
   static Future<MaiTagsEntity?> loadTagData() async {
     try {
-      final maiTagsManager = MaiTagsManager();
-      
-      // 检查是否有缓存数据
-      if (await maiTagsManager.hasCachedData()) {
-        // 从缓存获取标签数据
-        final maiTagsEntity = await maiTagsManager.getTags();
-        return maiTagsEntity;
-      } else {
-        // 初始化标签数据（从网络获取并缓存）
-        await maiTagsManager.initializeTags();
-        // 再次尝试获取
-        final maiTagsEntity = await maiTagsManager.getTags();
-        return maiTagsEntity;
-      }
+      return await AwmcChartTagService.getTagsEntity();
     } catch (e) {
       debugPrint('加载标签数据失败: $e');
       return null;
@@ -50,8 +37,7 @@ class GuessChartByBlurredCoverService {
     try {
       final maiTagsEntity = await loadTagData();
       if (maiTagsEntity != null) {
-        final maiTagsManager = MaiTagsManager();
-        return maiTagsManager.buildSongIdToTagIdsMap(maiTagsEntity);
+        return AwmcChartTagService.buildSongIdToTagIdsMap(maiTagsEntity);
       }
       return {};
     } catch (e) {

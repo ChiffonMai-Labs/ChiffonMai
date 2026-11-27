@@ -25,7 +25,6 @@ class ApiClient {
     ApiUrls.UnionApi: 'union-metadata',
     ApiUrls.LuoXueSongsApi: 'lxns-songs',
     ApiUrls.AwmcNetMusicDataApi: 'awmc-net-songs',
-    ApiUrls.TagDataApi: 'dxrating-tags',
     ApiUrls.SongAliasApi: 'yuzuchan-aliases',
     ApiUrls.ServerStatusApi: 'cabinet-status',
   };
@@ -283,6 +282,21 @@ class ApiClient {
     Duration timeout = _defaultTimeout,
   }) =>
       _read('HEAD', url, headers, timeout);
+
+  /// 可中止的 HEAD 请求，超时时主动终止底层连接，适合短超时资源可用性探测。
+  static Future<http.Response> headAbortable(
+    Uri url, {
+    Map<String, String>? headers,
+    Duration timeout = _defaultTimeout,
+    bool followRedirects = true,
+  }) =>
+      _readAbortable(
+        'HEAD',
+        url,
+        headers,
+        timeout,
+        followRedirects: followRedirects,
+      );
 
   static Future<http.Response> post(
     Uri url, {

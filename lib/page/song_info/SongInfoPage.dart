@@ -226,7 +226,6 @@ class _SongInfoPageState extends State<_SongInfoView> {
   Map<String, dynamic>? _songData;
   List<dynamic>? _diffData; // 保持为dynamic类型，兼容Map和DiffData
   Map<String, dynamic>? _userData;
-  List<dynamic>? _tagData;
   String? _awmcTagChartKey;
   Map<String, List<Map<String, String>>>? _awmcChartTags;
   String? _awmcDetailChartKey;
@@ -234,7 +233,6 @@ class _SongInfoPageState extends State<_SongInfoView> {
   Map<String, dynamic>? _awmcCommunity;
   int _ratingSource = 0; // 0 = ChiffonMai, 1 = AWMC
   int _commentSource = 0; // 0 = ChiffonMai, 1 = AWMC
-  List<dynamic>? _tagSongsData;
 
   // 定数历史（dxrating 静态数据）
   DXDataEntity? _dxData;
