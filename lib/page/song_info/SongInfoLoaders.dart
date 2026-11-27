@@ -189,10 +189,13 @@ extension _SongInfoLoaders on _SongInfoPageState {
     _chartRatingRequest++;
     _chartRatingLoading = false;
     _chartRatingError = null;
+    _best50OpportunityRequest++;
     _best50OpportunityText = null;
     _best50OpportunityGain = null;
     _best50OpportunityTiers = const [];
     _best50OpportunityNote = '';
+    _best50OpportunityLoading =
+        preloaded != null && _canComputeBest50Opportunity;
     _unionFrom = null;
     _unionDxFrom = null;
     _cnReleaseDate = null;
@@ -267,7 +270,10 @@ extension _SongInfoLoaders on _SongInfoPageState {
         }
       }
 
-      _update(() => _isLoading = false);
+      _update(() {
+        _isLoading = false;
+        _best50OpportunityLoading = _canComputeBest50Opportunity;
+      });
       _scheduleSongTitleVisibilityCheck();
       debugPrint('[SongInfo] core-ready: ${stopwatch.elapsedMilliseconds}ms');
       if (_songData != null) {
@@ -388,17 +394,45 @@ extension _SongInfoLoaders on _SongInfoPageState {
     });
   }
 
+  bool get _isUtageSongForOpportunity {
+    final song = _songData;
+    // 宴会场歌曲（UTAGE）不属于普通 Best35/15，不能套用普通谱面的
+    // Rating 门槛计算。六位数 ID 是项目现有的主判定，genre 作为曲库字段兜底。
+    return widget.songId.length == 6 ||
+        song?['basic_info']?['genre']?.toString() == '宴会场' ||
+        song?['genre']?.toString() == '宴会场';
+  }
+
+  /// 当前是否具备计算上分潜力的前提（用于首帧先渲染占位区域，避免无成绩用户闪烁空块）。
+  bool get _canComputeBest50Opportunity {
+    if (_isUtageSongForOpportunity) return true;
+    final song = _songData;
+    final user = _userData;
+    if (song == null || user == null || user['records'] is! List) return false;
+    final dsList = song['ds'];
+    if (dsList is! List || _currentDiffIndex >= dsList.length) return false;
+    return double.tryParse(dsList[_currentDiffIndex].toString()) != null;
+  }
+
   /// 判断当前谱面在理论上能否挤进对应的 Best35 / Best15。
   /// 使用推荐页同一套 Rating 权重和最低达成率算法，避免两个页面给出不同结论。
   Future<void> _loadBest50Opportunity() async {
+    final requestId = ++_best50OpportunityRequest;
+    final targetDiffIndex = _currentDiffIndex;
     void publish(
       String? text, [
       int? gain,
       List<Best50OpportunityTier> tiers = const [],
       String note = '',
     ]) {
-      if (!mounted) return;
+      if (!mounted ||
+          _isStaleSongLoad ||
+          requestId != _best50OpportunityRequest ||
+          targetDiffIndex != _currentDiffIndex) {
+        return;
+      }
       _updateCoalesced(() {
+        _best50OpportunityLoading = false;
         _best50OpportunityText = text;
         _best50OpportunityGain = gain;
         _best50OpportunityTiers = tiers;
@@ -406,13 +440,14 @@ extension _SongInfoLoaders on _SongInfoPageState {
       });
     }
 
+    if (!_best50OpportunityLoading &&
+        _best50OpportunityText == null &&
+        _canComputeBest50Opportunity) {
+      _updateCoalesced(() => _best50OpportunityLoading = true);
+    }
+
     final song = _songData;
-    // 宴会场歌曲（UTAGE）不属于普通 Best35/15，不能套用普通谱面的
-    // Rating 门槛计算。六位数 ID 是项目现有的主判定，genre 作为曲库字段兜底。
-    final isUtage = widget.songId.length == 6 ||
-        song?['basic_info']?['genre']?.toString() == '宴会场' ||
-        song?['genre']?.toString() == '宴会场';
-    if (isUtage) {
+    if (_isUtageSongForOpportunity) {
       publish(appL10n.flowUTAGESongsAreExcludedFromBest50);
       return;
     }

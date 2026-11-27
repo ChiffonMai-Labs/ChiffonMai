@@ -353,6 +353,10 @@ class _SongInfoPageState extends State<_SongInfoView> {
   int? _theoreticalRating;
   String? _best50OpportunityText;
 
+  /// 上分潜力是否正在计算中；为 true 时先用占位文案建出区域，避免结果到达时突兀顶开下方内容。
+  bool _best50OpportunityLoading = false;
+  int _best50OpportunityRequest = 0;
+
   /// 上分潜力能加多少分；null 表示没有可加的分（只显示说明）。
   int? _best50OpportunityGain;
 

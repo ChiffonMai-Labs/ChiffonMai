@@ -771,12 +771,11 @@ extension _SongInfoLayout on _SongInfoPageState {
               },
             ),
           ),
-          _best50OpportunityText == null
-              ? const SizedBox.shrink()
-              : Padding(
-                  padding: const EdgeInsets.only(top: 14),
-                  child: _buildBest50OpportunityBanner(),
-                ),
+          if (_best50OpportunityLoading || _best50OpportunityText != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 14),
+              child: _buildBest50OpportunityBanner(),
+            ),
         ],
       ),
     );
@@ -1006,82 +1005,114 @@ extension _SongInfoLayout on _SongInfoPageState {
   }
 
   /// 上分潜力：成绩卡底部的凹槽，左边说明、右边能加多少分。
+  /// 结果未算出前先占位渲染，算出后通过 [FadeSwitcher] 淡入淡出切换到真实内容。
   Widget _buildBest50OpportunityBanner() {
     final scheme = Theme.of(context).colorScheme;
     final brightness = scheme.brightness;
-    final text = _best50OpportunityText!;
-    final gain = _best50OpportunityGain;
+    final text = _best50OpportunityText;
+    final isPlaceholder = text == null;
+    final gain = isPlaceholder ? null : _best50OpportunityGain;
     final positive = gain != null && gain > 0;
-    final tiers = _best50OpportunityTiers;
+    final tiers = isPlaceholder
+        ? const <Best50OpportunityTier>[]
+        : _best50OpportunityTiers;
+    final canOpenDialog = tiers.isNotEmpty;
     final banner = Container(
+      width: double.infinity,
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
       decoration: BoxDecoration(
         color: AppSurfaces.inset(context),
         borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  context.l10n.flowRatingPotential,
-                  style: AppTheme.number(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: scheme.onSurfaceVariant,
+      child: AnimatedSize(
+        duration: AppDesignTokens.motion(context, AppDesignTokens.mediumMotion),
+        curve: AppDesignTokens.emphasizedCurve,
+        alignment: Alignment.topCenter,
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    context.l10n.flowRatingPotential,
+                    style: AppTheme.number(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: scheme.onSurfaceVariant,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  text,
-                  style: AppTheme.number(
-                    fontSize: 13,
-                    height: 1.3,
-                    fontWeight: FontWeight.w600,
-                    color: scheme.onSurface,
+                  const SizedBox(height: 2),
+                  FadeSwitcher(
+                    value: text ?? '__calculating__',
+                    sizeFollowsCurrent: true,
+                    child: Text(
+                      text ?? context.l10n.flowCalculating2,
+                      style: AppTheme.number(
+                        fontSize: 13,
+                        height: 1.3,
+                        fontWeight:
+                            isPlaceholder ? FontWeight.w500 : FontWeight.w600,
+                        color: isPlaceholder
+                            ? scheme.onSurfaceVariant
+                            : scheme.onSurface,
+                      ),
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          if (gain != null) ...[
-            const SizedBox(width: 12),
-            Text(
-              '+$gain',
-              maxLines: 1,
-              style: AppTheme.number(
-                fontSize: 24,
-                fontWeight: FontWeight.w700,
-                color: positive
-                    ? AppColors.successGreen(brightness)
-                    : scheme.onSurfaceVariant,
+                ],
               ),
             ),
-          ],
-          if (tiers.isNotEmpty) ...[
-            const SizedBox(width: 4),
-            Icon(
-              Icons.chevron_right_rounded,
-              size: 20,
-              color: scheme.onSurfaceVariant,
+            FadeSwitcher(
+              value: '${gain ?? ''}|$canOpenDialog',
+              alignment: AlignmentDirectional.centerEnd,
+              child: (gain != null || canOpenDialog)
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (gain != null) ...[
+                          const SizedBox(width: 12),
+                          Text(
+                            '+$gain',
+                            maxLines: 1,
+                            style: AppTheme.number(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w700,
+                              color: positive
+                                  ? AppColors.successGreen(brightness)
+                                  : scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                        if (canOpenDialog) ...[
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.chevron_right_rounded,
+                            size: 20,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ],
+                      ],
+                    )
+                  : const SizedBox.shrink(),
             ),
           ],
-        ],
+        ),
       ),
     );
-    if (tiers.isEmpty) return banner;
+    // 保持外层节点结构稳定，避免占位态切到可点击态时重建子树导致 FadeSwitcher 丢失过渡动画。
     return PressScale(
+      scale: canOpenDialog ? 0.95 : 1.0,
       child: Semantics(
-        button: true,
+        button: canOpenDialog,
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTap: () => showBest50OpportunityDialog(
-            context,
-            note: _best50OpportunityNote,
-            tiers: tiers,
-          ),
+          onTap: canOpenDialog
+              ? () => showBest50OpportunityDialog(
+                    context,
+                    note: _best50OpportunityNote,
+                    tiers: tiers,
+                  )
+              : null,
           child: banner,
         ),
       ),
