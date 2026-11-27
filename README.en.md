@@ -7,7 +7,7 @@
   <img src="https://img.shields.io/badge/Platform-Android%20%7C%20iOS-blue.svg" alt="Platform">
   <img src="https://img.shields.io/badge/Flutter-3.47%2B-02569B.svg?logo=flutter&logoColor=white" alt="Flutter">
   <img src="https://img.shields.io/badge/Version-3.1.0%2B61-6C63FF.svg" alt="Version">
-  <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License">
+  <img src="https://img.shields.io/badge/License-MPL--2.0-brightgreen.svg" alt="License">
   <a href="https://github.com/ChiffonMai-Labs/ChiffonMai/actions/workflows/build_ios.yml"><img src="https://github.com/ChiffonMai-Labs/ChiffonMai/actions/workflows/build_ios.yml/badge.svg" alt="Build iOS"></a>
 </div>
 
@@ -64,6 +64,6 @@ Creator and community credits are listed in the [Chinese README](README.md#特�
 
 [AWMC Chart Preview](https://v.wmc.pub/) supplies community aliases and chart detail tags. [AWMC MaiArchive](https://download.wmc.pub/) supplies cover art. DXRating supplies rating history, global tags and fallback covers. Arcade-style chart note visuals and geometry reference [Lxns-Network/maimai-prober-frontend](https://github.com/Lxns-Network/maimai-prober-frontend) (`@lxns-network/maimai-chart-engine`, MIT).
 
-Project code is [MIT licensed](LICENSE). Bundled third-party components, fonts and data keep their own licenses — see [simai_flutter MIT](assets/legal/simai_flutter_MIT.txt), [third-party notices](assets/legal/simai_flutter_THIRD_PARTY_NOTICES.md) and [Outfit OFL](assets/legal/outfit_OFL.txt).
+Project source code is [MPL-2.0 licensed](LICENSE). The `ChiffonMai` name, app icon (`assets/icon.png`), and original/commissioned artwork (such as the mascot and custom backgrounds) are **All Rights Reserved** and are not covered by the open-source code license. Bundled third-party components, fonts and data keep their own licenses — see [simai_flutter MIT](assets/legal/simai_flutter_MIT.txt), [third-party notices](assets/legal/simai_flutter_THIRD_PARTY_NOTICES.md) and [Outfit OFL](assets/legal/outfit_OFL.txt).
 
 ChiffonMai is not affiliated with SEGA. Game names, trademarks, artwork, audio and charts belong to their respective owners. APP registration: 津ICP备2024015256号-3A.

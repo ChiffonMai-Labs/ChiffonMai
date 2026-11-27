@@ -168,6 +168,16 @@ class _AboutAppPageState extends State<AboutAppPage> {
     AppToast.show(context.l10n.flowEmailAddressCopied);
   }
 
+  String _openSourceLicenseLabel(BuildContext context) {
+    final locale = Localizations.localeOf(context);
+    return switch (locale.languageCode) {
+      'en' => 'Open Source License (MPL-2.0)',
+      'ja' => 'オープンソースライセンス (MPL-2.0)',
+      'zh' when locale.scriptCode == 'Hant' => '開源許可證 (MPL-2.0)',
+      _ => '开源许可证 (MPL-2.0)',
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -217,6 +227,18 @@ class _AboutAppPageState extends State<AboutAppPage> {
                                         size: 18),
                                     label: Text(context.featureText(document.title)),
                                   ),
+                                TextButton.icon(
+                                  onPressed: () => LegalDocumentPage.openAsset(
+                                    context,
+                                    title: _openSourceLicenseLabel(context),
+                                    assetPath:
+                                        'assets/legal/open_source_license.md',
+                                  ),
+                                  icon: const Icon(Icons.balance_outlined,
+                                      size: 18),
+                                  label:
+                                      Text(_openSourceLicenseLabel(context)),
+                                ),
                               ],
                             ),
                             const SizedBox(height: 36),
@@ -324,20 +346,44 @@ class _AboutAppPageState extends State<AboutAppPage> {
           ],
         ),
         const SizedBox(height: 18),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            color: scheme.primaryContainer.withValues(alpha: .85),
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Text(
-            _version.isEmpty ? context.l10n.flowReadingVersion : context.l10n.flowVersionP02((_version).toString()),
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: scheme.onPrimaryContainer,
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: scheme.primaryContainer.withValues(alpha: .85),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Text(
+                _version.isEmpty
+                    ? context.l10n.flowReadingVersion
+                    : context.l10n.flowVersionP02((_version).toString()),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: scheme.onPrimaryContainer,
+                ),
+              ),
             ),
-          ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: scheme.secondaryContainer.withValues(alpha: .75),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Text(
+                'MPL-2.0',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: scheme.onSecondaryContainer,
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 16),
         Text(

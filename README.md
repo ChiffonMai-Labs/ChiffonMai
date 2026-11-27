@@ -7,7 +7,7 @@
   <img src="https://img.shields.io/badge/Platform-Android%20%7C%20iOS-blue.svg" alt="Platform">
   <img src="https://img.shields.io/badge/Flutter-3.47%2B-02569B.svg?logo=flutter&logoColor=white" alt="Flutter">
   <img src="https://img.shields.io/badge/Version-3.1.0%2B61-6C63FF.svg" alt="Version">
-  <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License">
+  <img src="https://img.shields.io/badge/License-MPL--2.0-brightgreen.svg" alt="License">
   <a href="https://github.com/ChiffonMai-Labs/ChiffonMai/actions/workflows/build_ios.yml"><img src="https://github.com/ChiffonMai-Labs/ChiffonMai/actions/workflows/build_ios.yml/badge.svg" alt="Build iOS"></a>
 </div>
 
@@ -384,6 +384,8 @@ ChiffonMai 是社区制作的第三方工具，与 SEGA 没有隶属或官方合
 
 ## 许可证
 
-本项目代码使用 [MIT License](LICENSE) 开源。
+本项目源代码使用 [Mozilla Public License 2.0（MPL-2.0）](LICENSE) 开源。
 
-随应用分发的第三方组件、字体与数据不适用项目 MIT，而按各自的许可证授权：[simai_flutter MIT](assets/legal/simai_flutter_MIT.txt) · [simai_flutter 第三方声明](assets/legal/simai_flutter_THIRD_PARTY_NOTICES.md) · [Outfit SIL OFL 1.1](assets/legal/outfit_OFL.txt)。完整第三方依赖清单以 [pubspec.yaml](pubspec.yaml) / [pubspec.lock](pubspec.lock) 为准。播放器是 [third_party/simai_flutter](third_party/simai_flutter) 下的本地定制副本，目录内自带 `LICENSE` 与 `THIRD_PARTY_NOTICES.md`，修改需遵守上游 MIT 与第三方声明。
+项目的品牌与原创美术资产（包括但不限于 `ChiffonMai` 名称、应用图标 `assets/icon.png`、画师授权或原创的「戚风小狐狸」形象及配套背景素材）**不适用上述开源许可证，保留所有权利（All Rights Reserved）**，未经许可不得用于第三方发行版本或商业用途。
+
+随应用分发的第三方组件、字体与数据不适用项目 MPL-2.0，而按各自的许可证授权：[simai_flutter MIT](assets/legal/simai_flutter_MIT.txt) · [simai_flutter 第三方声明](assets/legal/simai_flutter_THIRD_PARTY_NOTICES.md) · [Outfit SIL OFL 1.1](assets/legal/outfit_OFL.txt)。完整第三方依赖清单以 [pubspec.yaml](pubspec.yaml) / [pubspec.lock](pubspec.lock) 为准。播放器是 [third_party/simai_flutter](third_party/simai_flutter) 下的本地定制副本，目录内自带 `LICENSE` 与 `THIRD_PARTY_NOTICES.md`，修改需遵守上游 MIT 与第三方声明。

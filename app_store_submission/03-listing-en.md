@@ -38,7 +38,7 @@ Four UI languages (Simplified/Traditional Chinese, English, Japanese); light/dar
 **Notes**
 - Third-party open-source tool, not affiliated with SEGA. Game names, art, audio and charts belong to their owners.
 - Most features need no account; personal scores, comments and sync use free third-party score trackers.
-- MIT licensed source: https://github.com/ChiffonOwO
+- MPL-2.0 licensed source: https://github.com/ChiffonOwO
 - Privacy policy: https://chiffonmai.cloud/privacy
 
 ## Support URL

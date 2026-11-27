@@ -160,7 +160,7 @@ App 面向中国大陆玩家，同时提供简体中文、繁体中文、英文�
 
 ### B6. 第三方内容与权利
 
-- ChiffonMai 是个人开发的非官方工具，与 SEGA 没有隶属或官方合作关系；代码以 MIT 许可证开源。
+- ChiffonMai 是个人开发的非官方工具，与 SEGA 没有隶属或官方合作关系；代码以 MPL-2.0 许可证开源。
 - 《舞萌 DX》的名称、商标、曲绘、音频与谱面归 SEGA 等各自权利人。App 从水鱼、落雪、DXRating.net、Union、AWMC NET 等公开数据服务读取或缓存这些资料，仅用于查询、展示与玩家的个人整理，不售卖。
 - 应用内《用户协议》第六节写明第三方内容权利归属与导出内容的使用边界；「关于 APP → 致谢」逐项列出数据来源与许可证（含 `simai_flutter` 的 MIT 与第三方声明）；「关于 APP」常驻用户协议、隐私政策入口。
 - 可提供：用户协议、隐私政策、致谢页截图、`simai_flutter` 与 Outfit 的许可证文本。
@@ -218,7 +218,7 @@ App 完全免费，无内购、订阅、会员、广告与追踪。唯一涉及�
 
 **Regional differences**: UI in Simplified/Traditional Chinese, English and Japanese, following the system language. No region lock. Data keeps separate CN/JP releases and dates; accounts are mainly CN-side; AMap tiles may be slower abroad. iOS updates via App Store/TestFlight.
 
-**Third-party rights**: unofficial, MIT-licensed fan tool, not affiliated with SEGA. Game names, art and audio belong to their owners and are read from public data services for personal reference only. See the in-app User Agreement §6 and the in-app credits.
+**Third-party rights**: unofficial, MPL-2.0-licensed fan tool, not affiliated with SEGA. Game names, art and audio belong to their owners and are read from public data services for personal reference only. See the in-app User Agreement §6 and the in-app credits.
 
 **Accounts/deletion/UGC**: ChiffonMai does not create accounts. Identities come from third-party trackers (Diving Fish username/password used only to obtain a token; LXNS OAuth; AWMC NET QQ + token/QR; Score Hub QR). Profile → Delete Account lists the saved accounts; confirming deletes their comments, ratings and ranking records (best-effort via the server), revokes auto-sync and clears the local profile, tokens and score cache. Third-party accounts stay on their platforms (links shown); anything not deleted automatically is listed with a pre-filled email request (15 business days per the Privacy Policy). Bindings & Authorization can unlink each source. Comments are limited to 500 chars and pre-filtered; users can delete their own comments and ratings, report any comment (reason → email to the maintainer) and block its author (unblock under Settings → Blocked users).
 

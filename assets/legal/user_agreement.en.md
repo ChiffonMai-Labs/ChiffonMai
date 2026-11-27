@@ -44,7 +44,7 @@ Read this Agreement and the [Privacy Policy](privacy_policy.md) before use. **Pa
 
 ## 6. Intellectual property and exported content
 
-1. Project source code is provided under the MIT license stated in the repository. This Agreement does not alter rights granted by that license or grant additional rights to third-party resources.
+1. Project source code is provided under the MPL-2.0 (Mozilla Public License 2.0) stated in the repository. This Agreement does not alter rights granted by that license, nor does it grant additional rights to project branding, original/commissioned artwork, or third-party resources.
 2. Third-party cover artwork, audio, charts, text, trademarks and other content remain subject to their original licenses or use rules. Downloading, caching, exporting or converting them does not change ownership.
 3. Before sharing score images, favorites, charts or logs, make sure you have the right to share their content and check for personal information belonging to you or others.
 

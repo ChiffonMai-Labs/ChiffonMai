@@ -12,7 +12,7 @@
 
 **Regional differences**: UI in Simplified/Traditional Chinese, English and Japanese, following the system language. No region lock. Data keeps separate CN/JP releases and dates; accounts are mainly CN-side; AMap tiles may be slower abroad. iOS updates via App Store/TestFlight.
 
-**Third-party rights**: unofficial, MIT-licensed fan tool, not affiliated with SEGA. Game names, art and audio belong to their owners and are read from public data services for personal reference only. See the in-app User Agreement §6 and the in-app credits.
+**Third-party rights**: unofficial, MPL-2.0-licensed fan tool, not affiliated with SEGA. Game names, art and audio belong to their owners and are read from public data services for personal reference only. See the in-app User Agreement §6 and the in-app credits.
 
 **Accounts/deletion/UGC**: ChiffonMai does not create accounts. Identities come from third-party trackers (Diving Fish username/password used only to obtain a token; LXNS OAuth; AWMC NET QQ + token/QR; Score Hub QR). Profile → Delete Account lists the saved accounts; confirming deletes their comments, ratings and ranking records (best-effort via the server), revokes auto-sync and clears the local profile, tokens and score cache. Third-party accounts stay on their platforms (links shown); anything not deleted automatically is listed with a pre-filled email request (15 business days per the Privacy Policy). Bindings & Authorization can unlink each source. Comments are limited to 500 chars and pre-filtered; users can delete their own comments and ratings, report any comment (reason → email to the maintainer) and block its author (unblock under Settings → Blocked users).
 

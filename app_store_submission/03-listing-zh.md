@@ -40,7 +40,7 @@ ChiffonMai 是面向街机音游《舞萌 DX》玩家的第三方非官方工具
 **说明**
 - 第三方开源工具，与 SEGA 没有隶属或官方合作关系；游戏名称、曲绘、音频与谱面归各自权利人。
 - 大部分功能无需账号；查询个人成绩、评论与同步需要第三方查分器账号，注册免费。
-- 代码以 MIT 许可证开源：https://github.com/ChiffonOwO
+- 代码以 MPL-2.0 许可证开源：https://github.com/ChiffonOwO
 - 隐私政策：https://chiffonmai.cloud/privacy
 
 ## 技术支持 URL

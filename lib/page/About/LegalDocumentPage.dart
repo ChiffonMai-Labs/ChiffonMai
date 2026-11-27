@@ -30,14 +30,39 @@ enum AppLegalDocument {
 
 /// 协议随应用发布，首次打开和离线时均可阅读。
 class LegalDocumentPage extends StatefulWidget {
-  const LegalDocumentPage({super.key, required this.document});
-  final AppLegalDocument document;
+  const LegalDocumentPage({
+    super.key,
+    this.document,
+    this.customTitle,
+    this.customAssetPath,
+  }) : assert(
+         document != null || (customTitle != null && customAssetPath != null),
+       );
+
+  final AppLegalDocument? document;
+  final String? customTitle;
+  final String? customAssetPath;
 
   static Future<void> open(
       BuildContext context, AppLegalDocument document) async {
     FocusManager.instance.primaryFocus?.unfocus();
     await Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (_) => LegalDocumentPage(document: document),
+    ));
+  }
+
+  /// 打开 `assets/legal/` 下的指定离线文档（如开源许可证与第三方声明）。
+  static Future<void> openAsset(
+    BuildContext context, {
+    required String title,
+    required String assetPath,
+  }) async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => LegalDocumentPage(
+        customTitle: title,
+        customAssetPath: assetPath,
+      ),
     ));
   }
 
@@ -52,7 +77,8 @@ class _LegalDocumentPageState extends State<LegalDocumentPage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final path = widget.document.assetPathForLocale(Localizations.localeOf(context));
+    final path = widget.customAssetPath ??
+        widget.document!.assetPathForLocale(Localizations.localeOf(context));
     if (_assetPath != path) {
       _assetPath = path;
       _content = rootBundle.loadString(path);
@@ -65,6 +91,19 @@ class _LegalDocumentPageState extends State<LegalDocumentPage> {
         await LegalDocumentPage.open(context, document);
         return;
       }
+    }
+    // 支持离线文档内链跳转至 assets/legal/ 下的 .txt/.md 许可证文本。
+    if (!value.contains('://') &&
+        !value.contains('..') &&
+        (value.endsWith('.txt') || value.endsWith('.md'))) {
+      final assetPath =
+          value.startsWith('assets/') ? value : 'assets/legal/$value';
+      await LegalDocumentPage.openAsset(
+        context,
+        title: value.split('/').last,
+        assetPath: assetPath,
+      );
+      return;
     }
     final uri = Uri.tryParse(value);
     if (uri == null || !['https', 'http', 'mailto'].contains(uri.scheme))
@@ -84,8 +123,11 @@ class _LegalDocumentPageState extends State<LegalDocumentPage> {
     final base = theme.brightness == Brightness.dark
         ? MarkdownConfig.darkConfig
         : MarkdownConfig.defaultConfig;
+    final pageTitle = widget.customTitle ??
+        context.featureText(widget.document!.title);
+    final isPlainText = _assetPath.endsWith('.txt');
     return BackgroundPageScaffold(
-      title: context.featureText(widget.document.title),
+      title: pageTitle,
       showDecorativeImage: false,
       child: Center(
         child: ConstrainedBox(
@@ -105,6 +147,20 @@ class _LegalDocumentPageState extends State<LegalDocumentPage> {
               }
               if (!snapshot.hasData) {
                 return const Center(child: CircularProgressIndicator());
+              }
+              if (isPlainText) {
+                return SingleChildScrollView(
+                  padding: EdgeInsets.fromLTRB(
+                      20, 12, 20, 24 + MediaQuery.paddingOf(context).bottom),
+                  child: SelectableText(
+                    snapshot.data!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurface,
+                      height: 1.6,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                );
               }
               return MarkdownWidget(
                 data: snapshot.data!,
