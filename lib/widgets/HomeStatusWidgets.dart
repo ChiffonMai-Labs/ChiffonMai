@@ -13,77 +13,168 @@ import '../utils/AppDesignTokens.dart';
 import '../utils/AppTheme.dart';
 import 'AppUi.dart';
 
-/// 首页小组件的外观：图标、标题、一行结论、一行说明。
-class _HomeStatusCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String headline;
-  final String detail;
-  final Color accent;
-  final VoidCallback onTap;
+/// 首页「主操作 + 轻状态」融合卡：
+/// 整卡主点击执行高频动作（普通同步 / 拉取更新），底行展示实时状态，
+/// 右上角独立胶囊（≥ 36dp 触控区）直达状态详情/设置页。
+class _HomeActionStatusCard extends StatelessWidget {
+  final IconData actionIcon;
+  final String actionHeadline;
+  final String secondaryLabel;
+  final IconData secondaryIcon;
+  final String statusText;
+  final Color statusAccent;
+  final VoidCallback? onPrimaryTap;
+  final VoidCallback onSecondaryTap;
+  final bool busy;
 
-  const _HomeStatusCard({
-    required this.icon,
-    required this.title,
-    required this.headline,
-    required this.detail,
-    required this.accent,
-    required this.onTap,
+  const _HomeActionStatusCard({
+    required this.actionIcon,
+    required this.actionHeadline,
+    required this.secondaryLabel,
+    required this.secondaryIcon,
+    required this.statusText,
+    required this.statusAccent,
+    required this.onPrimaryTap,
+    required this.onSecondaryTap,
+    this.busy = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final disabled = busy || onPrimaryTap == null;
+    final primaryColor = disabled
+        ? scheme.onSurface.withValues(alpha: 0.45)
+        : scheme.onSurface;
+    final iconColor = disabled
+        ? scheme.primary.withValues(alpha: 0.45)
+        : scheme.primary;
+
     return AppCard(
       radius: AppDesignTokens.radiusMedium,
-      padding: const EdgeInsets.all(12),
-      onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 16, color: accent),
-              const SizedBox(width: 6),
-              Expanded(
+      padding: EdgeInsets.zero,
+      onTap: disabled ? null : onPrimaryTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 8, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(actionIcon, size: 18, color: iconColor),
+                const Spacer(),
+                Semantics(
+                  button: true,
+                  label: secondaryLabel,
+                  excludeSemantics: true,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: onSecondaryTap,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        minHeight: 36,
+                        minWidth: 36,
+                      ),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppSurfaces.inset(context),
+                            borderRadius: BorderRadius.circular(
+                              AppDesignTokens.radiusPill,
+                            ),
+                            border: Border.all(
+                              color: scheme.outlineVariant,
+                              width: 0.75,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                secondaryIcon,
+                                size: 12,
+                                color: statusAccent,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                secondaryLabel,
+                                maxLines: 1,
+                                softWrap: false,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: scheme.onSurfaceVariant,
+                                ),
+                              ),
+                              Icon(
+                                Icons.chevron_right_rounded,
+                                size: 13,
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
                 child: Text(
-                  title,
+                  actionHeadline,
                   maxLines: 1,
-                  softWrap: false,
                   style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: scheme.onSurfaceVariant,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: primaryColor,
                   ),
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              headline,
-              maxLines: 1,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: scheme.onSurface,
+            ),
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Row(
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: statusAccent,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  Expanded(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        statusText,
+                        maxLines: 1,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
-          const SizedBox(height: 2),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              detail,
-              maxLines: 1,
-              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -148,11 +239,21 @@ abstract class _PollingState<T extends StatefulWidget> extends State<T>
   }
 }
 
-/// 自动同步：只显示结论，详情在自动同步页。
+/// 同步成绩 + 自动同步状态融合卡：
+/// 主点击触发当前数据源普通同步，右上角进入自动同步设置页，同时维持 1 分钟轮询与桌面小组件推送。
 class HomeAutoSyncWidget extends StatefulWidget {
-  final VoidCallback onTap;
+  final VoidCallback? onPrimaryTap;
+  final VoidCallback onSecondaryTap;
+  final String primaryLabel;
+  final bool busy;
 
-  const HomeAutoSyncWidget({super.key, required this.onTap});
+  const HomeAutoSyncWidget({
+    super.key,
+    required this.onPrimaryTap,
+    required this.onSecondaryTap,
+    required this.primaryLabel,
+    this.busy = false,
+  });
 
   @override
   State<HomeAutoSyncWidget> createState() => _HomeAutoSyncWidgetState();
@@ -344,24 +445,36 @@ class _HomeAutoSyncWidgetState extends _PollingState<HomeAutoSyncWidget> {
       _ => scheme.outline,
     };
     final time = summary.time;
-    return _HomeStatusCard(
-      icon: Icons.autorenew_rounded,
-      title: context.featureText('自动同步'),
-      headline: summary.headline,
-      detail: time == null
-          ? summary.detail
-          : '${summary.detail} · ${_timeLabel(time)}',
-      accent: accent,
-      onTap: widget.onTap,
+    final statusText = time == null
+        ? summary.headline
+        : '${summary.headline} · ${_timeLabel(time)}';
+    return _HomeActionStatusCard(
+      actionIcon: Icons.cloud_sync_outlined,
+      actionHeadline: widget.primaryLabel,
+      secondaryLabel: context.featureText('自动同步'),
+      secondaryIcon: Icons.autorenew_rounded,
+      statusText: statusText,
+      statusAccent: accent,
+      onPrimaryTap: widget.onPrimaryTap,
+      onSecondaryTap: widget.onSecondaryTap,
+      busy: widget.busy,
     );
   }
 }
 
-/// 服务器状态：每 3 分钟自己刷新一次。
+/// 更新成绩数据 + 服务器状态融合卡：
+/// 主点击拉取成绩并更新数据，右上角进入服务器状态详情页，同时维持 3 分钟轮询与桌面小组件推送。
 class HomeServerStatusWidget extends StatefulWidget {
-  final VoidCallback onTap;
+  final VoidCallback? onPrimaryTap;
+  final VoidCallback onSecondaryTap;
+  final bool busy;
 
-  const HomeServerStatusWidget({super.key, required this.onTap});
+  const HomeServerStatusWidget({
+    super.key,
+    required this.onPrimaryTap,
+    required this.onSecondaryTap,
+    this.busy = false,
+  });
 
   @override
   State<HomeServerStatusWidget> createState() => _HomeServerStatusWidgetState();
@@ -445,13 +558,22 @@ class _HomeServerStatusWidgetState
           ? AppColors.successForeground(theme.brightness)
           : AppColors.warningOrange(theme.brightness);
     }
-    return _HomeStatusCard(
-      icon: Icons.dns_outlined,
-      title: context.featureText('服务器状态'),
-      headline: headline,
-      detail: detail.isEmpty ? context.featureText('暂无详情') : detail,
-      accent: accent,
-      onTap: widget.onTap,
+    final statusLine = switch ((status, status?.latency.currentMs)) {
+      (null, _) => headline,
+      (final s?, final ms?) => '${_headlineOf(s)} · $ms ms',
+      (final s?, null) =>
+        detail.isNotEmpty ? '${_headlineOf(s)} · $detail' : _headlineOf(s),
+    };
+    return _HomeActionStatusCard(
+      actionIcon: Icons.refresh_rounded,
+      actionHeadline: context.featureText('更新成绩数据'),
+      secondaryLabel: context.featureText('服务器'),
+      secondaryIcon: Icons.dns_outlined,
+      statusText: statusLine,
+      statusAccent: accent,
+      onPrimaryTap: widget.onPrimaryTap,
+      onSecondaryTap: widget.onSecondaryTap,
+      busy: widget.busy,
     );
   }
 }

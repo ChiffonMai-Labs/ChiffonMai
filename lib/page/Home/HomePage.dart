@@ -865,23 +865,46 @@ class HomePageState extends State<HomePage> {
     }
   }
 
+  String _syncFeatureTitleFor(RefreshDataSource source) => switch (source) {
+        RefreshDataSource.shuiyu => '同步成绩到水鱼',
+        RefreshDataSource.luoxue => '同步成绩到落雪',
+        RefreshDataSource.awmc => '同步成绩到 AWMC NET',
+      };
+
+  String _syncActionLabelFor(RefreshDataSource source) => switch (source) {
+        RefreshDataSource.shuiyu => context.featureText('同步到水鱼'),
+        RefreshDataSource.luoxue => context.featureText('同步到落雪'),
+        RefreshDataSource.awmc => context.featureText('同步到 AWMC'),
+      };
+
   Widget _buildStatusWidgets() {
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            child: HomeAutoSyncWidget(
-              onTap: () => _openFeatureByTitle('自动同步'),
+    final busy = anyBusy;
+    return ValueListenableBuilder<RefreshDataSource>(
+      valueListenable: CurrentDataSourceNotifier.instance,
+      builder: (context, source, _) => IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: HomeAutoSyncWidget(
+                primaryLabel: _syncActionLabelFor(source),
+                busy: busy,
+                onPrimaryTap: busy
+                    ? null
+                    : () => _openFeatureByTitle(_syncFeatureTitleFor(source)),
+                onSecondaryTap: () => _openFeatureByTitle('自动同步'),
+              ),
             ),
-          ),
-          const SizedBox(width: AppDesignTokens.cardGap),
-          Expanded(
-            child: HomeServerStatusWidget(
-              onTap: () => _openFeatureByTitle('服务器状态'),
+            const SizedBox(width: AppDesignTokens.cardGap),
+            Expanded(
+              child: HomeServerStatusWidget(
+                busy: busy,
+                onPrimaryTap: busy ? null : _openRefreshData,
+                onSecondaryTap: () => _openFeatureByTitle('服务器状态'),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
