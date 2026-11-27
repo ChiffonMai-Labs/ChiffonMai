@@ -103,7 +103,9 @@ class _SongSearchPageState extends State<SongSearchPage> {
 
   /// 当前展开的筛选（胶囊的 key，见 [_filterShown]），null = 都收起。
   String? _activeFilter;
-  bool _onlyDx = false;
+  static const List<String> _chartTypeOptions = ['ST', 'DX', 'UTAGE'];
+  List<String> _selectedChartTypes = [];
+  bool _showChartTypeFilter = false;
   int? _songCount;
 
   // 舞萌的全部等级：1–6 没有加号，7 起每级分 x / x+。
@@ -149,7 +151,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
               _maxLevelController.text.isNotEmpty;
 
   bool get _hasNonQueryFilters =>
-      _onlyDx ||
+      _selectedChartTypes.isNotEmpty ||
       _hasActiveLevelFilter ||
       _minNotesController.text.isNotEmpty ||
       _maxNotesController.text.isNotEmpty ||
@@ -257,6 +259,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
 
   /// 胶囊下面展开的筛选是否真的开着（筛选自己的标题行也能收起它）。
   bool get _filterShown => switch (_activeFilter) {
+        'chartType' => _showChartTypeFilter,
         'scope' => _showScopeFilter,
         'difficulty' => _showDifficultyFilter,
         'level' => _showLevelFilter,
@@ -273,6 +276,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
     final open = !(_activeFilter == key && _filterShown);
     setState(() {
       _activeFilter = open ? key : null;
+      _showChartTypeFilter = open && key == 'chartType';
       _showScopeFilter = open && key == 'scope';
       _showDifficultyFilter = open && key == 'difficulty';
       _showLevelFilter = open && key == 'level';
@@ -307,7 +311,8 @@ class _SongSearchPageState extends State<SongSearchPage> {
       _selectedDifficulties.clear();
       _selectedCharter = null;
       _selectedArtist = null;
-      _onlyDx = false;
+      _selectedChartTypes.clear();
+      _showChartTypeFilter = false;
       _activeFilter = null;
     });
     _performSearch('');
@@ -601,9 +606,10 @@ class _SongSearchPageState extends State<SongSearchPage> {
       List<dynamic> filteredResults = widget.extraOnly
           ? results.where((song) => song.isExtra == true).toList()
           : results;
-      if (_onlyDx) {
-        filteredResults =
-            filteredResults.where((song) => song.type == 'DX').toList();
+      if (_selectedChartTypes.isNotEmpty) {
+        filteredResults = filteredResults
+            .where((song) => _selectedChartTypes.contains(_chartTypeOf(song)))
+            .toList();
       }
 
       // 难度多选依然是独立条件，并限定任意定数、物量、谱师和标签的检查范围。
@@ -2393,9 +2399,101 @@ class _SongSearchPageState extends State<SongSearchPage> {
     );
   }
 
+  String _chartTypeOf(dynamic song) {
+    // 宴会场谱面优先判定，避免按普通 ST/DX 归类。
+    if (_isUtageSong(song)) return 'UTAGE';
+    return song.type == 'DX' ? 'DX' : 'ST';
+  }
+
+  Widget _buildChartTypeFilter(double screenWidth) {
+    final selectedText = _selectedChartTypes.join('、');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InkWell(
+          onTap: () =>
+              setState(() => _showChartTypeFilter = !_showChartTypeFilter),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Flexible(
+                  child: Row(
+                    children: [
+                      Text(
+                        '谱面类型',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                      if (selectedText.isNotEmpty)
+                        Expanded(
+                          child: Padding(
+                            padding: EdgeInsets.only(left: screenWidth * 0.02),
+                            child: Text(
+                              selectedText,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                _filterArrow(_showChartTypeFilter, screenWidth),
+              ],
+            ),
+          ),
+        ),
+        _buildFilterExpansion(
+          visible: _showChartTypeFilter,
+          child: Container(
+            padding: EdgeInsets.symmetric(vertical: screenWidth * 0.02),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final chartType in _chartTypeOptions)
+                  FilterPill(
+                    label: chartType,
+                    selected: _selectedChartTypes.contains(chartType),
+                    onTap: () {
+                      setState(() {
+                        if (_selectedChartTypes.contains(chartType)) {
+                          _selectedChartTypes.remove(chartType);
+                        } else {
+                          _selectedChartTypes.add(chartType);
+                        }
+                        // 按固定顺序排列展示，避免胶囊文本随点击顺序跳动。
+                        _selectedChartTypes.sort((a, b) => _chartTypeOptions
+                            .indexOf(a)
+                            .compareTo(_chartTypeOptions.indexOf(b)));
+                        _resetSearchResultState();
+                      });
+                      _performFilteredSearch();
+                    },
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildActiveFilter() {
     final size = MediaQuery.sizeOf(context);
     return switch (_activeFilter) {
+      'chartType' => _buildChartTypeFilter(size.width),
       'scope' => _buildScopeFilter(size.width),
       'difficulty' => _buildDifficultyFilter(size.width),
       'level' => _buildLevelFilter(size.width, size.height),
@@ -2501,19 +2599,10 @@ class _SongSearchPageState extends State<SongSearchPage> {
       padding: const EdgeInsets.symmetric(horizontal: AppDesignTokens.gutter),
       child: Row(
         children: [
-          Padding(
-            padding: const EdgeInsets.only(right: 6),
-            child: FilterPill(
-              label: context.l10n.flowDXChartsOnly,
-              selected: _onlyDx,
-              onTap: () {
-                setState(() {
-                  _onlyDx = !_onlyDx;
-                  _resetSearchResultState();
-                });
-                _performFilteredSearch();
-              },
-            ),
+          pill(
+            'chartType',
+            '谱面类型',
+            _selectedChartTypes.isEmpty ? null : _selectedChartTypes.join('、'),
           ),
           pill(
             'scope',
