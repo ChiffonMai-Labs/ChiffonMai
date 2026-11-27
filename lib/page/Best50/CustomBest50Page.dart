@@ -241,10 +241,15 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
                                       TextStyle(color: scheme.onSurfaceVariant),
                                 ),
                               )
-                            : ListView.builder(
-                                itemCount: filtered.length,
-                                itemBuilder: (_, i) => _buildPickerRow(
-                                    ctx, filtered[i], brightness),
+                            : ClipRect(
+                                child: Material(
+                                  type: MaterialType.transparency,
+                                  child: ListView.builder(
+                                    itemCount: filtered.length,
+                                    itemBuilder: (_, i) => _buildPickerRow(
+                                        ctx, filtered[i], brightness),
+                                  ),
+                                ),
                               ),
                   ),
                 ],

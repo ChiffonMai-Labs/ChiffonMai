@@ -441,41 +441,46 @@ class _DifficultyDistributionPageState
                 ),
                 const Divider(),
                 Expanded(
-                  child: ListView.builder(
-                    controller: scrollController,
-                    itemCount: entries.length,
-                    itemBuilder: (_, i) {
-                      final entry = entries[i];
-                      final song = entry.song;
-                      final dsIdx = entry.dsIdx;
-                      return ListTile(
-                        leading: CoverUtil.buildCoverWidgetWithContextRRect(
-                            ctx, song.id, 40),
-                        title: Text(song.basicInfo.title,
-                            style: const TextStyle(fontSize: 14),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis),
-                        subtitle: Text(
-                            '${song.basicInfo.artist} | ${StringUtil.getTypeDisplay(song.type)}',
-                            style: const TextStyle(fontSize: 11)),
-                        trailing: Text(
-                          dsIdx >= 0 ? song.ds[dsIdx].toStringAsFixed(1) : '',
-                          style: const TextStyle(
-                              fontSize: 14, fontWeight: FontWeight.w600),
-                        ),
-                        onTap: () {
-                          Navigator.of(ctx).pop();
-                          Navigator.of(context).push(MaterialPageRoute(
-                            builder: (_) => SongInfoPage(
-                              songId: song.id,
-                              initialLevelIndex: _selectedLevelIndex >= 0
-                                  ? _selectedLevelIndex
-                                  : dsIdx,
+                  child: ClipRect(
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: ListView.builder(
+                        controller: scrollController,
+                        itemCount: entries.length,
+                        itemBuilder: (_, i) {
+                          final entry = entries[i];
+                          final song = entry.song;
+                          final dsIdx = entry.dsIdx;
+                          return ListTile(
+                            leading: CoverUtil.buildCoverWidgetWithContextRRect(
+                                ctx, song.id, 40),
+                            title: Text(song.basicInfo.title,
+                                style: const TextStyle(fontSize: 14),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis),
+                            subtitle: Text(
+                                '${song.basicInfo.artist} | ${StringUtil.getTypeDisplay(song.type)}',
+                                style: const TextStyle(fontSize: 11)),
+                            trailing: Text(
+                              dsIdx >= 0 ? song.ds[dsIdx].toStringAsFixed(1) : '',
+                              style: const TextStyle(
+                                  fontSize: 14, fontWeight: FontWeight.w600),
                             ),
-                          ));
+                            onTap: () {
+                              Navigator.of(ctx).pop();
+                              Navigator.of(context).push(MaterialPageRoute(
+                                builder: (_) => SongInfoPage(
+                                  songId: song.id,
+                                  initialLevelIndex: _selectedLevelIndex >= 0
+                                      ? _selectedLevelIndex
+                                      : dsIdx,
+                                ),
+                              ));
+                            },
+                          );
                         },
-                      );
-                    },
+                      ),
+                    ),
                   ),
                 ),
               ],

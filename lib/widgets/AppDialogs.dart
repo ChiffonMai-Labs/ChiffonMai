@@ -507,15 +507,22 @@ class AppAlertDialog extends StatelessWidget {
             child: Padding(
               padding:
                   contentPadding ?? const EdgeInsets.fromLTRB(20, 14, 20, 0),
-              child: Theme(
-                data: _contentTheme(context),
-                child: DefaultTextStyle.merge(
-                  style: TextStyle(
-                    fontSize: 14,
-                    height: 1.5,
-                    color: scheme.onSurfaceVariant,
+              child: ClipRect(
+                // 裁剪并隔离内部 Material：防止 ListTile 的 selectedTileColor/Ink
+                // 绘制到外层 Dialog 的 Material 上，避免向上滚出视口时遮挡标题区。
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: Theme(
+                    data: _contentTheme(context),
+                    child: DefaultTextStyle.merge(
+                      style: TextStyle(
+                        fontSize: 14,
+                        height: 1.5,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                      child: body,
+                    ),
                   ),
-                  child: body,
                 ),
               ),
             ),

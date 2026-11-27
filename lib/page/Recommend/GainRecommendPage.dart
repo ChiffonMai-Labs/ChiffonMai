@@ -866,29 +866,34 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
               )
             else
               Flexible(
-                child: ListView(
-                  shrinkWrap: true,
-                  children: [
-                    for (final r in _records)
-                      ListTile(
-                        title: Text('${r.title} [${r.level}]',
-                            maxLines: 1, overflow: TextOverflow.ellipsis),
-                        subtitle: Text(r.kind == GainFeedbackKind.dislike
-                            ? context.l10n.flowDislikedUntilUndone
-                            : context.l10n.flowTemporarilyStuckClearsAutomaticallyOnP0((_formatDate(r.expiresAt!)).toString())),
-                        trailing: TextButton(
-                          onPressed: () async {
-                            await widget.onUndo(r.key);
-                            if (!mounted) return;
-                            setState(() {
-                              _records =
-                                  _records.where((e) => e.key != r.key).toList();
-                            });
-                          },
-                          child:  Text(context.l10n.flowUndo),
-                        ),
-                      ),
-                  ],
+                child: ClipRect(
+                  child: Material(
+                    type: MaterialType.transparency,
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: [
+                        for (final r in _records)
+                          ListTile(
+                            title: Text('${r.title} [${r.level}]',
+                                maxLines: 1, overflow: TextOverflow.ellipsis),
+                            subtitle: Text(r.kind == GainFeedbackKind.dislike
+                                ? context.l10n.flowDislikedUntilUndone
+                                : context.l10n.flowTemporarilyStuckClearsAutomaticallyOnP0((_formatDate(r.expiresAt!)).toString())),
+                            trailing: TextButton(
+                              onPressed: () async {
+                                await widget.onUndo(r.key);
+                                if (!mounted) return;
+                                setState(() {
+                                  _records =
+                                      _records.where((e) => e.key != r.key).toList();
+                                });
+                              },
+                              child:  Text(context.l10n.flowUndo),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
           ],

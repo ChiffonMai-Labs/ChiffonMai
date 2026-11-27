@@ -449,28 +449,33 @@ class _SongPickerSheetState extends State<_SongPickerSheet> {
                       empty ? l10n.customTagSearchHint : l10n.customTagNoSongs,
                       style: TextStyle(color: scheme.onSurfaceVariant)),
                 )
-              : ListView.builder(
-                  padding: EdgeInsets.zero,
-                  itemCount: _results.length,
-                  itemBuilder: (context, i) {
-                    final song = _results[i];
-                    final utage =
-                        ChartDifficulty.isUtageSong(song.id, type: song.type);
-                    return ListTile(
-                      leading: ClipRRect(
-                        borderRadius: BorderRadius.circular(
-                            AppDesignTokens.radiusSmall),
-                        child: CoverUtil.buildCoverWidget(song.id, 44),
-                      ),
-                      title: Text(song.title,
-                          maxLines: 2, overflow: TextOverflow.ellipsis),
-                      subtitle: Text(
-                          '${utage ? 'UTAGE' : song.type == 'DX' ? 'DX' : 'ST'} · ${song.basicInfo.artist}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis),
-                      onTap: () => Navigator.pop(context, song),
-                    );
-                  },
+              : ClipRect(
+                  child: Material(
+                    type: MaterialType.transparency,
+                    child: ListView.builder(
+                      padding: EdgeInsets.zero,
+                      itemCount: _results.length,
+                      itemBuilder: (context, i) {
+                        final song = _results[i];
+                        final utage =
+                            ChartDifficulty.isUtageSong(song.id, type: song.type);
+                        return ListTile(
+                          leading: ClipRRect(
+                            borderRadius: BorderRadius.circular(
+                                AppDesignTokens.radiusSmall),
+                            child: CoverUtil.buildCoverWidget(song.id, 44),
+                          ),
+                          title: Text(song.title,
+                              maxLines: 2, overflow: TextOverflow.ellipsis),
+                          subtitle: Text(
+                              '${utage ? 'UTAGE' : song.type == 'DX' ? 'DX' : 'ST'} · ${song.basicInfo.artist}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis),
+                          onTap: () => Navigator.pop(context, song),
+                        );
+                      },
+                    ),
+                  ),
                 ),
         ),
       ]),
