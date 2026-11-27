@@ -15683,6 +15683,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get rankingHideAnonymousTop100Hint => '匿名以外の上位100名を表示中';
 
   @override
+  String get rankingHideAnonymousDisabledHint => '匿名ユーザーも表示中';
+
+  @override
   String get best50TieSelectTitle => '末尾同点譜面の選択';
 
   @override

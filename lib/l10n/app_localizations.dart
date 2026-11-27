@@ -26858,6 +26858,12 @@ abstract class AppLocalizations {
   /// **'已开启：展示前 100 名非匿名玩家'**
   String get rankingHideAnonymousTop100Hint;
 
+  /// No description provided for @rankingHideAnonymousDisabledHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'已关闭屏蔽匿名用户'**
+  String get rankingHideAnonymousDisabledHint;
+
   /// No description provided for @best50TieSelectTitle.
   ///
   /// In zh, this message translates to:

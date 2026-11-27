@@ -58,7 +58,6 @@ class _FittedRatingRankingListPageState
   void initState() {
     super.initState();
     CommunityAvatarStore.profileChanges.addListener(_onAppearanceChanged);
-    RankingAnonymousFilter.notifier.addListener(_onFilterChanged);
     _currentMode = widget.initialMode;
     _loadData();
   }
@@ -81,6 +80,8 @@ class _FittedRatingRankingListPageState
 
   Future<void> _loadData() async {
     await RankingAnonymousFilter.load();
+    if (!mounted) return;
+    RankingAnonymousFilter.notifier.addListener(_onFilterChanged);
     await _loadCurrentUserInfo();
     await _loadRankings();
   }
@@ -373,6 +374,9 @@ class _FittedRatingRankingListPageState
               AppHeader(
                 title: context.l10n.featureTotalFittedRatingLeaderboard,
                 actions: [
+                  const RankingAnonymousFilterButton(
+                    showAllWhenEnabled: false,
+                  ),
                   IconButton(
                     icon: _isLoading
                         ? CircularProgressIndicator(
@@ -413,7 +417,6 @@ class _FittedRatingRankingListPageState
 
               // 免责声明
               const RankingNotice(),
-              const RankingAnonymousFilterBar(showAllWhenEnabled: false),
 
               // 排行榜列表
               Expanded(

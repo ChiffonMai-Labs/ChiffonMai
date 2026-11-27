@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../constant/CacheKeyConstant.dart';
 import '../utils/AppDesignTokens.dart';
 import '../utils/AppTheme.dart';
-import 'AppSwitch.dart';
+import 'AppToast.dart';
 import 'AppUi.dart';
 
 /// 排行榜共用的部件：名次、玩家行、固定在底部的「我的排名」、说明条。
@@ -244,12 +244,15 @@ class RankingAnonymousFilter {
 
   static final ValueNotifier<bool> notifier = ValueNotifier<bool>(false);
   static bool _loaded = false;
+  static int _revision = 0;
 
   static bool get enabled => notifier.value;
 
   static Future<bool> load() async {
     if (_loaded) return notifier.value;
+    final revision = _revision;
     final prefs = await SharedPreferences.getInstance();
+    if (revision != _revision) return notifier.value;
     final value =
         prefs.getBool(CacheKeyConstant.rankingHideAnonymous) ?? false;
     _loaded = true;
@@ -259,7 +262,13 @@ class RankingAnonymousFilter {
     return value;
   }
 
+  static Future<bool> reload() async {
+    _loaded = false;
+    return load();
+  }
+
   static Future<void> set(bool value) async {
+    _revision++;
     _loaded = true;
     if (notifier.value != value) {
       notifier.value = value;
@@ -269,12 +278,12 @@ class RankingAnonymousFilter {
   }
 }
 
-/// 排行榜顶部的「屏蔽匿名用户」开关条。
-class RankingAnonymousFilterBar extends StatelessWidget {
+/// 排行榜顶部栏右上角的「屏蔽匿名用户」切换按钮。
+class RankingAnonymousFilterButton extends StatelessWidget {
   final bool showAllWhenEnabled;
   final bool enabled;
 
-  const RankingAnonymousFilterBar({
+  const RankingAnonymousFilterButton({
     super.key,
     required this.showAllWhenEnabled,
     this.enabled = true,
@@ -287,65 +296,35 @@ class RankingAnonymousFilterBar extends StatelessWidget {
     return ValueListenableBuilder<bool>(
       valueListenable: RankingAnonymousFilter.notifier,
       builder: (context, active, _) {
-        final subtitle = active
-            ? (showAllWhenEnabled
-                ? l10n.rankingHideAnonymousTotalHint
-                : l10n.rankingHideAnonymousTop100Hint)
-            : null;
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(
-              AppDesignTokens.gutter, 0, AppDesignTokens.gutter, 8),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(12, 6, 8, 6),
-            decoration: BoxDecoration(
-              color: AppSurfaces.card(context),
-              borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.visibility_off_outlined,
-                  size: 16,
-                  color: active ? scheme.primary : scheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        l10n.rankingHideAnonymous,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: scheme.onSurface,
-                        ),
-                      ),
-                      if (subtitle != null)
-                        Text(
-                          subtitle,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: scheme.onSurfaceVariant,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                AppSwitch(
-                  value: active,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  onChanged: enabled ? RankingAnonymousFilter.set : null,
-                ),
-              ],
-            ),
+        final activeHint = showAllWhenEnabled
+            ? l10n.rankingHideAnonymousTotalHint
+            : l10n.rankingHideAnonymousTop100Hint;
+        final tooltip = active
+            ? '${l10n.rankingHideAnonymous} · $activeHint'
+            : l10n.rankingHideAnonymous;
+        return IconButton(
+          tooltip: tooltip,
+          style: active
+              ? IconButton.styleFrom(
+                  backgroundColor: scheme.primaryContainer,
+                  foregroundColor: scheme.onPrimaryContainer,
+                  overlayColor: Colors.transparent,
+                )
+              : null,
+          icon: Icon(
+            active ? Icons.person_off_rounded : Icons.person_off_outlined,
           ),
+          onPressed: enabled
+              ? () {
+                  final next = !active;
+                  RankingAnonymousFilter.set(next);
+                  AppToast.show(
+                    next
+                        ? '${l10n.rankingHideAnonymous} · $activeHint'
+                        : l10n.rankingHideAnonymousDisabledHint,
+                  );
+                }
+              : null,
         );
       },
     );

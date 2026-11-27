@@ -4461,6 +4461,7 @@
   "rankingHideAnonymous": "匿名ユーザーを非表示",
   "rankingHideAnonymousTotalHint": "匿名以外の全プレイヤーを表示中",
   "rankingHideAnonymousTop100Hint": "匿名以外の上位100名を表示中",
+  "rankingHideAnonymousDisabledHint": "匿名ユーザーも表示中",
   "best50TieSelectTitle": "末尾同点譜面の選択",
   "best50TieSelectEntry": "末尾同点カスタム",
   "best50TieSelectSummary": "{label} の同点 {total} 曲から {selected} 曲を選択",

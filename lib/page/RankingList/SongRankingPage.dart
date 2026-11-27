@@ -110,7 +110,6 @@ class _SongRankingPageState extends State<SongRankingPage> {
   void initState() {
     super.initState();
     CommunityAvatarStore.profileChanges.addListener(_onAppearanceChanged);
-    RankingAnonymousFilter.notifier.addListener(_onFilterChanged);
     _loadSongData();
     // 延迟显示免责声明对话框（等待 context 初始化完成）
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -244,6 +243,8 @@ class _SongRankingPageState extends State<SongRankingPage> {
 
   Future<void> _loadSongData() async {
     await RankingAnonymousFilter.load();
+    if (!mounted) return;
+    RankingAnonymousFilter.notifier.addListener(_onFilterChanged);
     try {
       final result = await SongInfoService().loadData(widget.songId);
       _songData = result['songData'];
@@ -816,6 +817,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
     return BackgroundPageScaffold(
       title: title,
       actions: [
+        const RankingAnonymousFilterButton(showAllWhenEnabled: false),
         // 免责声明按钮
         IconButton(
           icon: const Icon(Icons.info_outline),
@@ -1002,7 +1004,6 @@ class _SongRankingPageState extends State<SongRankingPage> {
             ),
           ),
         ),
-        const RankingAnonymousFilterBar(showAllWhenEnabled: false),
         Expanded(
             child: _isLoading && _rankingList.isEmpty
                 ? Center(child: CircularProgressIndicator())

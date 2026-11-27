@@ -34,6 +34,7 @@ import 'service/System/AppFontService.dart';
 import 'service/System/LogExportService.dart';
 import 'utils/WindowDiagnostics.dart';
 import 'widgets/AppToast.dart';
+import 'widgets/RankingUi.dart';
 import 'package:my_first_flutter_app/widgets/Best50Ui.dart';
 import 'package:my_first_flutter_app/service/System/BackgroundExportService.dart';
 import 'package:my_first_flutter_app/service/System/CrashReportService.dart';
@@ -64,6 +65,7 @@ Future<void> _initStartupServices() async {
       SongDetailPreferences.instance.load(),
       RatingSegmentPreferences.instance.load(),
       AppModePreferences.instance.load(),
+      RankingAnonymousFilter.load(),
     ]);
   } catch (e) {
     debugPrint('[Startup] 后台初始化失败（不影响首页交互）: $e');

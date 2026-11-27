@@ -15367,6 +15367,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get rankingHideAnonymousTop100Hint => '已开启：展示前 100 名非匿名玩家';
 
   @override
+  String get rankingHideAnonymousDisabledHint => '已关闭屏蔽匿名用户';
+
+  @override
   String get best50TieSelectTitle => '选择末尾同分谱面';
 
   @override
@@ -31282,6 +31285,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get rankingHideAnonymousTop100Hint => '已開啟：展示前 100 名非匿名玩家';
+
+  @override
+  String get rankingHideAnonymousDisabledHint => '已關閉屏蔽匿名用戶';
 
   @override
   String get best50TieSelectTitle => '選擇末尾同分譜面';

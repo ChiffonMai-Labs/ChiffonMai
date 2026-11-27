@@ -38,6 +38,7 @@ import '../SongInfo/ChartNoteService.dart';
 import '../ChartPlay/ChartPackageHistoryStore.dart';
 import '../ChartPlay/ChartPlaySettingsStore.dart';
 import '../Community/CommunityAvatarStore.dart';
+import '../../widgets/RankingUi.dart';
 import '../Favorite/FavoriteFolderService.dart';
 import '../Score/PaiziProgressService.dart';
 import '../Score/PersonalizedScoreService.dart';
@@ -81,8 +82,8 @@ class DataBackupService {
     CacheKeyConstant.travelBuddiesCollectionsTimestamp,
     CacheKeyConstant.partnersCollectionsCacheData,
     CacheKeyConstant.partnersCollectionsTimestamp,
-    CacheKeyConstant.maiTagsCache,
-    CacheKeyConstant.maiTagsCacheTimestamp,
+    'mai_tags_cache',
+    'mai_tags_cache_timestamp',
     CacheKeyConstant.userPlayData,
     CacheKeyConstant.accountRotationPending,
     'account_history_identity_migrated_v1',
@@ -634,6 +635,7 @@ class DataBackupService {
     await CustomTagStore.instance.reload();
     await LoadingTipsStore.instance.reloadPreferences();
     await GainFeedbackStore.instance.reload();
+    await RankingAnonymousFilter.reload();
 
     // 账号身份 / 主题 / 星标 / 昵称 / 线路。
     await ThemeManager().loadThemePreference();

@@ -1,7 +1,6 @@
 import 'package:my_first_flutter_app/l10n/FeatureLocalizations.dart';
 import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
-import 'AwmcRatingDistributionPage.dart';
 import '../../service/Community/CommunityAvatarStore.dart';
 import '../../widgets/RankingPlayerBriefSheet.dart';
 import 'package:flutter/material.dart';
@@ -73,7 +72,6 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
   void initState() {
     super.initState();
     CommunityAvatarStore.profileChanges.addListener(_onAppearanceChanged);
-    RankingAnonymousFilter.notifier.addListener(_onFilterChanged);
     _loadData();
   }
 
@@ -95,6 +93,8 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
 
   Future<void> _loadData() async {
     await RankingAnonymousFilter.load();
+    if (!mounted) return;
+    RankingAnonymousFilter.notifier.addListener(_onFilterChanged);
     await _loadCurrentUserInfo();
     await _loadRankings();
   }
@@ -435,15 +435,8 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
               AppHeader(
                 title: context.l10n.featureRatingLeaderboard,
                 actions: [
-                  IconButton(
-                    tooltip: 'AWMC NET · ${context.l10n.flowRatingDistribution}',
-                    icon: const Icon(Icons.bar_chart_rounded),
-                    onPressed: () {
-                      FocusManager.instance.primaryFocus?.unfocus();
-                      Navigator.of(context).push<void>(MaterialPageRoute(
-                        builder: (_) => const AwmcRatingDistributionPage(),
-                      ));
-                    },
+                  RankingAnonymousFilterButton(
+                    showAllWhenEnabled: _selectedTab == 0,
                   ),
                   IconButton(
                     icon: _isLoading
@@ -487,7 +480,6 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
               ),
               // 免责声明
               const RankingNotice(),
-              RankingAnonymousFilterBar(showAllWhenEnabled: _selectedTab == 0),
 
               // 排行榜列表
               Expanded(

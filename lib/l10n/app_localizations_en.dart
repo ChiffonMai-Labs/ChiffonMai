@@ -16272,6 +16272,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Showing top 100 non-anonymous players';
 
   @override
+  String get rankingHideAnonymousDisabledHint =>
+      'Showing all players including anonymous';
+
+  @override
   String get best50TieSelectTitle => 'Choose Tied Tail Charts';
 
   @override

@@ -4461,6 +4461,7 @@
   "rankingHideAnonymous": "Hide anonymous users",
   "rankingHideAnonymousTotalHint": "Showing all non-anonymous players",
   "rankingHideAnonymousTop100Hint": "Showing top 100 non-anonymous players",
+  "rankingHideAnonymousDisabledHint": "Showing all players including anonymous",
   "best50TieSelectTitle": "Choose Tied Tail Charts",
   "best50TieSelectEntry": "Customize Tied Tail",
   "best50TieSelectSummary": "{label}: pick {selected} of {total} tied charts",

@@ -4461,6 +4461,7 @@
   "rankingHideAnonymous": "屏蔽匿名用戶",
   "rankingHideAnonymousTotalHint": "已開啟：展示全部非匿名玩家",
   "rankingHideAnonymousTop100Hint": "已開啟：展示前 100 名非匿名玩家",
+  "rankingHideAnonymousDisabledHint": "已關閉屏蔽匿名用戶",
   "best50TieSelectTitle": "選擇末尾同分譜面",
   "best50TieSelectEntry": "末尾同分自選",
   "best50TieSelectSummary": "{label} 共 {total} 首同分，選 {selected} 首入榜",
