@@ -15,6 +15,7 @@ import 'simai_colors.dart';
 import 'components/chart_status_text_component.dart';
 import 'components/chart_counter_overlay_component.dart';
 import 'components/achievement_rate_component.dart';
+import 'components/playback_judgement_component.dart';
 import 'rendering/notes_batch_renderer.dart';
 import 'utils/note_asset_manager.dart';
 import 'rendering/precalc_data.dart';
@@ -68,6 +69,8 @@ class SimaiGame extends FlameGame with KeyboardEvents {
   bool highlightExNotes;
   bool showApproachLine;
   bool showHitEffects;
+  bool showJudgementDisplay;
+  SimaiJudgementDisplayMode judgementDisplayMode;
   bool showGameplayInputPartitions;
   bool showGameplayTouchIndicators;
   bool showAchievementRate;
@@ -212,6 +215,8 @@ class SimaiGame extends FlameGame with KeyboardEvents {
     this.highlightExNotes = false,
     this.showApproachLine = true,
     this.showHitEffects = true,
+    this.showJudgementDisplay = false,
+    this.judgementDisplayMode = SimaiJudgementDisplayMode.twoB,
     this.showGameplayInputPartitions = false,
     this.showGameplayTouchIndicators = true,
     this.showAchievementRate = true,
@@ -371,26 +376,40 @@ class SimaiGame extends FlameGame with KeyboardEvents {
     _scheduleNoteAssetsRebuild();
   }
 
-  void _scheduleNoteAssetsRebuild() {
-    if (noteScale <= 0 || !noteScale.isFinite) return;
+  Future<void> _scheduleNoteAssetsRebuild() {
+    if (noteScale <= 0 || !noteScale.isFinite) return Future<void>.value();
     final int rebuildGeneration = ++_assetRebuildGeneration;
     final targetScale = noteScale;
     final targetStyle = noteStyle;
-    Future.microtask(() async {
-      await _assetRebuildTask;
-      if (rebuildGeneration != _assetRebuildGeneration) return;
-      final task = noteAssets.rebuild(targetScale, noteStyle: targetStyle);
-      _assetRebuildTask = task;
-      await task;
-      if (rebuildGeneration != _assetRebuildGeneration) return;
+    final previousTask = _assetRebuildTask;
+    // 同步登记完整 Future，避免调用方在 microtask 尚未运行前 await 到旧任务或 null。
+    final task = () async {
+      if (previousTask != null) {
+        await previousTask;
+      }
+      if (_isRemoved || rebuildGeneration != _assetRebuildGeneration) return;
+      await noteAssets.rebuild(targetScale, noteStyle: targetStyle);
+      if (_isRemoved || rebuildGeneration != _assetRebuildGeneration) return;
       invalidateNotes();
-    });
+    }();
+    _assetRebuildTask = task;
+    return task;
   }
 
   void setNoteStyle(SimaiNoteStyle style) {
     if (noteStyle == style) return;
     noteStyle = style;
-    _scheduleNoteAssetsRebuild();
+    unawaited(_scheduleNoteAssetsRebuild());
+  }
+
+  /// 切换音符样式并等待精灵图集重新烘焙完成（供无头预览与视频导出同步使用）。
+  Future<void> setNoteStyleAsync(SimaiNoteStyle style) async {
+    if (noteStyle == style) {
+      await _assetRebuildTask;
+      return;
+    }
+    noteStyle = style;
+    await _scheduleNoteAssetsRebuild();
   }
 
   int _assetRebuildGeneration = 0;
@@ -536,6 +555,7 @@ class SimaiGame extends FlameGame with KeyboardEvents {
           achievementIndex: achievementIndex,
         )..priority = 2,
       );
+      add(PlaybackJudgementComponent(chart)..priority = 3);
     } else {
       add(GameplayHudComponent(gameplaySession!)..priority = 3);
     }
@@ -562,7 +582,10 @@ class SimaiGame extends FlameGame with KeyboardEvents {
   /// Initializes this game without attaching a [GameWidget]. This is used by
   /// the video exporter so the existing Flame renderer remains the single
   /// source of truth for live playback and encoded frames.
-  Future<void> prepareHeadlessExport(Vector2 exportSize) async {
+  Future<void> prepareHeadlessExport(
+    Vector2 exportSize, {
+    double initialStepDelta = 1 / 60,
+  }) async {
     if (!headlessExport) {
       throw StateError('prepareHeadlessExport requires headlessExport=true');
     }
@@ -576,19 +599,27 @@ class SimaiGame extends FlameGame with KeyboardEvents {
     await ready();
     await _assetRebuildTask;
     await _backgroundComponent.waitUntilResolved();
-    updateExportTime(chartTime, resetWindow: true);
+    updateExportTime(chartTime, resetWindow: true, dt: initialStepDelta);
   }
 
-  void updateExportTime(double time, {bool resetWindow = false}) {
+  void updateExportTime(
+    double time, {
+    bool resetWindow = false,
+    double dt = 1 / 60,
+  }) {
     if (!headlessExport) {
       throw StateError('updateExportTime requires headlessExport=true');
     }
+    final safeDt = (dt.isFinite && dt > 0) ? dt : 1 / 60;
+    measuredFps = 1.0 / safeDt;
+    frameIntervalP95Ms = safeDt * 1000.0;
+    motionStepP95Ms = safeDt * 1000.0;
     chartTime = time;
     if (resetWindow) {
       _pendingSeekReset = true;
       _notesComponent.invalidate(resetWindow: true);
     }
-    super.update(1 / 60);
+    super.update(safeDt);
   }
 
   void disposeHeadlessExport() {
@@ -846,6 +877,16 @@ class SimaiGame extends FlameGame with KeyboardEvents {
     );
   }
 
+  /// 切换镜像模式并等待预计算完成（供无头预览热同步使用）。
+  Future<void> setMirrorModeAsync(SimaiMirrorMode mode) async {
+    if ((_requestedMirrorMode ?? mirrorMode) == mode) {
+      await _precalcTask;
+      return;
+    }
+    _requestedMirrorMode = mode;
+    await _startPrecalculation(targetMirrorMode: mode, atomicMirrorSwap: true);
+  }
+
   void setAudioAsset(String? asset) {
     if (audioAsset == asset) return;
     audioAsset = asset;
@@ -983,6 +1024,27 @@ class SimaiGame extends FlameGame with KeyboardEvents {
     if (!_notesReady) return;
     _notesComponent.invalidate(resetWindow: resetWindow);
     if (isResourcesLoaded) {
+      _requestPausedFrame();
+    }
+  }
+
+  @override
+  void onAttach() {
+    super.onAttach();
+    if (!headlessExport && !isPlaying && paused) {
+      // Flame 在 paused=true 时不会在 loaderFuture 或 _attachGame 期间调用 update(0)，
+      // 导致 onLoad 中 add 的组件滞留在生命周期队列中未挂载（进入播放页时谱面区全黑）。
+      // 待 GameRenderBox 完成 gameLoop 初始化后立刻步进一帧驱动挂载与首帧渲染。
+      Future<void>.microtask(_requestPausedFrameIfAttached);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _requestPausedFrameIfAttached();
+      });
+    }
+  }
+
+  void _requestPausedFrameIfAttached() {
+    if (_isRemoved || headlessExport || !isAttached) return;
+    if (!isPlaying && paused) {
       _requestPausedFrame();
     }
   }

@@ -230,6 +230,26 @@ void _drawHoldHexagon(
     );
     return;
   }
+  if (noteStyle == SimaiNoteStyle.simple || noteStyle == SimaiNoteStyle.bar) {
+    _drawModernHoldBody(
+      canvas,
+      head: head,
+      tail: tail,
+      angle: angle,
+      outerRadius: outerRadius,
+      scale: scale,
+      alpha: alpha,
+      noteScale: noteScale,
+      chartRadius: chartRadius,
+      highlight: highlight,
+      isBar: noteStyle == SimaiNoteStyle.bar,
+      isBreak: isBreak,
+      isEach: isEach,
+      isPressed: isPressed,
+      pressedElapsedMs: pressedElapsedMs,
+    );
+    return;
+  }
 
   if (highlight && alpha > 0) {
     _holdHighlightPaint
@@ -457,4 +477,167 @@ void _drawArcadeHoldBody(
   }
   _holdFillPaint.color = _tintHoldColor(dotBaseColor, brightness, alpha);
   canvas.drawCircle(tail, dotRadius, _holdFillPaint);
+}
+
+/// 舞萌 DX「简洁（シンプル）」与「条形（バー）」风格 Hold：圆润胶囊 / 切向平端条身、柔滑渐变、纯净白描边与按压辉光。
+void _drawModernHoldBody(
+  Canvas canvas, {
+  required Offset head,
+  required Offset tail,
+  required double angle,
+  required double outerRadius,
+  required double scale,
+  required int alpha,
+  required double noteScale,
+  required double chartRadius,
+  required bool highlight,
+  required bool isBar,
+  required bool isBreak,
+  required bool isEach,
+  required bool isPressed,
+  required double pressedElapsedMs,
+}) {
+  final double length = (head - tail).distance;
+  final double halfWidth = isBar ? outerRadius * 0.94 : outerRadius * 0.90;
+  final double endCapExtend = isBar ? outerRadius * 0.33 : outerRadius * 0.92;
+  final double cornerRadius = isBar ? outerRadius * 0.28 : halfWidth;
+  final double innerInset = isBar ? outerRadius * 0.26 : outerRadius * 0.34;
+  final double strokeW = 2.2 * scale * noteScale;
+
+  final Color baseLight = isBreak
+      ? SimaiModernNoteColors.breakLight
+      : (isEach
+            ? SimaiModernNoteColors.eachLight
+            : SimaiModernNoteColors.pinkLight);
+  final Color baseDeep = isBreak
+      ? SimaiModernNoteColors.breakDeep
+      : (isEach
+            ? SimaiModernNoteColors.eachDeep
+            : SimaiModernNoteColors.pinkDeep);
+  final double brightness =
+      isPressed ? _holdActiveBrightness(pressedElapsedMs) : 1.0;
+  final Color lightColor = _tintHoldColor(baseLight, brightness, alpha);
+  final Color bodyColor = _tintHoldColor(baseDeep, brightness, alpha);
+
+  final Rect outerRect = Rect.fromLTRB(
+    -endCapExtend,
+    -halfWidth,
+    length + endCapExtend,
+    halfWidth,
+  );
+  final RRect outerRRect = RRect.fromRectAndRadius(
+    outerRect,
+    Radius.circular(cornerRadius),
+  );
+  final Rect innerRect = Rect.fromLTRB(
+    -max(0.0, endCapExtend - innerInset),
+    -max(1.0, halfWidth - innerInset),
+    length + max(0.0, endCapExtend - innerInset),
+    max(1.0, halfWidth - innerInset),
+  );
+  final RRect innerRRect = RRect.fromRectAndRadius(
+    innerRect,
+    Radius.circular(max(1.0, cornerRadius - innerInset * 0.8)),
+  );
+
+  canvas.save();
+  canvas.translate(tail.dx, tail.dy);
+  canvas.rotate(angle);
+
+  if (highlight && alpha > 0) {
+    final Color exColor = isBreak
+        ? SimaiVisualTokens.colorExOverlayBreak
+        : (isEach
+              ? SimaiVisualTokens.colorExOverlaySimultaneous
+              : SimaiVisualTokens.colorExOverlayNormal);
+    final double pad = outerRadius * 0.19;
+    final RRect exRRect = outerRRect.inflate(pad);
+    _holdCombinedPath
+      ..reset()
+      ..fillType = PathFillType.evenOdd
+      ..addRRect(exRRect)
+      ..addRRect(outerRRect);
+    _holdFillPaint
+      ..shader = null
+      ..color = exColor.withAlpha((exColor.a * alpha).round().clamp(0, 255));
+    canvas.drawPath(_holdCombinedPath, _holdFillPaint);
+  }
+
+  _holdCombinedPath
+    ..reset()
+    ..fillType = PathFillType.evenOdd
+    ..addRRect(outerRRect)
+    ..addRRect(innerRRect);
+
+  _holdFillPaint.shader = ui.Gradient.linear(
+    Offset(0, -halfWidth),
+    Offset(0, halfWidth),
+    [bodyColor, lightColor, bodyColor],
+    const [0.0, 0.5, 1.0],
+  );
+  canvas.drawPath(_holdCombinedPath, _holdFillPaint);
+  _holdFillPaint.shader = null;
+
+  // 条形样式在头尾端头补充白亮横杠，呼应条形 Tap。
+  if (isBar) {
+    final double barW = outerRadius * 0.14;
+    final double barH = halfWidth * 1.45;
+    _holdFillPaint.color = Colors.white.withAlpha((alpha * 0.72).round());
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(center: Offset(length, 0), width: barW, height: barH),
+        Radius.circular(barW * 0.5),
+      ),
+      _holdFillPaint,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(center: Offset.zero, width: barW, height: barH),
+        Radius.circular(barW * 0.5),
+      ),
+      _holdFillPaint,
+    );
+  }
+
+  _holdStrokePaint
+    ..color = Color.fromARGB((alpha * 0.55).round(), 24, 24, 32)
+    ..strokeWidth = strokeW * 1.6;
+  canvas.drawRRect(outerRRect, _holdStrokePaint);
+
+  _holdStrokePaint
+    ..color = _tintHoldColor(Colors.white, brightness, alpha)
+    ..strokeWidth = strokeW;
+  canvas.drawRRect(outerRRect, _holdStrokePaint);
+  canvas.drawRRect(innerRRect, _holdStrokePaint);
+
+  final Color dotBaseColor = isBreak
+      ? SimaiModernNoteColors.breakDot
+      : (isEach
+            ? SimaiModernNoteColors.eachDot
+            : SimaiModernNoteColors.pinkDot);
+  if (isPressed && chartRadius > 0) {
+    final double glowOuter = chartRadius * 0.058;
+    if (glowOuter >= 1.0) {
+      _holdFillPaint.shader = ui.Gradient.radial(
+        Offset(length, 0),
+        glowOuter,
+        [
+          Colors.white.withAlpha((alpha * 0.92).round()),
+          lightColor.withAlpha((alpha * 0.62).round()),
+          const Color(0x00000000),
+        ],
+        const [0.0, 0.45, 1.0],
+      );
+      canvas.drawCircle(Offset(length, 0), glowOuter, _holdFillPaint);
+      _holdFillPaint.shader = null;
+    }
+  } else if (!isBar) {
+    final double dotRadius = outerRadius * 0.15;
+    _holdFillPaint.color = dotBaseColor.withAlpha(alpha);
+    canvas.drawCircle(Offset(length, 0), dotRadius, _holdFillPaint);
+    _holdFillPaint.color = _tintHoldColor(dotBaseColor, brightness, alpha);
+    canvas.drawCircle(Offset.zero, dotRadius, _holdFillPaint);
+  }
+
+  canvas.restore();
 }

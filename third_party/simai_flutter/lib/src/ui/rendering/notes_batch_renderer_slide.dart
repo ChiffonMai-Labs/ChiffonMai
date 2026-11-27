@@ -267,7 +267,7 @@ void _drawSlideVectorPass(
           Offset(fanLeftX[i], fanLeftY[i]) * drawScale + game.chartCenter;
       final Offset pRight =
           Offset(fanRightX[i], fanRightY[i]) * drawScale + game.chartCenter;
-      if (game.noteStyle == SimaiNoteStyle.arcade) {
+      if (game.noteStyle.usesEnhancedVisuals) {
         final double mainW = 12.0 * game.noteScale;
         _fanArrowPaint
           ..color = Colors.black.withAlpha((trackAlpha * 0.45).round())
@@ -351,7 +351,7 @@ void _drawSlideArrowsSpritePass(
     final double arrowScale = game.noteScale;
     final double spriteSize = NoteAssetManager.slideArrowSpriteSize(arrowScale);
     final bool useBreakDualArrow =
-        game.noteStyle == SimaiNoteStyle.arcade &&
+        game.noteStyle.usesEnhancedVisuals &&
         effectiveColor == SimaiColors.slideBreak &&
         game.noteAssets.hasAsset('slide_arrow_break');
     final String arrowKey =

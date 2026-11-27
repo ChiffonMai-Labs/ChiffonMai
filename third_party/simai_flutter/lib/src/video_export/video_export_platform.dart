@@ -7,11 +7,16 @@ abstract class SimaiNativeVideoExportPlatform {
   static SimaiNativeVideoExportPlatform get instance =>
       createNativeVideoExportPlatform();
 
-  Future<bool> isSupported({required int width, required int height});
+  Future<bool> isSupported({
+    required int width,
+    required int height,
+    int fps = 60,
+  });
 
   Future<SimaiNativeVideoSession> start({
     required int width,
     required int height,
+    int fps = 60,
     required int videoBitrate,
     required String? outputPath,
     required String? audioAsset,
@@ -19,6 +24,8 @@ abstract class SimaiNativeVideoExportPlatform {
     required String audioMode,
     String? pvVideoPath,
     List<int>? pvRect,
+    bool saveToGallery = false,
+    String? displayName,
   });
 
   Future<void> submitFrame({
@@ -81,9 +88,13 @@ class SimaiNativeVideoSession {
 class SimaiNativeVideoFinishResult {
   final String outputPath;
   final int fileSizeBytes;
+  final bool savedToGallery;
+  final String? galleryUri;
 
   const SimaiNativeVideoFinishResult({
     required this.outputPath,
     required this.fileSizeBytes,
+    this.savedToGallery = false,
+    this.galleryUri,
   });
 }

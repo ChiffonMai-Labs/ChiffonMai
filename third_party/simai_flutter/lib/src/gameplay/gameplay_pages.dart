@@ -1439,6 +1439,110 @@ class _NoteSpeedPreviewPainter extends CustomPainter {
       return;
     }
 
+    if (noteStyle == SimaiNoteStyle.simple) {
+      final simpleInnerR = outerRadius * 0.58;
+      final simpleStrokeW = max(1.2, 2.4 * noteScale);
+      final ringPath = Path()
+        ..fillType = PathFillType.evenOdd
+        ..addOval(Rect.fromCircle(center: position, radius: outerRadius))
+        ..addOval(Rect.fromCircle(center: position, radius: simpleInnerR));
+      final ringPaint = Paint()
+        ..isAntiAlias = true
+        ..style = PaintingStyle.fill
+        ..shader = const RadialGradient(
+          colors: [
+            SimaiModernNoteColors.pinkLight,
+            SimaiModernNoteColors.pinkMid,
+            SimaiModernNoteColors.pinkDeep,
+          ],
+          stops: [0.58, 0.80, 1.0],
+        ).createShader(Rect.fromCircle(center: position, radius: outerRadius));
+      canvas.drawPath(ringPath, ringPaint);
+      canvas.drawCircle(
+        position,
+        simpleInnerR + (outerRadius - simpleInnerR) * 0.34,
+        Paint()
+          ..isAntiAlias = true
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = (outerRadius - simpleInnerR) * 0.22
+          ..color = Colors.white.withValues(alpha: 0.22),
+      );
+      final whitePaint = Paint()
+        ..isAntiAlias = true
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = simpleStrokeW
+        ..color = Colors.white;
+      canvas.drawCircle(position, outerRadius, whitePaint);
+      canvas.drawCircle(position, simpleInnerR, whitePaint);
+      final dotR = outerRadius * 0.16;
+      canvas.drawCircle(
+        position,
+        dotR + 1.0 * noteScale,
+        Paint()
+          ..isAntiAlias = true
+          ..color = Colors.white,
+      );
+      canvas.drawCircle(
+        position,
+        dotR,
+        Paint()
+          ..isAntiAlias = true
+          ..color = SimaiModernNoteColors.pinkDot,
+      );
+      return;
+    }
+
+    if (noteStyle == SimaiNoteStyle.bar) {
+      final radialThickness = outerRadius * 0.66;
+      final tangentLength = outerRadius * 1.96;
+      final barRect = Rect.fromCenter(
+        center: position,
+        width: radialThickness,
+        height: tangentLength,
+      );
+      final barRRect = RRect.fromRectAndRadius(
+        barRect,
+        Radius.circular(radialThickness * 0.46),
+      );
+      canvas.drawRRect(
+        barRRect,
+        Paint()
+          ..isAntiAlias = true
+          ..style = PaintingStyle.fill
+          ..shader = const LinearGradient(
+            colors: [
+              SimaiModernNoteColors.pinkDeep,
+              SimaiModernNoteColors.pinkLight,
+              SimaiModernNoteColors.pinkMid,
+              SimaiModernNoteColors.pinkDeep,
+            ],
+            stops: [0.0, 0.30, 0.70, 1.0],
+          ).createShader(barRect),
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(
+            center: position,
+            width: radialThickness * 0.24,
+            height: tangentLength * 0.72,
+          ),
+          Radius.circular(radialThickness * 0.12),
+        ),
+        Paint()
+          ..isAntiAlias = true
+          ..color = Colors.white.withValues(alpha: 0.72),
+      );
+      canvas.drawRRect(
+        barRRect,
+        Paint()
+          ..isAntiAlias = true
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = strokeWidth
+          ..color = Colors.white,
+      );
+      return;
+    }
+
     final tapPaint = Paint()
       ..isAntiAlias = true
       ..style = PaintingStyle.fill

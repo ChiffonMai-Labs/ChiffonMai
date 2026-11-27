@@ -110,8 +110,12 @@ class VideoExportBackgroundService {
 
     unawaited(
       task.result.then(
-        (_) {
-          _sendFinish(status: 'completed', title: task.metadata.title);
+        (result) {
+          _sendFinish(
+            status: 'completed',
+            title: task.metadata.title,
+            message: result.savedToGallery ? '已直接保存到系统相册' : '点击返回保存或分享',
+          );
         },
         onError: (Object error, StackTrace stackTrace) {
           if (error is SimaiVideoExportCancelledException) {

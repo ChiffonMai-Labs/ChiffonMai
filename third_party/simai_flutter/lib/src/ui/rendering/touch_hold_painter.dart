@@ -109,7 +109,8 @@ class TouchHoldPainter {
     final petalAlpha = timeUntilHead > 0 ? (age / 0.15).clamp(0.0, 1.0) : 1.0;
     final distance = petalDistance(1 - timeUntilHead / approachTime);
     final bool arcade = noteStyle == SimaiNoteStyle.arcade;
-    final double strokeWidth = arcade ? 2.0 : 3.0;
+    final bool enhanced = noteStyle.usesEnhancedVisuals;
+    final double strokeWidth = enhanced ? 2.0 : 3.0;
     canvas.save();
     canvas.translate(center.dx, center.dy);
     canvas.scale(scale);
@@ -118,7 +119,7 @@ class TouchHoldPainter {
         canvas,
         (-timeUntilHead / duration).clamp(0.0, 1.0),
         alpha,
-        arcade: arcade,
+        arcade: enhanced,
       );
     }
     final opacity = (255 * alpha * petalAlpha).round();
@@ -127,11 +128,13 @@ class TouchHoldPainter {
       canvas.save();
       canvas.translate(position.dx, position.dy);
       final path = _petals[index];
-      if (arcade) {
-        _strokePaint
-          ..strokeWidth = strokeWidth * 3.0
-          ..color = Colors.black.withAlpha(opacity);
-        canvas.drawPath(path, _strokePaint);
+      if (enhanced) {
+        if (arcade) {
+          _strokePaint
+            ..strokeWidth = strokeWidth * 3.0
+            ..color = Colors.black.withAlpha(opacity);
+          canvas.drawPath(path, _strokePaint);
+        }
 
         final palette = _arcadePalettes[index];
         final tip = Offset.fromDirection(_angles[index] + pi, closedDistance);

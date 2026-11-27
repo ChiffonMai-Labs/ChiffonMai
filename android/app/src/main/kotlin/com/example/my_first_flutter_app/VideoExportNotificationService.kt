@@ -85,10 +85,11 @@ class VideoExportNotificationService : Service() {
             ensureResultChannel(context, manager)
             when (status) {
                 "completed" -> {
+                    val detail = message?.takeIf { it.isNotBlank() } ?: "已保存到系统相册"
                     val contentText = if (title.isNotBlank()) {
-                        "$title · 点击返回保存或分享"
+                        "$title · $detail"
                     } else {
-                        "点击返回保存或分享"
+                        detail
                     }
                     val notification = buildResultNotification(
                         context = context,

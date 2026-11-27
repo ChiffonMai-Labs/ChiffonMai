@@ -9,6 +9,9 @@ import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.UUID
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 internal class AndroidVideoExportSession(
     val id: Int,
@@ -25,6 +28,8 @@ internal class AndroidVideoExportSession(
     private val audioMode: String,
     private val pvVideoPath: String? = null,
     private val pvRect: IntArray? = null,
+    val saveToGallery: Boolean = false,
+    val displayName: String? = null,
 ) {
     val frameByteCount: Int = Math.multiplyExact(Math.multiplyExact(width, height), 4)
     val frameBuffers: List<ByteBuffer> = List(2) {
@@ -44,13 +49,33 @@ internal class AndroidVideoExportSession(
     private val finalMuxedFile = File(workingDirectory, "final.mp4")
     private var materializedAudioFile: File? = null
     private var encoder: HardwareVideoEncoder? = null
+    // 固定单线程驱动 EGL 与硬编生命周期，避免 Flutter 后台任务队列在系统中断（如下拉通知栏）后切换工作线程触发 EGL_BAD_ACCESS。
+    private val encoderExecutor: ExecutorService = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "SimaiVideoEncoder-$id").apply { isDaemon = true }
+    }
     @Volatile private var cancelled = false
+
+    private fun <T> runOnEncoderThread(block: () -> T): T {
+        if (encoderExecutor.isShutdown) {
+            throw ExportCancelledException()
+        }
+        try {
+            return encoderExecutor.submit<T>(block).get()
+        } catch (error: ExecutionException) {
+            throw error.cause ?: error
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+            throw ExportCancelledException()
+        }
+    }
 
     fun start() {
         require(audioMode in setOf("musicAndHitSounds", "musicOnly", "silent")) {
             "Unsupported audio mode: $audioMode"
         }
-        outputFile.parentFile?.mkdirs()
+        if (!saveToGallery) {
+            outputFile.parentFile?.mkdirs()
+        }
         workingDirectory.mkdirs()
         if (audioMode != "silent") {
             materializedAudioFile = when {
@@ -68,23 +93,28 @@ internal class AndroidVideoExportSession(
                 "启用 PV 背景导出时必须提供有效的 pvRect。"
             }
         }
-        encoder = HardwareVideoEncoder(
-            width = width,
-            height = height,
-            fps = fps,
-            bitrate = videoBitrate,
-            codecName = videoCodecName,
-            outputFile = videoOnlyFile,
-            pvVideoPath = pvVideoPath,
-            pvRect = pvRect,
-        ).also { it.start() }
+        runOnEncoderThread {
+            encoder = HardwareVideoEncoder(
+                width = width,
+                height = height,
+                fps = fps,
+                bitrate = videoBitrate,
+                codecName = videoCodecName,
+                outputFile = videoOnlyFile,
+                pvVideoPath = pvVideoPath,
+                pvRect = pvRect,
+            ).also { it.start() }
+        }
     }
 
     fun submitFrame(slot: Int, presentationTimeUs: Long, pvTimeUs: Long? = null) {
         checkCancelled()
         require(slot in frameBuffers.indices) { "Invalid frame buffer slot $slot" }
-        encoder?.submit(frameBuffers[slot], presentationTimeUs, pvTimeUs)
-            ?: error("Video encoder is not running.")
+        runOnEncoderThread {
+            checkCancelled()
+            encoder?.submit(frameBuffers[slot], presentationTimeUs, pvTimeUs)
+                ?: error("Video encoder is not running.")
+        }
     }
 
     fun finish(
@@ -93,47 +123,90 @@ internal class AndroidVideoExportSession(
         musicOffsetUs: Long,
         musicVolume: Double,
         hitEventTimesUs: List<Long>,
-    ): File {
-        checkCancelled()
-        ensureDiskSpace(durationUs)
-        encoder?.finish()
-        encoder = null
-        checkCancelled()
-        if (audioMode == "silent") {
-            moveReplacing(videoOnlyFile, outputFile)
-        } else {
-            val hitFile = if (audioMode == "musicAndHitSounds") {
-                copyAsset(hitAssetKey, "answer.wav")
-            } else {
-                null
-            }
-            AndroidAudioComposer(
-                musicFile = materializedAudioFile!!,
-                hitSoundFile = hitFile,
-                videoFile = videoOnlyFile,
-                outputFile = finalMuxedFile,
-                workingDirectory = workingDirectory,
-                isCancelled = { cancelled },
-            ).compose(
-                durationUs = durationUs,
-                timelineStartUs = timelineStartUs,
-                musicOffsetUs = musicOffsetUs,
-                musicVolume = musicVolume.toFloat().coerceIn(0f, 1f),
-                hitEventTimesUs = hitEventTimesUs,
-            )
+        directGallerySaver: ((File) -> String?)? = null,
+    ): FinishOutcome {
+        try {
             checkCancelled()
-            moveReplacing(finalMuxedFile, outputFile)
+            ensureDiskSpace(durationUs)
+            runOnEncoderThread {
+                encoder?.finish()
+                encoder = null
+            }
+            checkCancelled()
+            val producedFile = if (audioMode == "silent") {
+                videoOnlyFile
+            } else {
+                val hitFile = if (audioMode == "musicAndHitSounds") {
+                    copyAsset(hitAssetKey, "answer.wav")
+                } else {
+                    null
+                }
+                AndroidAudioComposer(
+                    musicFile = materializedAudioFile!!,
+                    hitSoundFile = hitFile,
+                    videoFile = videoOnlyFile,
+                    outputFile = finalMuxedFile,
+                    workingDirectory = workingDirectory,
+                    isCancelled = { cancelled },
+                ).compose(
+                    durationUs = durationUs,
+                    timelineStartUs = timelineStartUs,
+                    musicOffsetUs = musicOffsetUs,
+                    musicVolume = musicVolume.toFloat().coerceIn(0f, 1f),
+                    hitEventTimesUs = hitEventTimesUs,
+                )
+                checkCancelled()
+                finalMuxedFile
+            }
+            val fileSize = producedFile.length()
+            if (saveToGallery && directGallerySaver != null) {
+                val galleryUri = directGallerySaver(producedFile)
+                if (!galleryUri.isNullOrBlank()) {
+                    cleanupWorkingFiles(keepOutput = false)
+                    return FinishOutcome(
+                        outputPath = galleryUri,
+                        fileSizeBytes = fileSize,
+                        savedToGallery = true,
+                        galleryUri = galleryUri,
+                    )
+                }
+            }
+            moveReplacing(producedFile, outputFile)
+            cleanupWorkingFiles(keepOutput = true)
+            return FinishOutcome(
+                outputPath = outputFile.absolutePath,
+                fileSizeBytes = outputFile.length(),
+                savedToGallery = false,
+                galleryUri = null,
+            )
+        } finally {
+            encoderExecutor.shutdown()
         }
-        cleanupWorkingFiles(keepOutput = true)
-        return outputFile
     }
 
     fun cancel() {
         cancelled = true
-        encoder?.cancel()
-        encoder = null
-        cleanupWorkingFiles(keepOutput = true)
+        if (!encoderExecutor.isShutdown) {
+            runCatching {
+                runOnEncoderThread {
+                    encoder?.cancel()
+                    encoder = null
+                }
+            }
+            encoderExecutor.shutdown()
+        } else {
+            runCatching { encoder?.cancel() }
+            encoder = null
+        }
+        cleanupWorkingFiles(keepOutput = false)
     }
+
+    internal data class FinishOutcome(
+        val outputPath: String,
+        val fileSizeBytes: Long,
+        val savedToGallery: Boolean,
+        val galleryUri: String?,
+    )
 
     private fun checkCancelled() {
         if (cancelled) throw ExportCancelledException()
@@ -177,6 +250,9 @@ internal class AndroidVideoExportSession(
         val available = StatFs(workingDirectory.absolutePath).availableBytes
         require(available >= required) {
             "Insufficient storage: need approximately $required bytes, have $available bytes."
+        }
+        if (saveToGallery) {
+            return
         }
         val outputDirectory = outputFile.parentFile
             ?: error("The output path has no parent directory.")

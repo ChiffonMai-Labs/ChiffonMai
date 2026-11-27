@@ -10,20 +10,22 @@ class SimaiVideoTimeline {
   final double chartStart;
   final double chartEnd;
   final int frameCount;
+  final int fps;
 
   const SimaiVideoTimeline({
     required this.chartStart,
     required this.chartEnd,
     required this.frameCount,
+    this.fps = 60,
   });
 
   double get duration => max(0, chartEnd - chartStart);
 
   int get durationUs => (duration * 1000000).ceil();
 
-  double chartTimeForFrame(int frameIndex) => chartStart + frameIndex / 60.0;
+  double chartTimeForFrame(int frameIndex) => chartStart + frameIndex / fps;
 
-  int presentationTimeUsForFrame(int frameIndex) => frameIndex * 1000000 ~/ 60;
+  int presentationTimeUsForFrame(int frameIndex) => frameIndex * 1000000 ~/ fps;
 
   factory SimaiVideoTimeline.calculate({
     required double visualEnd,
@@ -32,7 +34,9 @@ class SimaiVideoTimeline {
     required List<int> hitEventTimesUs,
     required bool includeMusic,
     required bool includeHitSounds,
+    int fps = 60,
   }) {
+    final safeFps = fps > 0 ? fps : 60;
     final start = min(0.0, includeMusic ? musicOffset : 0.0);
     double end = max(visualEnd, 0.0);
     if (includeMusic) {
@@ -48,7 +52,8 @@ class SimaiVideoTimeline {
     return SimaiVideoTimeline(
       chartStart: start,
       chartEnd: end,
-      frameCount: (duration * 60).ceil(),
+      frameCount: (duration * safeFps).ceil(),
+      fps: safeFps,
     );
   }
 }

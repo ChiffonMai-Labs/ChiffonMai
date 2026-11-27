@@ -93,6 +93,7 @@ void _drawTapVectorPass(
     alpha: alpha,
     noteScale: game.noteScale,
     noteStyle: game.noteStyle,
+    drawAngle: state.drawAngle,
     isBreak:
         note.type == NoteType.breakNote ||
         (note.styles & NoteStyles.mine) != 0,
@@ -139,7 +140,7 @@ void _drawTap(
   final String key = _resolveTapAssetKey(note, isEach);
   final double size = NoteAssetManager.cellExtent * game.noteScale * drawScale;
   final double rotation =
-      game.noteStyle == SimaiNoteStyle.arcade ? state.drawAngle : 0.0;
+      game.noteStyle.usesEnhancedVisuals ? state.drawAngle : 0.0;
 
   if (game.noteAssets.drawSprite(
     canvas,
@@ -187,11 +188,53 @@ void _drawTapHighlight(
   required int alpha,
   required double noteScale,
   SimaiNoteStyle noteStyle = SimaiNoteStyle.classic,
+  double drawAngle = 0.0,
   bool isBreak = false,
   bool isEach = false,
 }) {
   final double outerRadius = NoteGeometry.tapStarHoldRadius * scale * noteScale;
-  if (noteStyle == SimaiNoteStyle.arcade) {
+  if (noteStyle == SimaiNoteStyle.bar) {
+    final Color exColor = isBreak
+        ? SimaiVisualTokens.colorExOverlayBreak
+        : (isEach
+              ? SimaiVisualTokens.colorExOverlaySimultaneous
+              : SimaiVisualTokens.colorExOverlayNormal);
+    final double radialThickness = outerRadius * 0.66;
+    final double tangentLength = outerRadius * 1.96;
+    final double pad = outerRadius * 0.22;
+    final RRect outerBar = RRect.fromRectAndRadius(
+      Rect.fromCenter(
+        center: Offset.zero,
+        width: radialThickness + pad * 2,
+        height: tangentLength + pad * 2,
+      ),
+      Radius.circular((radialThickness + pad * 2) * 0.46),
+    );
+    final RRect innerBar = RRect.fromRectAndRadius(
+      Rect.fromCenter(
+        center: Offset.zero,
+        width: radialThickness,
+        height: tangentLength,
+      ),
+      Radius.circular(radialThickness * 0.46),
+    );
+    _tapExRingFillPaint.color = exColor.withAlpha(
+      (exColor.a * alpha).round().clamp(0, 255),
+    );
+    _tapExRingPath
+      ..reset()
+      ..fillType = PathFillType.evenOdd
+      ..addRRect(outerBar)
+      ..addRRect(innerBar);
+    canvas.save();
+    canvas.translate(position.dx, position.dy);
+    canvas.rotate(drawAngle);
+    canvas.drawPath(_tapExRingPath, _tapExRingFillPaint);
+    canvas.restore();
+    return;
+  }
+  if (noteStyle == SimaiNoteStyle.arcade ||
+      noteStyle == SimaiNoteStyle.simple) {
     final double exOuterRadius = outerRadius * 1.19;
     final Color exColor = isBreak
         ? SimaiVisualTokens.colorExOverlayBreak

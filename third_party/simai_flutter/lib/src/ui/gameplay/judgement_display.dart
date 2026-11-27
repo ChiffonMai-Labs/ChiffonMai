@@ -140,7 +140,10 @@ class SimaiJudgementPresentation {
     if (showsCritical && mode.variant != 'D') {
       return SimaiJudgementPresentation(
         gradeLine: SimaiJudgementLine(text: 'PERFECT', color: gradeColor),
-        timingLine: SimaiJudgementLine(text: 'CRITICAL', color: gradeColor),
+        timingLine: const SimaiJudgementLine(
+          text: 'CRITICAL',
+          color: Color(0xFFFFF176),
+        ),
       );
     }
 
@@ -154,17 +157,23 @@ class SimaiJudgementPresentation {
             ? null
             : SimaiJudgementLine(text: visibleTiming, color: gradeColor),
       ),
+      // 机台 x-C：保留主判定原色，副行以蓝/红双色显示 FAST/LATE。
       'C' => SimaiJudgementPresentation(
-        gradeLine: SimaiJudgementLine(
-          text: gradeText,
-          color: visibleTiming == null ? gradeColor : timingColor,
-        ),
-      ),
-      'D' => SimaiJudgementPresentation(
+        gradeLine: SimaiJudgementLine(text: gradeText, color: gradeColor),
         timingLine: visibleTiming == null
             ? null
             : SimaiJudgementLine(text: visibleTiming, color: timingColor),
       ),
+      // 机台 x-D：隐藏主判定字样仅显示 FAST/LATE，但 MISS 仍需保留显示。
+      'D' => record.grade == SimaiJudgeGrade.miss
+          ? SimaiJudgementPresentation(
+              gradeLine: SimaiJudgementLine(text: gradeText, color: gradeColor),
+            )
+          : SimaiJudgementPresentation(
+              timingLine: visibleTiming == null
+                  ? null
+                  : SimaiJudgementLine(text: visibleTiming, color: timingColor),
+            ),
       _ => SimaiJudgementPresentation(
         gradeLine: SimaiJudgementLine(text: gradeText, color: gradeColor),
       ),

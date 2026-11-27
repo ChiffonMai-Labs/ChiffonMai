@@ -563,12 +563,20 @@ private class CodecInputEglSurface(
         runCatching { EGL14.eglDestroySurface(display, eglSurface) }
         runCatching { EGL14.eglDestroyContext(display, context) }
         runCatching { EGL14.eglReleaseThread() }
-        runCatching { EGL14.eglTerminate(display) }
     }
 
     private fun makeCurrent() {
-        check(EGL14.eglMakeCurrent(display, eglSurface, eglSurface, context)) {
-            "Unable to make encoder EGL context current."
+        if (EGL14.eglGetCurrentContext() == context &&
+            EGL14.eglGetCurrentSurface(EGL14.EGL_DRAW) == eglSurface &&
+            EGL14.eglGetCurrentSurface(EGL14.EGL_READ) == eglSurface
+        ) {
+            return
+        }
+        if (!EGL14.eglMakeCurrent(display, eglSurface, eglSurface, context)) {
+            val err = EGL14.eglGetError()
+            throw IllegalStateException(
+                "Unable to make encoder EGL context current (eglError=0x${Integer.toHexString(err)}).",
+            )
         }
     }
 

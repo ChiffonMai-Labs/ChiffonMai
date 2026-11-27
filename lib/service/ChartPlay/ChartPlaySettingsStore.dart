@@ -80,6 +80,8 @@ class ChartPlaySettings {
   final bool standardBreakSlide;
   final bool showApproachLine;
   final bool showHitEffects;
+  final bool showJudgementDisplay;
+  final SimaiJudgementDisplayMode judgementDisplayMode;
   final SimaiNoteStyle noteStyle;
   final SimaiCenterDisplayMode centerDisplayMode;
   final SimaiCenterDisplayMode topRightDisplayMode;
@@ -112,6 +114,8 @@ class ChartPlaySettings {
     this.standardBreakSlide = false,
     this.showApproachLine = true,
     this.showHitEffects = true,
+    this.showJudgementDisplay = false,
+    this.judgementDisplayMode = SimaiJudgementDisplayMode.twoB,
     this.noteStyle = SimaiNoteStyle.arcade,
     this.centerDisplayMode = SimaiCenterDisplayMode.achievementAdd,
     this.topRightDisplayMode = SimaiCenterDisplayMode.combo,
@@ -151,6 +155,8 @@ class ChartPlaySettings {
       standardBreakSlide: c.standardBreakSlide,
       showApproachLine: c.showApproachLine,
       showHitEffects: c.showHitEffects,
+      showJudgementDisplay: c.showJudgementDisplay,
+      judgementDisplayMode: c.judgementDisplayMode,
       noteStyle: c.noteStyle,
       centerDisplayMode: c.centerDisplayMode,
       topRightDisplayMode: c.topRightDisplayMode,
@@ -184,6 +190,8 @@ class ChartPlaySettings {
     c.standardBreakSlide = standardBreakSlide;
     c.showApproachLine = showApproachLine;
     c.showHitEffects = showHitEffects;
+    c.showJudgementDisplay = showJudgementDisplay;
+    c.judgementDisplayMode = judgementDisplayMode;
     c.noteStyle = noteStyle;
     c.centerDisplayMode = centerDisplayMode;
     c.topRightDisplayMode = topRightDisplayMode;
@@ -210,6 +218,8 @@ class ChartPlaySettings {
         'standardBreakSlide': standardBreakSlide,
         'showApproachLine': showApproachLine,
         'showHitEffects': showHitEffects,
+        'showJudgementDisplay': showJudgementDisplay,
+        'judgementDisplayMode': judgementDisplayMode.name,
         'noteStyle': noteStyle.name,
         'centerDisplayMode': centerDisplayMode.name,
         'topRightDisplayMode': topRightDisplayMode.name,
@@ -251,6 +261,13 @@ class ChartPlaySettings {
       showApproachLine:
           _bool(json['showApproachLine'], fallback.showApproachLine),
       showHitEffects: _bool(json['showHitEffects'], fallback.showHitEffects),
+      showJudgementDisplay:
+          _bool(json['showJudgementDisplay'], fallback.showJudgementDisplay),
+      judgementDisplayMode: _enumByName(
+        SimaiJudgementDisplayMode.values,
+        json['judgementDisplayMode'],
+        fallback.judgementDisplayMode,
+      ),
       noteStyle: SimaiNoteStyle.fromName(
         json['noteStyle'],
         fallback: fallback.noteStyle,
@@ -510,6 +527,8 @@ class ChartVideoExportSettingsStore {
 
   static Map<String, dynamic> _toJson(SimaiVideoExportSettings s) => {
         'quality': s.quality.name,
+        'frameRate': s.frameRate.name,
+        'showHeader': s.showHeader,
         'includeMusic': s.includeMusic,
         'mirrorMode': s.mirrorMode.name,
         'backgroundMode': s.backgroundMode.name,
@@ -519,6 +538,8 @@ class ChartVideoExportSettingsStore {
         'standardBreakSlide': s.standardBreakSlide,
         'showApproachLine': s.showApproachLine,
         'showHitEffects': s.showHitEffects,
+        'showJudgementDisplay': s.showJudgementDisplay,
+        'judgementDisplayMode': s.judgementDisplayMode.name,
         'noteStyle': s.noteStyle.name,
         'centerDisplayMode': s.centerDisplayMode.name,
         'topRightDisplayMode': s.topRightDisplayMode.name,
@@ -537,6 +558,10 @@ class ChartVideoExportSettingsStore {
     return SimaiVideoExportSettings(
       quality: ChartPlaySettings._enumByName(
           SimaiVideoQuality.values, json['quality'], fallback.quality),
+      frameRate: ChartPlaySettings._enumByName(
+          SimaiVideoFrameRate.values, json['frameRate'], fallback.frameRate),
+      showHeader:
+          ChartPlaySettings._bool(json['showHeader'], fallback.showHeader),
       includeMusic:
           ChartPlaySettings._bool(json['includeMusic'], fallback.includeMusic),
       mirrorMode: ChartPlaySettings._enumByName(
@@ -555,6 +580,13 @@ class ChartVideoExportSettingsStore {
           json['showApproachLine'], fallback.showApproachLine),
       showHitEffects: ChartPlaySettings._bool(
           json['showHitEffects'], fallback.showHitEffects),
+      showJudgementDisplay: ChartPlaySettings._bool(
+          json['showJudgementDisplay'], fallback.showJudgementDisplay),
+      judgementDisplayMode: ChartPlaySettings._enumByName(
+        SimaiJudgementDisplayMode.values,
+        json['judgementDisplayMode'],
+        fallback.judgementDisplayMode,
+      ),
       noteStyle: SimaiNoteStyle.fromName(
         json['noteStyle'],
         fallback: fallback.noteStyle,

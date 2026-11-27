@@ -97,6 +97,7 @@ public final class SimaiFlutterPlugin: NSObject, FlutterPlugin {
     let hitPath = assetPath("assets/answer.wav", package: "simai_flutter")
     let pvVideoPath = (arguments["pvVideoPath"] as? String).flatMap { $0.isEmpty ? nil : $0 }
     let pvRect = (arguments["pvRect"] as? [NSNumber])?.map(\.intValue)
+    let saveToGallery = (arguments["saveToGallery"] as? Bool) ?? false
     let session = try IOSVideoExportSession(
       id: id,
       width: width,
@@ -108,7 +109,8 @@ public final class SimaiFlutterPlugin: NSObject, FlutterPlugin {
       hitSoundPath: hitPath,
       audioMode: try arguments.requiredString("audioMode"),
       pvVideoPath: pvVideoPath,
-      pvRect: pvRect
+      pvRect: pvRect,
+      saveToGallery: saveToGallery
     )
     do {
       try session.start()
@@ -148,8 +150,46 @@ public final class SimaiFlutterPlugin: NSObject, FlutterPlugin {
         )
         let attributes = try FileManager.default.attributesOfItem(atPath: output.path)
         let size = (attributes[.size] as? NSNumber)?.intValue ?? 0
-        result(["outputPath": output.path, "fileSizeBytes": size])
-        succeeded = true
+        if session.saveToGallery && (self?.canAddToPhotoLibrary ?? false) {
+          let gallerySemaphore = DispatchSemaphore(value: 0)
+          var saved = false
+          var savedIdentifier: String?
+          PHPhotoLibrary.shared().performChanges {
+            let request = PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: output)
+            savedIdentifier = request?.placeholderForCreatedAsset?.localIdentifier
+          } completionHandler: { success, _ in
+            saved = success
+            gallerySemaphore.signal()
+          }
+          gallerySemaphore.wait()
+          if saved {
+            try? FileManager.default.removeItem(at: output)
+            var payload: [String: Any] = [
+              "outputPath": savedIdentifier ?? output.path,
+              "fileSizeBytes": size,
+              "savedToGallery": true,
+            ]
+            if let savedIdentifier {
+              payload["galleryUri"] = savedIdentifier
+            }
+            result(payload)
+            succeeded = true
+          } else {
+            result([
+              "outputPath": output.path,
+              "fileSizeBytes": size,
+              "savedToGallery": false,
+            ])
+            succeeded = true
+          }
+        } else {
+          result([
+            "outputPath": output.path,
+            "fileSizeBytes": size,
+            "savedToGallery": false,
+          ])
+          succeeded = true
+        }
       } catch let error as IOSExportError {
         result(FlutterError(code: error.code, message: error.message, details: nil))
       } catch {
@@ -373,6 +413,7 @@ private final class IOSVideoExportSession {
   let hitSoundURL: URL?
   let audioMode: String
   let audioDurationUs: Int64
+  let saveToGallery: Bool
 
   private let workingDirectory: URL
   private let videoOnlyURL: URL
@@ -398,7 +439,8 @@ private final class IOSVideoExportSession {
     hitSoundPath: String?,
     audioMode: String,
     pvVideoPath: String? = nil,
-    pvRect: [Int]? = nil
+    pvRect: [Int]? = nil,
+    saveToGallery: Bool = false
   ) throws {
     guard ["musicAndHitSounds", "musicOnly", "silent"].contains(audioMode) else {
       throw IOSExportError(code: "invalid_audio_mode", message: "Unsupported audio mode: \(audioMode)")
@@ -486,6 +528,7 @@ private final class IOSVideoExportSession {
     self.hitSoundURL = resolvedHitSoundURL
     self.audioMode = audioMode
     self.audioDurationUs = resolvedAudioDurationUs
+    self.saveToGallery = saveToGallery
     self.workingDirectory = resolvedWorkingDirectory
     self.videoOnlyURL = resolvedVideoOnlyURL
     self.finalMuxedURL = resolvedFinalMuxedURL

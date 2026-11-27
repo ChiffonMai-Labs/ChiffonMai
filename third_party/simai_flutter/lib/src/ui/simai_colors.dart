@@ -36,3 +36,38 @@ class SimaiColors {
 
   static const Color judgeLine = SimaiVisualTokens.colorWhite;
 }
+
+/// 舞萌 DX「简洁（シンプル）」与「条形（バー）」皮肤专用深色化色板。
+///
+/// 相比经典/机台原始亮色令牌适当压低明度并保持高饱和，避免叠加高光后泛白刺眼。
+abstract final class SimaiModernNoteColors {
+  // 普通粉（Tap / Hold / Star-Tap）
+  static const Color pinkLight = Color(0xFFF2549D);
+  static const Color pinkMid = Color(0xFFDC1670);
+  static const Color pinkDeep = Color(0xFFA80C54);
+  static const Color pinkDot = Color(0xFFD91B73);
+
+  // 同时押金黄（Each）
+  static const Color eachLight = Color(0xFFF5CB38);
+  static const Color eachMid = Color(0xFFDDA400);
+  static const Color eachDeep = Color(0xFFB37D00);
+  static const Color eachDot = Color(0xFFD99E00);
+
+  // 绝赞橙（Break）
+  static const Color breakLight = Color(0xFFF58B2E);
+  static const Color breakMid = Color(0xFFDF5400);
+  static const Color breakDeep = Color(0xFFAD3800);
+  static const Color breakDot = Color(0xFFD94E00);
+
+  // 滑星青（Slide Star）
+  static const Color cyanLight = Color(0xFF4CDCE3);
+  static const Color cyanMid = Color(0xFF00B8C4);
+  static const Color cyanDeep = Color(0xFF008494);
+  static const Color cyanDot = Color(0xFF00AAB8);
+
+  // 触摸花瓣（Touch）
+  static const Color touchCyanStart = Color(0xFF1AD6DE);
+  static const Color touchCyanEnd = Color(0xFF0064CC);
+  static const Color touchEachStart = Color(0xFFF2CF2C);
+  static const Color touchEachEnd = Color(0xFFC98F00);
+}

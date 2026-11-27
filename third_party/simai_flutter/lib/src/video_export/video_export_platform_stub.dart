@@ -34,13 +34,17 @@ class _UnsupportedVideoExportPlatform
   }) async => _unsupported();
 
   @override
-  Future<bool> isSupported({required int width, required int height}) async =>
-      false;
+  Future<bool> isSupported({
+    required int width,
+    required int height,
+    int fps = 60,
+  }) async => false;
 
   @override
   Future<SimaiNativeVideoSession> start({
     required int width,
     required int height,
+    int fps = 60,
     required int videoBitrate,
     required String? outputPath,
     required String? audioAsset,
@@ -48,6 +52,8 @@ class _UnsupportedVideoExportPlatform
     required String audioMode,
     String? pvVideoPath,
     List<int>? pvRect,
+    bool saveToGallery = false,
+    String? displayName,
   }) async => _unsupported();
 
   @override

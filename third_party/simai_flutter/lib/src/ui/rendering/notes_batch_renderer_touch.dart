@@ -124,7 +124,7 @@ void _drawTouchSpritePass(
       (game.noteStyle == SimaiNoteStyle.arcade ? 2.0 : 3.0) * game.noteScale;
   final Color dotColor = m
       ? const Color(0xFFFFFF00)
-      : (game.noteStyle == SimaiNoteStyle.arcade
+      : (game.noteStyle.usesEnhancedVisuals
             ? (isBreak ? SimaiColors.touchBreak : const Color(0xFF00BFFF))
             : color);
 

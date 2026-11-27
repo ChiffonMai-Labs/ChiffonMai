@@ -59,8 +59,14 @@ class SimaiVideoExporter with WidgetsBindingObserver {
 
   Future<bool> isSupported({
     SimaiVideoQuality quality = SimaiVideoQuality.hd720,
+    SimaiVideoFrameRate frameRate = SimaiVideoFrameRate.fps60,
+    bool showHeader = true,
   }) {
-    return _platform.isSupported(width: quality.width, height: quality.height);
+    return _platform.isSupported(
+      width: quality.width,
+      height: quality.heightFor(showHeader: showHeader),
+      fps: frameRate.fps,
+    );
   }
 
   /// Saves a completed export to the system media library.
@@ -94,8 +100,14 @@ class SimaiVideoExporter with WidgetsBindingObserver {
   /// receiving app when necessary.
   Future<void> share(SimaiVideoExportResult result, {String? text}) async {
     try {
-      await _platform.shareVideo(path: result.path, text: text);
-      if (_lastCompletedTask?.completedResult?.path == result.path) {
+      final shareTarget = result.savedToGallery &&
+              result.galleryUri != null &&
+              result.galleryUri!.isNotEmpty
+          ? result.galleryUri!
+          : result.path;
+      await _platform.shareVideo(path: shareTarget, text: text);
+      if (!result.savedToGallery &&
+          _lastCompletedTask?.completedResult?.path == result.path) {
         _lastCompletedTask = null;
       }
     } on PlatformException catch (error) {
@@ -127,6 +139,7 @@ class SimaiVideoExporter with WidgetsBindingObserver {
     final estimatedDuration = max(0.0, visualDuration - timelineStart);
     return estimateSimaiVideoFileSizeBytes(
       quality: options.quality,
+      frameRate: options.frameRate,
       duration: Duration(microseconds: (estimatedDuration * 1000000).ceil()),
       includeAudio: audioMode != SimaiVideoAudioMode.silent,
     );
@@ -233,11 +246,20 @@ class SimaiVideoExporter with WidgetsBindingObserver {
         );
       }
 
-      final supported = await isSupported(quality: options.quality);
+      final fps = options.frameRate.fps;
+      final outputWidth = options.quality.width;
+      final outputHeight = options.quality.heightFor(
+        showHeader: options.showHeader,
+      );
+      final supported = await isSupported(
+        quality: options.quality,
+        frameRate: options.frameRate,
+        showHeader: options.showHeader,
+      );
       if (!supported) {
         throw SimaiVideoExportException(
           'unsupported',
-          '${options.quality.label} 60fps hardware export is not supported.',
+          '${options.quality.labelFor(showHeader: options.showHeader)} ${fps}fps hardware export is not supported.',
         );
       }
       if (isCancelled()) throw const SimaiVideoExportCancelledException();
@@ -248,32 +270,40 @@ class SimaiVideoExporter with WidgetsBindingObserver {
         controller: snapshotController,
         metadata: metadata,
         quality: options.quality,
+        initialFrameRate: options.frameRate,
         displayFont: displayFont,
         textStyleResolver: textStyleResolver,
         prepareFonts: prepareFonts,
         transparentContentBackground: hasPvVideo,
+        showHeader: options.showHeader,
       );
       List<int>? pvRect;
       if (hasPvVideo) {
         final circle = renderer.layout.pvCircleRect;
-        final maxW = options.quality.width;
-        final maxH = options.quality.height;
+        final maxW = outputWidth;
+        final maxH = outputHeight;
         final left = circle.left.floor().clamp(0, maxW - 1);
         final top = circle.top.floor().clamp(0, maxH - 1);
         final right = circle.right.ceil().clamp(left + 1, maxW);
         final bottom = circle.bottom.ceil().clamp(top + 1, maxH);
         pvRect = <int>[left, top, right - left, bottom - top];
       }
+      final suggestedDisplayName =
+          options.displayName ??
+          '${metadata.title}_${metadata.difficulty.label}_${DateTime.now().millisecondsSinceEpoch}.mp4';
       session = await _platform.start(
-        width: options.quality.width,
-        height: options.quality.height,
-        videoBitrate: options.quality.videoBitrate,
+        width: outputWidth,
+        height: outputHeight,
+        fps: fps,
+        videoBitrate: options.quality.videoBitrateFor(options.frameRate),
         outputPath: options.outputPath,
         audioAsset: snapshotController.audioAsset,
         audioFilePath: snapshotController.audioFilePath,
         audioMode: nativeAudioMode.name,
         pvVideoPath: hasPvVideo ? pvVideoPath : null,
         pvRect: pvRect,
+        saveToGallery: options.saveToGallery,
+        displayName: suggestedDisplayName,
       );
       onSessionCreated(session.id);
       if (isCancelled()) throw const SimaiVideoExportCancelledException();
@@ -285,8 +315,7 @@ class SimaiVideoExporter with WidgetsBindingObserver {
           'The native exporter must provide exactly two frame buffers.',
         );
       }
-      final expectedFrameBytes =
-          options.quality.width * options.quality.height * 4;
+      final expectedFrameBytes = outputWidth * outputHeight * 4;
       if (session.bufferLength != expectedFrameBytes) {
         throw SimaiVideoExportException(
           'invalid_native_buffer_size',
@@ -307,9 +336,11 @@ class SimaiVideoExporter with WidgetsBindingObserver {
         hitEventTimesUs: hitEvents,
         includeMusic: includesMusic,
         includeHitSounds: includesHits,
+        fps: fps,
       );
       final estimatedFileSizeBytes = estimateSimaiVideoFileSizeBytes(
         quality: options.quality,
+        frameRate: options.frameRate,
         duration: Duration(microseconds: timeline.durationUs),
         includeAudio: includesMusic || includesHits,
       );
@@ -328,6 +359,7 @@ class SimaiVideoExporter with WidgetsBindingObserver {
       );
       if (isCancelled()) throw const SimaiVideoExportCancelledException();
 
+      final frameStepDelta = 1.0 / fps;
       final renderStopwatch = Stopwatch()..start();
       for (int frame = 0; frame < timeline.frameCount; frame++) {
         if (isCancelled()) throw const SimaiVideoExportCancelledException();
@@ -335,6 +367,7 @@ class SimaiVideoExporter with WidgetsBindingObserver {
         final rgba = await renderer.renderRgbaFrame(
           chartTime,
           resetWindow: frame == 0,
+          stepDelta: frameStepDelta,
         );
         final slot = frame & 1;
         _platform.copyFrameToSlot(
@@ -424,10 +457,13 @@ class SimaiVideoExporter with WidgetsBindingObserver {
         SimaiVideoExportResult(
           path: nativeResult.outputPath,
           duration: Duration(microseconds: timeline.durationUs),
-          width: options.quality.width,
-          height: options.quality.height,
+          width: outputWidth,
+          height: outputHeight,
+          fps: fps,
           frameCount: timeline.frameCount,
           fileSizeBytes: nativeResult.fileSizeBytes,
+          savedToGallery: nativeResult.savedToGallery,
+          galleryUri: nativeResult.galleryUri,
         ),
       );
       _lastCompletedTask = task;
@@ -568,6 +604,8 @@ SimaiPlayerController createSimaiVideoExportControllerSnapshot(
     ..highlightExNotes = source.highlightExNotes
     ..showApproachLine = source.showApproachLine
     ..showHitEffects = source.showHitEffects
+    ..showJudgementDisplay = source.showJudgementDisplay
+    ..judgementDisplayMode = source.judgementDisplayMode
     ..showAchievementRate = source.showAchievementRate
     ..centerDisplayMode = source.centerDisplayMode
     ..topRightDisplayMode = source.topRightDisplayMode

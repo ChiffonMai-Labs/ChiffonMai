@@ -39,13 +39,17 @@ class _MethodChannelVideoExportPlatform
   }
 
   @override
-  Future<bool> isSupported({required int width, required int height}) async {
+  Future<bool> isSupported({
+    required int width,
+    required int height,
+    int fps = 60,
+  }) async {
     if (!_isMobile) return false;
     try {
       return await _channel.invokeMethod<bool>('isSupported', {
             'width': width,
             'height': height,
-            'fps': 60,
+            'fps': fps,
           }) ??
           false;
     } on MissingPluginException {
@@ -57,6 +61,7 @@ class _MethodChannelVideoExportPlatform
   Future<SimaiNativeVideoSession> start({
     required int width,
     required int height,
+    int fps = 60,
     required int videoBitrate,
     required String? outputPath,
     required String? audioAsset,
@@ -64,6 +69,8 @@ class _MethodChannelVideoExportPlatform
     required String audioMode,
     String? pvVideoPath,
     List<int>? pvRect,
+    bool saveToGallery = false,
+    String? displayName,
   }) async {
     if (!_isMobile) {
       throw UnsupportedError(
@@ -73,7 +80,7 @@ class _MethodChannelVideoExportPlatform
     final result = await _channel.invokeMapMethod<String, Object?>('start', {
       'width': width,
       'height': height,
-      'fps': 60,
+      'fps': fps,
       'videoBitrate': videoBitrate,
       'outputPath': outputPath,
       'audioAsset': audioAsset,
@@ -81,6 +88,8 @@ class _MethodChannelVideoExportPlatform
       'audioMode': audioMode,
       'pvVideoPath': pvVideoPath,
       'pvRect': pvRect,
+      'saveToGallery': saveToGallery,
+      'displayName': displayName,
     });
     if (result == null) {
       throw PlatformException(
@@ -150,6 +159,8 @@ class _MethodChannelVideoExportPlatform
     return SimaiNativeVideoFinishResult(
       outputPath: result['outputPath']! as String,
       fileSizeBytes: result['fileSizeBytes']! as int,
+      savedToGallery: result['savedToGallery'] as bool? ?? false,
+      galleryUri: result['galleryUri'] as String?,
     );
   }
 

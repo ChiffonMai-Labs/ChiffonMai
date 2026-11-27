@@ -127,8 +127,8 @@ enum SimaiJudgementDisplayMode {
     final variantRule = switch (variant) {
       'A' => '隐藏 Fast/Late',
       'B' => 'Fast/Late 与判定同色分行显示',
-      'C' => '用蓝/红色表示 Fast/Late',
-      'D' => '仅显示 Fast/Late',
+      'C' => 'Fast/Late 以蓝/红色分行显示',
+      'D' => '仅显示 Fast/Late 与 Miss',
       'E' => '同 B，Break Perfect 也显示 Fast/Late',
       _ => '',
     };

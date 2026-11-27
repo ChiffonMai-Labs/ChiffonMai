@@ -77,6 +77,9 @@ class SimaiPlayerController extends ChangeNotifier {
   bool _highlightExNotes = false;
   bool _showApproachLine = true;
   bool _showHitEffects = true;
+  bool _showJudgementDisplay = false;
+  SimaiJudgementDisplayMode _judgementDisplayMode =
+      SimaiJudgementDisplayMode.twoB;
   bool _showAchievementRate = true;
   SimaiCenterDisplayMode _centerDisplayMode =
       SimaiCenterDisplayMode.achievementAdd;
@@ -132,6 +135,8 @@ class SimaiPlayerController extends ChangeNotifier {
   bool get highlightExNotes => _highlightExNotes;
   bool get showApproachLine => _showApproachLine;
   bool get showHitEffects => _showHitEffects;
+  bool get showJudgementDisplay => _showJudgementDisplay;
+  SimaiJudgementDisplayMode get judgementDisplayMode => _judgementDisplayMode;
   bool get showAchievementRate => _showAchievementRate;
   SimaiCenterDisplayMode get centerDisplayMode => _centerDisplayMode;
   SimaiCenterDisplayMode get topRightDisplayMode => _topRightDisplayMode;
@@ -306,6 +311,20 @@ class SimaiPlayerController extends ChangeNotifier {
   set showHitEffects(bool value) {
     if (_showHitEffects == value) return;
     _showHitEffects = value;
+    _applyToGame();
+    notifyListeners();
+  }
+
+  set showJudgementDisplay(bool value) {
+    if (_showJudgementDisplay == value) return;
+    _showJudgementDisplay = value;
+    _applyToGame();
+    notifyListeners();
+  }
+
+  set judgementDisplayMode(SimaiJudgementDisplayMode value) {
+    if (_judgementDisplayMode == value) return;
+    _judgementDisplayMode = value;
     _applyToGame();
     notifyListeners();
   }
@@ -587,6 +606,8 @@ class SimaiPlayerController extends ChangeNotifier {
     game.highlightExNotes = _highlightExNotes;
     game.showApproachLine = _showApproachLine;
     game.showHitEffects = _showHitEffects;
+    game.showJudgementDisplay = _showJudgementDisplay;
+    game.judgementDisplayMode = _judgementDisplayMode;
     game.showAchievementRate = _showAchievementRate;
     game.centerDisplayMode = _centerDisplayMode;
     game.topRightDisplayMode = _topRightDisplayMode;
@@ -712,6 +733,8 @@ class _SimaiPlayerState extends State<SimaiPlayer> {
       highlightExNotes: controller.highlightExNotes,
       showApproachLine: controller.showApproachLine,
       showHitEffects: controller.showHitEffects,
+      showJudgementDisplay: controller.showJudgementDisplay,
+      judgementDisplayMode: controller.judgementDisplayMode,
       showAchievementRate: controller.showAchievementRate,
       centerDisplayMode: controller.centerDisplayMode,
       topRightDisplayMode: controller.topRightDisplayMode,
@@ -1361,6 +1384,8 @@ class SimaiPlayerPage extends StatefulWidget {
   final SimaiSwitchBuilder? switchBuilder;
   final Widget? backgroundVideo;
   final bool hasPvBackground;
+  final bool initialExportUsePvBackground;
+  final String? initialExportPvVideoPath;
   final Future<void> Function()? onEnterGameplay;
   final Future<void> Function()? onExitGameplay;
 
@@ -1388,6 +1413,8 @@ class SimaiPlayerPage extends StatefulWidget {
     this.switchBuilder,
     this.backgroundVideo,
     this.hasPvBackground = false,
+    this.initialExportUsePvBackground = false,
+    this.initialExportPvVideoPath,
     this.onEnterGameplay,
     this.onExitGameplay,
   });
@@ -1550,6 +1577,8 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
             checkCachedPvFilePath: widget.checkCachedPvFilePath,
             downloadPvFilePath: widget.downloadPvFilePath,
             pvPreviewBuilder: widget.pvPreviewBuilder,
+            initialUsePvBackground: widget.initialExportUsePvBackground,
+            initialPvVideoPath: widget.initialExportPvVideoPath,
             task:
                 SimaiVideoExporter.instance.activeTask ??
                 SimaiVideoExporter.instance.lastCompletedTask,
@@ -1557,11 +1586,20 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
             textStyleResolver: widget.textStyleResolver,
             prepareFonts: widget.prepareFonts,
             onVideoExported: (result) {
-              onVideoExported?.call(result);
+              if (onVideoExported != null) {
+                onVideoExported(result);
+                return;
+              }
               if (!mounted) return;
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text('视频已导出：${result.path}')));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    result.savedToGallery
+                        ? '视频已直接保存到系统相册'
+                        : '视频已导出：${result.path}',
+                  ),
+                ),
+              );
             },
           ),
         ),
@@ -1799,7 +1837,7 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
                             for (final style in SimaiNoteStyle.values)
                               ButtonSegment<SimaiNoteStyle>(
                                 value: style,
-                                label: Text(style.label),
+                                label: Text(style.shortLabel),
                               ),
                           ],
                           onChanged: (v) => controller.noteStyle = v,
@@ -1917,7 +1955,7 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
                         ),
                         _buildSwitchSetting(
                           context,
-                          label: 'Approach Line',
+                          label: '引导线',
                           icon: Icons.timeline,
                           value: controller.showApproachLine,
                           onChanged: (v) => controller.showApproachLine = v,
@@ -1929,6 +1967,70 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
                           value: controller.showHitEffects,
                           onChanged: (v) => controller.showHitEffects = v,
                         ),
+                        _buildSwitchSetting(
+                          context,
+                          label: '判定表示',
+                          icon: Icons.fact_check_outlined,
+                          value: controller.showJudgementDisplay,
+                          onChanged: (v) => controller.showJudgementDisplay = v,
+                        ),
+                        if (controller.showJudgementDisplay)
+                          _buildDropdownSetting<SimaiJudgementDisplayMode>(
+                            context,
+                            label: '判定表示类型',
+                            icon: Icons.tune,
+                            value: controller.judgementDisplayMode,
+                            helperText:
+                                controller.judgementDisplayMode.description,
+                            itemHeight: null,
+                            selectedItemBuilder: (context) => [
+                              for (final mode
+                                  in SimaiJudgementDisplayMode.values)
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(mode.label),
+                                ),
+                            ],
+                            items: [
+                              for (final mode
+                                  in SimaiJudgementDisplayMode.values)
+                                DropdownMenuItem<SimaiJudgementDisplayMode>(
+                                  value: mode,
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 6.0,
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          mode.label,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          mode.description,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: Theme.of(
+                                                  context,
+                                                ).colorScheme.onSurfaceVariant,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                            ],
+                            onChanged: (v) =>
+                                controller.judgementDisplayMode = v,
+                          ),
                         const SizedBox(height: 16),
                         _buildDropdownSetting<SimaiCenterDisplayMode>(
                           context,
@@ -2162,6 +2264,9 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
     required T value,
     required List<DropdownMenuItem<T>> items,
     required ValueChanged<T> onChanged,
+    String? helperText,
+    DropdownButtonBuilder? selectedItemBuilder,
+    double? itemHeight = kMinInteractiveDimension,
   }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -2192,6 +2297,8 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
               child: DropdownButton<T>(
                 value: value,
                 isExpanded: true,
+                itemHeight: itemHeight,
+                selectedItemBuilder: selectedItemBuilder,
                 dropdownColor: colorScheme.surfaceContainerHigh,
                 borderRadius: BorderRadius.circular(12),
                 style: theme.textTheme.bodyMedium?.copyWith(
@@ -2206,6 +2313,17 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
               ),
             ),
           ),
+          if (helperText != null && helperText.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 6.0, left: 4.0, right: 4.0),
+              child: Text(
+                helperText,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                  height: 1.4,
+                ),
+              ),
+            ),
         ],
       ),
     );

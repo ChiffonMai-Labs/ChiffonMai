@@ -13,6 +13,7 @@ class SimaiVideoFrameRenderer {
   final SimaiPlayerController controller;
   final SimaiVideoMetadata metadata;
   final SimaiVideoQuality quality;
+  final SimaiVideoFrameRate initialFrameRate;
   final Size? outputSize;
   final TextStyle? displayFont;
   final SimaiTextStyleResolver? textStyleResolver;
@@ -21,9 +22,12 @@ class SimaiVideoFrameRenderer {
   /// 是否将谱面内容区的 PV 圆窗抠透明以便原生层叠画视频背景。
   final bool transparentContentBackground;
 
+  /// 是否在画面顶部绘制基础信息板块；关闭时收起多余高度。
+  final bool showHeader;
+
   late final SimaiVideoLayout layout = outputSize == null
-      ? SimaiVideoLayout.forQuality(quality)
-      : SimaiVideoLayout.forSize(outputSize!);
+      ? SimaiVideoLayout.forQuality(quality, showHeader: showHeader)
+      : SimaiVideoLayout.forSize(outputSize!, showHeader: showHeader);
   late final SimaiGame _game;
   ui.Image? _coverImage;
   ui.Picture? _headerPicture;
@@ -34,11 +38,13 @@ class SimaiVideoFrameRenderer {
     required this.controller,
     required this.metadata,
     required this.quality,
+    this.initialFrameRate = SimaiVideoFrameRate.fps60,
     this.outputSize,
     this.displayFont,
     this.textStyleResolver,
     this.prepareFonts,
     this.transparentContentBackground = false,
+    this.showHeader = true,
   });
 
   double get visualDuration => _game.totalVisualDuration;
@@ -59,6 +65,71 @@ class SimaiVideoFrameRenderer {
     if (!_prepared || _disposed) return;
     _game.showDetailedPerformanceInfo = value;
     _game.showFps = value;
+    _game.refreshStatusText();
+  }
+
+  void updateFrameRate(SimaiVideoFrameRate frameRate) {
+    if (!_prepared || _disposed) return;
+    final fps = frameRate.fps.toDouble();
+    _game.measuredFps = fps;
+    _game.frameIntervalP95Ms = 1000.0 / fps;
+    _game.motionStepP95Ms = 1000.0 / fps;
+    _game.refreshStatusText();
+  }
+
+  /// 热同步预览渲染器的全部可视选项（含异步等待 NOTE 图集与镜像预计算完成），
+  /// 避免每次改动都销毁重建整个无头 Flame 实例引发竞态或掉同步。
+  Future<void> syncVisualSettings(
+    SimaiPlayerController source, {
+    required SimaiVideoFrameRate frameRate,
+  }) async {
+    if (!_prepared || _disposed) return;
+    controller
+      ..speed = source.speed
+      ..mirrorMode = source.mirrorMode
+      ..backgroundMode = source.backgroundMode
+      ..backgroundOpacity = source.backgroundOpacity
+      ..rotateSlideStar = source.rotateSlideStar
+      ..pinkSlideStar = source.pinkSlideStar
+      ..standardBreakSlide = source.standardBreakSlide
+      ..highlightExNotes = source.highlightExNotes
+      ..showApproachLine = source.showApproachLine
+      ..showHitEffects = source.showHitEffects
+      ..showJudgementDisplay = source.showJudgementDisplay
+      ..judgementDisplayMode = source.judgementDisplayMode
+      ..showAchievementRate = source.showAchievementRate
+      ..centerDisplayMode = source.centerDisplayMode
+      ..topRightDisplayMode = source.topRightDisplayMode
+      ..noteStyle = source.noteStyle
+      ..showCornerInfo = source.showCornerInfo
+      ..showDetailedPerformanceInfo = source.showDetailedPerformanceInfo;
+
+    _game
+      ..ringApproachTime = source.approachTime
+      ..touchApproachTime = source.touchApproachTime
+      ..rotateSlideStar = source.rotateSlideStar
+      ..pinkSlideStar = source.pinkSlideStar
+      ..standardBreakSlide = source.standardBreakSlide
+      ..highlightExNotes = source.highlightExNotes
+      ..showApproachLine = source.showApproachLine
+      ..showHitEffects = source.showHitEffects
+      ..showJudgementDisplay = source.showJudgementDisplay
+      ..judgementDisplayMode = source.judgementDisplayMode
+      ..showAchievementRate = source.showAchievementRate
+      ..centerDisplayMode = source.centerDisplayMode
+      ..topRightDisplayMode = source.topRightDisplayMode
+      ..showCornerInfo = source.showCornerInfo
+      ..showFps = source.showDetailedPerformanceInfo
+      ..showDetailedPerformanceInfo = source.showDetailedPerformanceInfo;
+    _game.setBackgroundMode(source.backgroundMode);
+    _game.setBackgroundOpacity(source.backgroundOpacity);
+    updateFrameRate(frameRate);
+
+    await _game.setNoteStyleAsync(source.noteStyle);
+    if (_disposed) return;
+    await _game.setMirrorModeAsync(source.mirrorMode);
+    if (_disposed) return;
+    _game.invalidateNotes(resetWindow: true);
     _game.refreshStatusText();
   }
 
@@ -85,12 +156,14 @@ class SimaiVideoFrameRenderer {
       await prepareFonts!();
       checkCancelled();
     }
-    _coverImage = await _resolveImage(
-      metadata.coverImageProvider,
-      layout.coverRect.size,
-    );
-    checkCancelled();
-    _headerPicture = _buildHeaderPicture();
+    if (showHeader) {
+      _coverImage = await _resolveImage(
+        metadata.coverImageProvider,
+        layout.coverRect.size,
+      );
+      checkCancelled();
+      _headerPicture = _buildHeaderPicture();
+    }
 
     _game = SimaiGame(
       chart: controller.chart,
@@ -114,6 +187,8 @@ class SimaiVideoFrameRenderer {
       highlightExNotes: controller.highlightExNotes,
       showApproachLine: controller.showApproachLine,
       showHitEffects: controller.showHitEffects,
+      showJudgementDisplay: controller.showJudgementDisplay,
+      judgementDisplayMode: controller.judgementDisplayMode,
       showAchievementRate: controller.showAchievementRate,
       centerDisplayMode: controller.centerDisplayMode,
       topRightDisplayMode: controller.topRightDisplayMode,
@@ -126,7 +201,10 @@ class SimaiVideoFrameRenderer {
       offset: controller.effectiveMusicOffsetSeconds,
       backgroundImageProvider: controller.backgroundImageProvider,
     );
-    await _game.prepareHeadlessExport(Vector2.all(layout.contentRect.width));
+    await _game.prepareHeadlessExport(
+      Vector2.all(layout.contentRect.width),
+      initialStepDelta: 1.0 / initialFrameRate.fps,
+    );
     checkCancelled();
     _prepared = true;
   }
@@ -134,8 +212,13 @@ class SimaiVideoFrameRenderer {
   Future<Uint8List> renderRgbaFrame(
     double chartTime, {
     required bool resetWindow,
+    double stepDelta = 1 / 60,
   }) async {
-    final image = await renderImageFrame(chartTime, resetWindow: resetWindow);
+    final image = await renderImageFrame(
+      chartTime,
+      resetWindow: resetWindow,
+      stepDelta: stepDelta,
+    );
     try {
       final data = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
       if (data == null) {
@@ -150,16 +233,23 @@ class SimaiVideoFrameRenderer {
   Future<ui.Image> renderImageFrame(
     double chartTime, {
     required bool resetWindow,
+    double stepDelta = 1 / 60,
   }) async {
     if (!_prepared || _disposed) {
       throw StateError('Renderer is not ready.');
     }
-    _game.updateExportTime(chartTime, resetWindow: resetWindow);
+    _game.updateExportTime(
+      chartTime,
+      resetWindow: resetWindow,
+      dt: stepDelta,
+    );
 
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
     canvas.drawColor(const Color(0xFF08080B), BlendMode.src);
-    canvas.drawPicture(_headerPicture!);
+    if (_headerPicture != null) {
+      canvas.drawPicture(_headerPicture!);
+    }
 
     final contentRect = layout.contentRect;
     canvas.save();

@@ -101,7 +101,7 @@ void _drawStarHighlight(
   SimaiNoteStyle noteStyle = SimaiNoteStyle.classic,
 }) {
   final double outerRadius = NoteGeometry.tapStarHoldRadius * scale * noteScale;
-  if (noteStyle == SimaiNoteStyle.arcade) {
+  if (noteStyle.usesEnhancedVisuals) {
     final Path outerEx = NoteUtils.createStarPath(outerRadius * 1.19);
     final Path innerStar = NoteUtils.createStarPath(outerRadius);
     _starExRingPath

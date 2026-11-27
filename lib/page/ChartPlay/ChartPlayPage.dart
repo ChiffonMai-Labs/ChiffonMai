@@ -343,6 +343,7 @@ class _ChartPlayPageState extends State<ChartPlayPage>
       mirrorMode: controller.mirrorMode,
       backgroundOpacity: controller.backgroundOpacity,
       noteStyle: controller.noteStyle,
+      judgementDisplayMode: controller.judgementDisplayMode,
       centerDisplayMode: SimaiGameplayCenterDisplayMode.fromNameOrLegacy(
         controller.centerDisplayMode.name,
       ),
@@ -1276,6 +1277,8 @@ class _ChartPlayPageState extends State<ChartPlayPage>
             checkCachedPvFilePath: _checkVideoExportCachedPv,
             downloadPvFilePath: _downloadVideoExportPv,
             pvPreviewBuilder: _buildVideoExportPvPreview,
+            initialUsePvBackground: widget.loadPv,
+            initialPvVideoPath: widget.loadPv ? _pvCachedFilePath : null,
             task: task,
             displayFont: AppTheme.font(fontWeight: FontWeight.w700),
             textStyleResolver: _resolveChartTextStyle,
@@ -1309,10 +1312,17 @@ class _ChartPlayPageState extends State<ChartPlayPage>
   void _onVideoExported(SimaiVideoExportResult result) {
     final sizeMb = (result.fileSizeBytes / (1024 * 1024)).toStringAsFixed(1);
     debugPrint(
-      'Video exported: ${result.width}x${result.height} '
-      '(${result.duration.inSeconds}s, $sizeMb MB) -> ${result.path}',
+      'Video exported: ${result.width}x${result.height}@${result.fps}fps '
+      '(${result.duration.inSeconds}s, $sizeMb MB, savedToGallery=${result.savedToGallery}) -> ${result.path}',
     );
     if (!mounted) return;
+    if (result.savedToGallery) {
+      AppToast.show(
+        '视频已保存到相册（${result.width}×${result.height} · ${result.fps}fps · $sizeMb MB）',
+        tone: AppToastTone.success,
+      );
+      return;
+    }
     AppToast.show(
         context.l10n.flowVideoGeneratedTapSaveToPhotosOn(
             (result.width).toString(),
@@ -1686,6 +1696,9 @@ E
                 onExitGameplay: _handleExitGameplay,
                 backgroundVideo: _buildPvBackground(),
                 hasPvBackground: _pvReady,
+                initialExportUsePvBackground: widget.loadPv,
+                initialExportPvVideoPath:
+                    widget.loadPv ? _pvCachedFilePath : null,
                 videoExportMetadata: _videoMetadata,
                 videoExportOptions: _videoExportOptions,
                 videoExportSettings:

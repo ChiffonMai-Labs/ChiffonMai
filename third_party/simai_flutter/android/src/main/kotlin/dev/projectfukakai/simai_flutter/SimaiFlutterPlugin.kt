@@ -141,6 +141,8 @@ class SimaiFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
         )
         val pvVideoPath = call.argument<String>("pvVideoPath")?.takeIf { it.isNotBlank() }
         val pvRect = call.argument<List<Number>>("pvRect")?.map { it.toInt() }?.toIntArray()
+        val saveToGallery = call.argument<Boolean>("saveToGallery") ?: false
+        val displayName = call.argument<String>("displayName")?.takeIf { it.isNotBlank() }
         val session = AndroidVideoExportSession(
             id = id,
             context = context,
@@ -156,6 +158,8 @@ class SimaiFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             audioMode = call.requireString("audioMode"),
             pvVideoPath = pvVideoPath,
             pvRect = pvRect,
+            saveToGallery = saveToGallery,
+            displayName = displayName,
         )
         try {
             session.start()
@@ -188,17 +192,29 @@ class SimaiFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
         exportExecutor.execute {
             var succeeded = false
             try {
-                val output = session.finish(
+                val outcome = session.finish(
                     durationUs = durationUs,
                     timelineStartUs = timelineStartUs,
                     musicOffsetUs = musicOffsetUs,
                     musicVolume = musicVolume,
                     hitEventTimesUs = hitEvents,
+                    directGallerySaver = if (session.saveToGallery) {
+                        { renderedFile ->
+                            trySaveDirectlyToGallery(
+                                source = renderedFile,
+                                preferredDisplayName = session.displayName,
+                            )
+                        }
+                    } else {
+                        null
+                    },
                 )
                 result.success(
                     mapOf(
-                        "outputPath" to output.absolutePath,
-                        "fileSizeBytes" to output.length().coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+                        "outputPath" to outcome.outputPath,
+                        "fileSizeBytes" to outcome.fileSizeBytes.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+                        "savedToGallery" to outcome.savedToGallery,
+                        "galleryUri" to outcome.galleryUri,
                     ),
                 )
                 succeeded = true
@@ -220,25 +236,43 @@ class SimaiFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     private fun requireSession(id: Int): AndroidVideoExportSession =
         sessions[id] ?: throw IllegalStateException("Unknown video export session $id")
 
+    private fun trySaveDirectlyToGallery(
+        source: File,
+        preferredDisplayName: String?,
+    ): String? {
+        val displayName = sanitizeDisplayName(preferredDisplayName, fallback = source.mp4DisplayName)
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            saveToScopedGallery(source, displayName).toString()
+        } else {
+            if (context.checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) !=
+                PackageManager.PERMISSION_GRANTED
+            ) {
+                return null
+            }
+            saveToLegacyGallery(source, displayName).toString()
+        }
+    }
+
     private fun saveToGallery(path: String): String {
         val source = requireVideoFile(path)
+        val displayName = source.mp4DisplayName
         val assetUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            saveToScopedGallery(source).toString()
+            saveToScopedGallery(source, displayName).toString()
         } else {
-            saveToLegacyGallery(source).toString()
+            saveToLegacyGallery(source, displayName).toString()
         }
         deleteExportedVideo(source, "The video was saved, but its local export file could not be deleted.")
         return assetUri
     }
 
-    private fun saveToScopedGallery(source: File): Uri {
+    private fun saveToScopedGallery(source: File, displayName: String): Uri {
         val resolver = context.contentResolver
         val values = ContentValues().apply {
-            put(MediaStore.Video.Media.DISPLAY_NAME, source.mp4DisplayName)
+            put(MediaStore.Video.Media.DISPLAY_NAME, displayName)
             put(MediaStore.Video.Media.MIME_TYPE, VIDEO_MIME_TYPE)
             put(
                 MediaStore.Video.Media.RELATIVE_PATH,
-                "${Environment.DIRECTORY_MOVIES}/Simai",
+                "${Environment.DIRECTORY_MOVIES}/ChiffonMai",
             )
             put(MediaStore.Video.Media.IS_PENDING, 1)
         }
@@ -265,7 +299,7 @@ class SimaiFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     }
 
     @Suppress("DEPRECATION")
-    private fun saveToLegacyGallery(source: File): Uri {
+    private fun saveToLegacyGallery(source: File, displayName: String): Uri {
         if (context.checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) !=
             PackageManager.PERMISSION_GRANTED
         ) {
@@ -275,14 +309,14 @@ class SimaiFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             )
         }
         val movies = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES)
-        val directory = File(movies, "Simai")
+        val directory = File(movies, "ChiffonMai")
         if (!directory.exists() && !directory.mkdirs()) {
             throw PluginActionException(
                 "gallery_write_failed",
-                "Unable to create the Movies/Simai directory.",
+                "Unable to create the Movies/ChiffonMai directory.",
             )
         }
-        val destination = uniqueFile(directory, source.mp4DisplayName)
+        val destination = uniqueFile(directory, displayName)
         try {
             source.inputStream().buffered().use { input ->
                 destination.outputStream().buffered().use(input::copyTo)
@@ -303,12 +337,35 @@ class SimaiFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             destination.delete()
             throw PluginActionException(
                 "gallery_write_failed",
-                error.message ?: "Unable to copy the exported video to Movies/Simai.",
+                error.message ?: "Unable to copy the exported video to Movies/ChiffonMai.",
             )
         }
     }
 
     private fun shareVideo(path: String, text: String?) {
+        if (path.startsWith("content://", ignoreCase = true)) {
+            try {
+                val uri = Uri.parse(path)
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = VIDEO_MIME_TYPE
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    if (!text.isNullOrBlank()) putExtra(Intent.EXTRA_TEXT, text)
+                    clipData = android.content.ClipData.newRawUri(text ?: "video.mp4", uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                val chooser = Intent.createChooser(intent, null).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                context.startActivity(chooser)
+                return
+            } catch (error: Throwable) {
+                throw PluginActionException(
+                    "share_failed",
+                    error.message ?: "Unable to open the system share sheet.",
+                )
+            }
+        }
         val source = requireVideoFile(path)
         val shareDirectory = File(context.cacheDir, SHARE_DIRECTORY)
         if (!shareDirectory.exists() && !shareDirectory.mkdirs()) {
@@ -425,6 +482,16 @@ class SimaiFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     ) == true
             }.getOrDefault(false)
         }
+    }
+
+    private fun sanitizeDisplayName(preferred: String?, fallback: String): String {
+        val cleaned = preferred
+            ?.replace(Regex("""[\\/:*?"<>|\r\n]+"""), "_")
+            ?.trim()
+            ?.take(120)
+            ?.takeIf { it.isNotEmpty() }
+            ?: return fallback
+        return if (cleaned.endsWith(".mp4", ignoreCase = true)) cleaned else "$cleaned.mp4"
     }
 
     private val File.mp4DisplayName: String

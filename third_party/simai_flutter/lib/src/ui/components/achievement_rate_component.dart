@@ -384,7 +384,10 @@ class AchievementRateComponent extends PositionComponent
         metricKey >= index.totalBreakCount,
       _ => true,
     };
-    final fontSize = (min(size.x, size.y) * 0.055).clamp(18.0, 34.0);
+    final minEdge = min(size.x, size.y);
+    final fontSize = game.headlessExport
+        ? (minEdge * 0.064).clamp(22.0, 68.0)
+        : (minEdge * 0.055).clamp(18.0, 34.0);
     if (_wasVisible &&
         mode == _lastMode &&
         metricKey == _lastMetricKey &&
@@ -698,7 +701,9 @@ class AchievementRateComponent extends PositionComponent
     required bool rebuildLabels,
   }) {
     final decimalFontSize = fontSize * 0.82;
-    final labelFontSize = (fontSize * 0.38).clamp(9.0, 13.0);
+    final labelFontSize = game.headlessExport
+        ? (fontSize * 0.30).clamp(10.0, 22.0)
+        : (fontSize * 0.38).clamp(9.0, 13.0);
     final strokeWidth = max(2.0, fontSize * 0.08);
     final outlinePaint = Paint()
       ..color = Colors.black.withAlpha(150)
