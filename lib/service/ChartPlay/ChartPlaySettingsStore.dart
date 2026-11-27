@@ -74,15 +74,20 @@ class ChartPlaySettings {
   final SimaiBackgroundMode backgroundMode;
   final double backgroundOpacity;
   final double speed;
+  final double touchSpeed;
+  final double slideDisplayTiming;
+  final SimaiAutoPlayMode autoPlayMode;
   final double playbackRate;
   final bool rotateSlideStar;
   final bool pinkSlideStar;
   final bool standardBreakSlide;
   final bool showApproachLine;
   final bool showHitEffects;
+  final SimaiHitEffectStyle hitEffectStyle;
   final bool showJudgementDisplay;
   final SimaiJudgementDisplayMode judgementDisplayMode;
   final SimaiNoteStyle noteStyle;
+  final SimaiNoteStyle holdStyle;
   final SimaiCenterDisplayMode centerDisplayMode;
   final SimaiCenterDisplayMode topRightDisplayMode;
   final bool showAchievementRate;
@@ -108,15 +113,20 @@ class ChartPlaySettings {
     // 与 SimaiGame.defaultBackgroundOpacity 保持一致。
     this.backgroundOpacity = 0.35,
     this.speed = 8.0,
+    this.touchSpeed = 8.0,
+    this.slideDisplayTiming = 0.0,
+    this.autoPlayMode = SimaiAutoPlayMode.allCriticalPerfect,
     this.playbackRate = 1.0,
     this.rotateSlideStar = true,
     this.pinkSlideStar = false,
     this.standardBreakSlide = false,
     this.showApproachLine = true,
     this.showHitEffects = true,
+    this.hitEffectStyle = SimaiHitEffectStyle.ring,
     this.showJudgementDisplay = false,
     this.judgementDisplayMode = SimaiJudgementDisplayMode.twoB,
     this.noteStyle = SimaiNoteStyle.arcade,
+    this.holdStyle = SimaiNoteStyle.arcade,
     this.centerDisplayMode = SimaiCenterDisplayMode.achievementAdd,
     this.topRightDisplayMode = SimaiCenterDisplayMode.combo,
     this.showAchievementRate = true,
@@ -125,10 +135,10 @@ class ChartPlaySettings {
     this.showDetailedPerformanceInfo = false,
     this.metronomeEnabled = true,
     this.metronomeSpeed = 1.0,
-    this.hitSoundEnabled = false,
+    this.hitSoundEnabled = true,
     this.metronomeSoundEnabled = false,
-    this.musicVolume = 0.8,
-    this.hitSoundVolume = 0.72,
+    this.musicVolume = 0.5,
+    this.hitSoundVolume = 2.0,
     this.musicOffsetMs = 0,
     this.hitSoundOffsetMs = 0,
     this.pvOffsetMs = 0,
@@ -149,15 +159,20 @@ class ChartPlaySettings {
       backgroundMode: c.backgroundMode,
       backgroundOpacity: c.backgroundOpacity,
       speed: c.speed,
+      touchSpeed: c.touchSpeed,
+      slideDisplayTiming: c.slideDisplayTiming,
+      autoPlayMode: c.autoPlayMode,
       playbackRate: c.playbackRate,
       rotateSlideStar: c.rotateSlideStar,
       pinkSlideStar: c.pinkSlideStar,
       standardBreakSlide: c.standardBreakSlide,
       showApproachLine: c.showApproachLine,
       showHitEffects: c.showHitEffects,
+      hitEffectStyle: c.hitEffectStyle,
       showJudgementDisplay: c.showJudgementDisplay,
       judgementDisplayMode: c.judgementDisplayMode,
       noteStyle: c.noteStyle,
+      holdStyle: SimaiNoteStyle.normalizeForHold(c.holdStyle),
       centerDisplayMode: c.centerDisplayMode,
       topRightDisplayMode: c.topRightDisplayMode,
       showAchievementRate: c.showAchievementRate,
@@ -184,15 +199,20 @@ class ChartPlaySettings {
     c.backgroundMode = backgroundMode;
     c.backgroundOpacity = backgroundOpacity;
     c.speed = speed;
+    c.touchSpeed = touchSpeed;
+    c.slideDisplayTiming = slideDisplayTiming;
+    c.autoPlayMode = autoPlayMode;
     c.playbackRate = playbackRate;
     c.rotateSlideStar = rotateSlideStar;
     c.pinkSlideStar = pinkSlideStar;
     c.standardBreakSlide = standardBreakSlide;
     c.showApproachLine = showApproachLine;
     c.showHitEffects = showHitEffects;
+    c.hitEffectStyle = hitEffectStyle;
     c.showJudgementDisplay = showJudgementDisplay;
     c.judgementDisplayMode = judgementDisplayMode;
     c.noteStyle = noteStyle;
+    c.holdStyle = SimaiNoteStyle.normalizeForHold(holdStyle);
     c.centerDisplayMode = centerDisplayMode;
     c.topRightDisplayMode = topRightDisplayMode;
     c.showAchievementRate = showAchievementRate;
@@ -212,15 +232,20 @@ class ChartPlaySettings {
         'backgroundMode': backgroundMode.name,
         'backgroundOpacity': backgroundOpacity,
         'speed': speed,
+        'touchSpeed': touchSpeed,
+        'slideDisplayTiming': slideDisplayTiming,
+        'autoPlayMode': autoPlayMode.name,
         'playbackRate': playbackRate,
         'rotateSlideStar': rotateSlideStar,
         'pinkSlideStar': pinkSlideStar,
         'standardBreakSlide': standardBreakSlide,
         'showApproachLine': showApproachLine,
         'showHitEffects': showHitEffects,
+        'hitEffectStyle': hitEffectStyle.name,
         'showJudgementDisplay': showJudgementDisplay,
         'judgementDisplayMode': judgementDisplayMode.name,
         'noteStyle': noteStyle.name,
+        'holdStyle': SimaiNoteStyle.normalizeForHold(holdStyle).name,
         'centerDisplayMode': centerDisplayMode.name,
         'topRightDisplayMode': topRightDisplayMode.name,
         'showAchievementRate': showAchievementRate,
@@ -244,6 +269,14 @@ class ChartPlaySettings {
   /// 数值越界会按侧边栏滑块的区间夹回去（防止手改 prefs 后出现非法状态）。
   factory ChartPlaySettings.fromJson(Map<String, dynamic> json) {
     const fallback = ChartPlaySettings();
+    final parsedSpeed = NoteMotion.parseSpeed(
+      json['speed'],
+      fallback: fallback.speed,
+    );
+    final parsedNoteStyle = SimaiNoteStyle.fromName(
+      json['noteStyle'],
+      fallback: fallback.noteStyle,
+    );
     return ChartPlaySettings(
       mirrorMode: _enumByName(
           SimaiMirrorMode.values, json['mirrorMode'], fallback.mirrorMode),
@@ -251,7 +284,21 @@ class ChartPlaySettings {
           json['backgroundMode'], fallback.backgroundMode),
       backgroundOpacity: _clampDouble(
           json['backgroundOpacity'], 0.0, 1.0, fallback.backgroundOpacity),
-      speed: _clampDouble(json['speed'], 3.0, 9.0, fallback.speed),
+      speed: parsedSpeed,
+      touchSpeed: NoteMotion.parseSpeed(
+        json['touchSpeed'],
+        fallback: parsedSpeed,
+      ),
+      slideDisplayTiming: NoteMotion.normalizeSlideDisplayTiming(
+        json['slideDisplayTiming'] is num
+            ? (json['slideDisplayTiming'] as num).toDouble()
+            : fallback.slideDisplayTiming,
+        fallback: fallback.slideDisplayTiming,
+      ),
+      autoPlayMode: SimaiAutoPlayMode.fromName(
+        json['autoPlayMode'],
+        fallback: fallback.autoPlayMode,
+      ),
       playbackRate:
           _clampDouble(json['playbackRate'], 0.1, 3.0, fallback.playbackRate),
       rotateSlideStar: _bool(json['rotateSlideStar'], fallback.rotateSlideStar),
@@ -261,6 +308,10 @@ class ChartPlaySettings {
       showApproachLine:
           _bool(json['showApproachLine'], fallback.showApproachLine),
       showHitEffects: _bool(json['showHitEffects'], fallback.showHitEffects),
+      hitEffectStyle: SimaiHitEffectStyle.fromName(
+        json['hitEffectStyle'],
+        fallback: fallback.hitEffectStyle,
+      ),
       showJudgementDisplay:
           _bool(json['showJudgementDisplay'], fallback.showJudgementDisplay),
       judgementDisplayMode: _enumByName(
@@ -268,9 +319,10 @@ class ChartPlaySettings {
         json['judgementDisplayMode'],
         fallback.judgementDisplayMode,
       ),
-      noteStyle: SimaiNoteStyle.fromName(
-        json['noteStyle'],
-        fallback: fallback.noteStyle,
+      noteStyle: parsedNoteStyle,
+      holdStyle: SimaiNoteStyle.fromHoldName(
+        json['holdStyle'],
+        fallback: SimaiNoteStyle.normalizeForHold(parsedNoteStyle),
       ),
       centerDisplayMode: SimaiCenterDisplayMode.fromNameOrLegacy(
         json['centerDisplayMode'],
@@ -533,14 +585,19 @@ class ChartVideoExportSettingsStore {
         'mirrorMode': s.mirrorMode.name,
         'backgroundMode': s.backgroundMode.name,
         'speed': s.speed,
+        'touchSpeed': s.touchSpeed,
+        'slideDisplayTiming': s.slideDisplayTiming,
+        'autoPlayMode': s.autoPlayMode.name,
         'rotateSlideStar': s.rotateSlideStar,
         'pinkSlideStar': s.pinkSlideStar,
         'standardBreakSlide': s.standardBreakSlide,
         'showApproachLine': s.showApproachLine,
         'showHitEffects': s.showHitEffects,
+        'hitEffectStyle': s.hitEffectStyle.name,
         'showJudgementDisplay': s.showJudgementDisplay,
         'judgementDisplayMode': s.judgementDisplayMode.name,
         'noteStyle': s.noteStyle.name,
+        'holdStyle': SimaiNoteStyle.normalizeForHold(s.holdStyle).name,
         'centerDisplayMode': s.centerDisplayMode.name,
         'topRightDisplayMode': s.topRightDisplayMode.name,
         'showAchievementRate': s.showAchievementRate,
@@ -549,12 +606,21 @@ class ChartVideoExportSettingsStore {
         'showDetailedPerformanceInfo': s.showDetailedPerformanceInfo,
         'hitSoundEnabled': s.hitSoundEnabled,
         'musicVolume': s.musicVolume,
+        'hitSoundVolume': s.hitSoundVolume,
         'musicOffsetMs': s.musicOffsetMs,
         'hitSoundOffsetMs': s.hitSoundOffsetMs,
       };
 
   static SimaiVideoExportSettings _fromJson(Map<String, dynamic> json) {
     const fallback = SimaiVideoExportSettings();
+    final parsedSpeed = NoteMotion.parseSpeed(
+      json['speed'],
+      fallback: fallback.speed,
+    );
+    final parsedNoteStyle = SimaiNoteStyle.fromName(
+      json['noteStyle'],
+      fallback: fallback.noteStyle,
+    );
     return SimaiVideoExportSettings(
       quality: ChartPlaySettings._enumByName(
           SimaiVideoQuality.values, json['quality'], fallback.quality),
@@ -568,8 +634,21 @@ class ChartVideoExportSettingsStore {
           SimaiMirrorMode.values, json['mirrorMode'], fallback.mirrorMode),
       backgroundMode: ChartPlaySettings._enumByName(SimaiBackgroundMode.values,
           json['backgroundMode'], fallback.backgroundMode),
-      speed: ChartPlaySettings._clampDouble(
-          json['speed'], 3.0, 9.0, fallback.speed),
+      speed: parsedSpeed,
+      touchSpeed: NoteMotion.parseSpeed(
+        json['touchSpeed'],
+        fallback: parsedSpeed,
+      ),
+      slideDisplayTiming: NoteMotion.normalizeSlideDisplayTiming(
+        json['slideDisplayTiming'] is num
+            ? (json['slideDisplayTiming'] as num).toDouble()
+            : fallback.slideDisplayTiming,
+        fallback: fallback.slideDisplayTiming,
+      ),
+      autoPlayMode: SimaiAutoPlayMode.fromName(
+        json['autoPlayMode'],
+        fallback: fallback.autoPlayMode,
+      ),
       rotateSlideStar: ChartPlaySettings._bool(
           json['rotateSlideStar'], fallback.rotateSlideStar),
       pinkSlideStar: ChartPlaySettings._bool(
@@ -580,6 +659,10 @@ class ChartVideoExportSettingsStore {
           json['showApproachLine'], fallback.showApproachLine),
       showHitEffects: ChartPlaySettings._bool(
           json['showHitEffects'], fallback.showHitEffects),
+      hitEffectStyle: SimaiHitEffectStyle.fromName(
+        json['hitEffectStyle'],
+        fallback: fallback.hitEffectStyle,
+      ),
       showJudgementDisplay: ChartPlaySettings._bool(
           json['showJudgementDisplay'], fallback.showJudgementDisplay),
       judgementDisplayMode: ChartPlaySettings._enumByName(
@@ -587,9 +670,10 @@ class ChartVideoExportSettingsStore {
         json['judgementDisplayMode'],
         fallback.judgementDisplayMode,
       ),
-      noteStyle: SimaiNoteStyle.fromName(
-        json['noteStyle'],
-        fallback: fallback.noteStyle,
+      noteStyle: parsedNoteStyle,
+      holdStyle: SimaiNoteStyle.fromHoldName(
+        json['holdStyle'],
+        fallback: SimaiNoteStyle.normalizeForHold(parsedNoteStyle),
       ),
       centerDisplayMode: SimaiCenterDisplayMode.fromNameOrLegacy(
         json['centerDisplayMode'],
@@ -612,6 +696,8 @@ class ChartVideoExportSettingsStore {
           json['hitSoundEnabled'], fallback.hitSoundEnabled),
       musicVolume: ChartPlaySettings._clampDouble(
           json['musicVolume'], 0.0, 1.0, fallback.musicVolume),
+      hitSoundVolume: ChartPlaySettings._clampDouble(json['hitSoundVolume'],
+          0.0, simaiMaxHitSoundVolume, fallback.hitSoundVolume),
       musicOffsetMs: ChartPlaySettings._clampInt(
           json['musicOffsetMs'], -2000, 2000, fallback.musicOffsetMs),
       hitSoundOffsetMs: ChartPlaySettings._clampInt(

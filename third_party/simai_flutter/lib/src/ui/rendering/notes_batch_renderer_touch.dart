@@ -118,32 +118,27 @@ void _drawTouchSpritePass(
     );
   }
 
-  // 中心圆点同样通过 'touch_center' 白色精灵染色合批（街机风多一层外黑环，零额外 flush）。
+  // 中心圆点统一使用经典（机台）样式，通过 'touch_center' 白色精灵染色合批（带外黑环，零额外 flush）。
   final double dotRadius = 8.0 * game.noteScale;
-  final double outlineWidth =
-      (game.noteStyle == SimaiNoteStyle.arcade ? 2.0 : 3.0) * game.noteScale;
+  final double outlineWidth = 2.0 * game.noteScale;
   final Color dotColor = m
       ? const Color(0xFFFFFF00)
-      : (game.noteStyle.usesEnhancedVisuals
-            ? (isBreak ? SimaiColors.touchBreak : const Color(0xFF00BFFF))
-            : color);
+      : (isBreak ? SimaiColors.touchBreak : const Color(0xFF00BFFF));
 
   if (dotAlpha > 0) {
     if (game.noteAssets.hasAsset('touch_center')) {
       final double outerDotRadius = dotRadius + outlineWidth * 0.5;
       final double innerDotRadius = max(1.0, dotRadius - outlineWidth * 0.5);
-      if (game.noteStyle == SimaiNoteStyle.arcade) {
-        game.noteAssets.drawSprite(
-          canvas,
-          key: 'touch_center',
-          position: h,
-          size: NoteAssetManager.touchCenterSpriteSize(
-            outerDotRadius + outlineWidth * 0.9,
-          ),
-          alpha: dotAlpha,
-          color: Colors.black,
-        );
-      }
+      game.noteAssets.drawSprite(
+        canvas,
+        key: 'touch_center',
+        position: h,
+        size: NoteAssetManager.touchCenterSpriteSize(
+          outerDotRadius + outlineWidth * 0.9,
+        ),
+        alpha: dotAlpha,
+        color: Colors.black,
+      );
       game.noteAssets.drawSprite(
         canvas,
         key: 'touch_center',
@@ -162,12 +157,10 @@ void _drawTouchSpritePass(
       );
     } else {
       game.noteAssets.flush(canvas);
-      if (game.noteStyle == SimaiNoteStyle.arcade) {
-        _touchFallbackStrokePaint
-          ..strokeWidth = outlineWidth * 3.0
-          ..color = Colors.black.withAlpha(dotAlpha);
-        canvas.drawCircle(h, dotRadius, _touchFallbackStrokePaint);
-      }
+      _touchFallbackStrokePaint
+        ..strokeWidth = outlineWidth * 3.0
+        ..color = Colors.black.withAlpha(dotAlpha);
+      canvas.drawCircle(h, dotRadius, _touchFallbackStrokePaint);
       _touchFallbackFillPaint
         ..shader = null
         ..color = dotColor.withAlpha(dotAlpha);

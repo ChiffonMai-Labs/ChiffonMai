@@ -14,6 +14,10 @@ import '../utils/ChartBpmInfo.dart';
 enum _NoteAccent { tap, touch, sustain, breakNote }
 
 typedef _RhythmMark = ({double time, _NoteAccent accent, bool simultaneous});
+typedef _BpmChangeMark = ({double time, double bpm, bool increased});
+
+const Color _bpmIncreasedColor = Color(0xFFFF8A65);
+const Color _bpmDecreasedColor = Color(0xFF64B5F6);
 
 /// 同一时刻的音符共用一个标记。时间轴与谱面播放、BPM 区间使用同一份解析结果。
 class _RhythmTimeline {
@@ -24,6 +28,24 @@ class _RhythmTimeline {
       _beatsAtStart.add(beats);
       beats += (segment.endSeconds - segment.startSeconds) * segment.bpm / 60;
     }
+    final timingChanges = [...chart.timingChanges]
+      ..sort((a, b) => a.time.compareTo(b.time));
+    final parsedBpmChanges = <_BpmChangeMark>[];
+    double? previousBpm;
+    for (final change in timingChanges) {
+      if (!change.time.isFinite || !change.tempo.isFinite || change.tempo <= 0) {
+        continue;
+      }
+      if (previousBpm != null && (change.tempo - previousBpm).abs() > 0.0001) {
+        parsedBpmChanges.add((
+          time: change.time,
+          bpm: change.tempo,
+          increased: change.tempo > previousBpm,
+        ));
+      }
+      previousBpm = change.tempo;
+    }
+    bpmChanges = parsedBpmChanges;
     final notesAtTime = <double, _RhythmMark>{};
     for (final collection in chart.noteCollections) {
       if (collection.isEmpty || !collection.time.isFinite) continue;
@@ -57,6 +79,7 @@ class _RhythmTimeline {
 
   final List<ChartBpmSegment> segments;
   final List<double> _beatsAtStart = [];
+  late final List<_BpmChangeMark> bpmChanges;
   late final List<_RhythmMark> marks;
   late final List<String?> labels;
 
@@ -149,6 +172,20 @@ class _RhythmTimeline {
     }
     return low;
   }
+
+  int firstBpmChangeAtOrAfter(double time) {
+    var low = 0;
+    var high = bpmChanges.length;
+    while (low < high) {
+      final mid = (low + high) ~/ 2;
+      if (bpmChanges[mid].time < time) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+    return low;
+  }
 }
 
 typedef _RhythmLabelLayout = ({List<TextPainter?> labels, double edgePadding});
@@ -197,6 +234,9 @@ class _ChartPlayMetronomeState extends State<ChartPlayMetronome>
   double? _labelScale;
   TextStyle? _labelStyle;
   TextScaler? _labelScaler;
+  List<TextPainter> _bpmLabels = const [];
+  double? _bpmLabelPlaybackRate;
+  TextScaler? _bpmLabelScaler;
 
   Future<void>? _soundLoad;
   AudioPlayer? _audio;
@@ -240,6 +280,7 @@ class _ChartPlayMetronomeState extends State<ChartPlayMetronome>
       if (controllerChanged) {
         _timeline = _RhythmTimeline(widget.controller.chart);
         _clearLabels();
+        _clearBpmLabels();
       }
       if (widget.enabled) _listen(widget.controller);
       _syncFrames();
@@ -319,7 +360,9 @@ class _ChartPlayMetronomeState extends State<ChartPlayMetronome>
     _lastChartTime = time;
     _lastSampleMicros = now;
     _syncFrames();
-    if (bpm != _bpm) setState(() => _bpm = bpm);
+    if (bpm != _bpm || controller.playbackRate != _bpmLabelPlaybackRate) {
+      setState(() => _bpm = bpm);
+    }
   }
 
   void _prepareClick() {
@@ -385,6 +428,7 @@ class _ChartPlayMetronomeState extends State<ChartPlayMetronome>
     _clock.stop();
     _frames.dispose();
     _clearLabels();
+    _clearBpmLabels();
     unawaited(_soundLoad?.then<void>((_) async {
       final player = _audio;
       if (player != null) await _disposeAudio(player);
@@ -399,6 +443,44 @@ class _ChartPlayMetronomeState extends State<ChartPlayMetronome>
     _labels.clear();
     _labelLayout = null;
     _labelScale = null;
+  }
+
+  void _clearBpmLabels() {
+    for (final label in _bpmLabels) {
+      label.dispose();
+    }
+    _bpmLabels = const [];
+    _bpmLabelPlaybackRate = null;
+    _bpmLabelScaler = null;
+  }
+
+  List<TextPainter> _ensureBpmLabels(double playbackRate, TextScaler scaler) {
+    if (_bpmLabelPlaybackRate == playbackRate &&
+        _bpmLabelScaler == scaler &&
+        _bpmLabels.length == _timeline.bpmChanges.length) {
+      return _bpmLabels;
+    }
+    _clearBpmLabels();
+    _bpmLabelPlaybackRate = playbackRate;
+    _bpmLabelScaler = scaler;
+    if (_timeline.bpmChanges.isEmpty) return _bpmLabels;
+    _bpmLabels = [
+      for (final change in _timeline.bpmChanges)
+        TextPainter(
+          text: TextSpan(
+            text:
+                '${change.increased ? '▲' : '▼'}${_formatDisplayBpm(change.bpm * playbackRate)}',
+            style: AppTheme.number(
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              color: change.increased ? _bpmIncreasedColor : _bpmDecreasedColor,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+          textScaler: scaler,
+        )..layout(),
+    ];
+    return _bpmLabels;
   }
 
   TextPainter _rhythmLabel(String text) => _labels.putIfAbsent(
@@ -458,6 +540,10 @@ class _ChartPlayMetronomeState extends State<ChartPlayMetronome>
       _labelStyle = labelStyle;
       _labelScaler = labelScaler;
     }
+    final bpmLabels = _ensureBpmLabels(
+      widget.controller.playbackRate,
+      labelScaler,
+    );
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -533,6 +619,7 @@ class _ChartPlayMetronomeState extends State<ChartPlayMetronome>
                   frames: _frames,
                   scheme: scheme,
                   layoutLabels: _layoutLabels,
+                  bpmLabels: bpmLabels,
                   speed: widget.speed,
                 ),
               ),
@@ -550,6 +637,7 @@ class _RhythmTrackPainter extends CustomPainter {
     required this.frames,
     required this.scheme,
     required this.layoutLabels,
+    required this.bpmLabels,
     required this.speed,
   }) : super(repaint: Listenable.merge([frames, controller.timeNotifier]));
 
@@ -558,11 +646,13 @@ class _RhythmTrackPainter extends CustomPainter {
   final AnimationController frames;
   final ColorScheme scheme;
   final _RhythmLabelLayout Function(double) layoutLabels;
+  final List<TextPainter> bpmLabels;
   final double speed;
 
-  // 复用静态画笔实例，消除 120Hz 重绘时每帧新建 3 个 Paint 的堆分配。
+  // 复用静态画笔实例，消除 120Hz 重绘时每帧新建 Paint 的堆分配。
   final Paint _notePaint = Paint();
   final Paint _guidePaint = Paint()..strokeWidth = 1;
+  final Paint _bpmLinePaint = Paint()..strokeWidth = 1.5;
   final Paint _headPaint = Paint()
     ..strokeWidth = 1.4
     ..style = PaintingStyle.stroke;
@@ -582,6 +672,35 @@ class _RhythmTrackPainter extends CustomPainter {
     canvas.save();
     canvas.clipRect(Offset.zero & size);
     canvas.drawLine(const Offset(0, noteY), Offset(size.width, noteY), guide);
+    final bpmChanges = timeline.bpmChanges;
+    if (bpmChanges.isNotEmpty) {
+      final bpmStart = timeline.firstBpmChangeAtOrAfter(
+        time - (headX + 80.0) / scale,
+      );
+      var lastBpmLabelRight = double.negativeInfinity;
+      for (var i = bpmStart; i < bpmChanges.length; i++) {
+        final change = bpmChanges[i];
+        final x = headX + (change.time - time) * scale;
+        if (x > size.width + 4.0) break;
+        final past = change.time < time;
+        final color =
+            change.increased ? _bpmIncreasedColor : _bpmDecreasedColor;
+        _bpmLinePaint.color = color.withValues(alpha: past ? 0.35 : 0.85);
+        canvas.drawLine(
+          Offset(x, 2.0),
+          Offset(x, size.height - 4.0),
+          _bpmLinePaint,
+        );
+        if (i < bpmLabels.length) {
+          final label = bpmLabels[i];
+          final dx = x + 3.0;
+          if (dx >= lastBpmLabelRight + 4.0 && dx + label.width > 0.0) {
+            label.paint(canvas, Offset(dx, 1.0));
+            lastBpmLabelRight = dx + label.width;
+          }
+        }
+      }
+    }
     final marks = timeline.marks;
     final layout = layoutLabels(scale);
     final start = timeline.firstAtOrAfter(
@@ -639,5 +758,6 @@ class _RhythmTrackPainter extends CustomPainter {
       controller != oldDelegate.controller ||
       scheme != oldDelegate.scheme ||
       layoutLabels != oldDelegate.layoutLabels ||
+      bpmLabels != oldDelegate.bpmLabels ||
       speed != oldDelegate.speed;
 }

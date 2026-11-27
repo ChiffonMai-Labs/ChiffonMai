@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import '../structures/location.dart';
 import '../structures/note_group.dart';
+import '../ui/hit_effect_style.dart';
 import '../ui/note_motion.dart';
 import '../ui/note_style.dart';
 import '../ui/simai_game.dart' show simaiMaxHitSoundVolume;
@@ -183,10 +184,11 @@ enum SimaiGameplayCenterDisplayMode {
 class SimaiGameplaySettings {
   const SimaiGameplaySettings({
     this.noteSpeed = 8.0,
+    this.touchSpeed = 8.0,
     this.musicOffsetMs = 0,
     this.judgementOffsetMs = 0,
-    this.musicVolume = 0.8,
-    this.hitSoundVolume = 0.72,
+    this.musicVolume = 0.5,
+    this.hitSoundVolume = 2.0,
     this.answerSoundEnabled = true,
     this.hitSoundEnabled = false,
     this.contactRadiusScale = 1.0,
@@ -198,13 +200,16 @@ class SimaiGameplaySettings {
     this.centerDisplayMode = SimaiGameplayCenterDisplayMode.achievementAdd,
     this.topRightDisplayMode = SimaiGameplayCenterDisplayMode.none,
     this.noteStyle = SimaiNoteStyle.arcade,
+    this.holdStyle = SimaiNoteStyle.arcade,
     this.showApproachLine = true,
     this.showHitEffects = true,
+    this.hitEffectStyle = SimaiHitEffectStyle.ring,
     this.showInputPartitions = false,
     this.showTouchIndicators = true,
   });
 
   final double noteSpeed;
+  final double touchSpeed;
   final int musicOffsetMs;
   final int judgementOffsetMs;
   final double musicVolume;
@@ -231,30 +236,35 @@ class SimaiGameplaySettings {
   final SimaiGameplayCenterDisplayMode centerDisplayMode;
   final SimaiGameplayCenterDisplayMode topRightDisplayMode;
   final SimaiNoteStyle noteStyle;
+  final SimaiNoteStyle holdStyle;
   final bool showApproachLine;
   final bool showHitEffects;
+  final SimaiHitEffectStyle hitEffectStyle;
   final bool showInputPartitions;
   final bool showTouchIndicators;
 
-  /// 统一与预览页一致的音符流速公式。
+  /// 统一与预览页一致的 TAP/HOLD 音符流速公式。
   double get approachTime => NoteMotion.approachTimeForSpeed(noteSpeed);
 
-  /// 统一与预览页一致的 Touch 音符出现时长。
+  /// 统一与预览页一致的 TOUCH 独立流速出现时长。
   double get touchApproachTime =>
-      approachTime * NoteMotion.touchApproachMultiplier;
+      NoteMotion.touchApproachTimeForSpeed(touchSpeed);
 
   SimaiGameplaySettings normalized() {
-    final safeSpeed = noteSpeed.isFinite ? noteSpeed : 8.0;
-    final speed = ((safeSpeed.clamp(3.0, 9.0) / 0.25).round() * 0.25)
-        .toDouble();
+    final speed = NoteMotion.normalizeSpeed(noteSpeed);
+    final normalizedTouchSpeed = NoteMotion.normalizeSpeed(
+      touchSpeed,
+      fallback: speed,
+    );
     return copyWith(
       noteSpeed: speed,
+      touchSpeed: normalizedTouchSpeed,
       musicOffsetMs: musicOffsetMs.clamp(-2000, 2000),
       judgementOffsetMs: judgementOffsetMs.clamp(-500, 500),
-      musicVolume: (musicVolume.isFinite ? musicVolume : 0.8)
+      musicVolume: (musicVolume.isFinite ? musicVolume : 0.5)
           .clamp(0.0, 1.0)
           .toDouble(),
-      hitSoundVolume: (hitSoundVolume.isFinite ? hitSoundVolume : 0.72)
+      hitSoundVolume: (hitSoundVolume.isFinite ? hitSoundVolume : 2.0)
           .clamp(0.0, simaiMaxHitSoundVolume)
           .toDouble(),
       contactRadiusScale:
@@ -267,11 +277,13 @@ class SimaiGameplaySettings {
       backgroundOpacity: (backgroundOpacity.isFinite ? backgroundOpacity : 0.35)
           .clamp(0.0, 1.0)
           .toDouble(),
+      holdStyle: SimaiNoteStyle.normalizeForHold(holdStyle),
     );
   }
 
   SimaiGameplaySettings copyWith({
     double? noteSpeed,
+    double? touchSpeed,
     int? musicOffsetMs,
     int? judgementOffsetMs,
     double? musicVolume,
@@ -287,13 +299,16 @@ class SimaiGameplaySettings {
     SimaiGameplayCenterDisplayMode? centerDisplayMode,
     SimaiGameplayCenterDisplayMode? topRightDisplayMode,
     SimaiNoteStyle? noteStyle,
+    SimaiNoteStyle? holdStyle,
     bool? showApproachLine,
     bool? showHitEffects,
+    SimaiHitEffectStyle? hitEffectStyle,
     bool? showInputPartitions,
     bool? showTouchIndicators,
   }) {
     return SimaiGameplaySettings(
       noteSpeed: noteSpeed ?? this.noteSpeed,
+      touchSpeed: touchSpeed ?? this.touchSpeed,
       musicOffsetMs: musicOffsetMs ?? this.musicOffsetMs,
       judgementOffsetMs: judgementOffsetMs ?? this.judgementOffsetMs,
       musicVolume: musicVolume ?? this.musicVolume,
@@ -309,8 +324,10 @@ class SimaiGameplaySettings {
       centerDisplayMode: centerDisplayMode ?? this.centerDisplayMode,
       topRightDisplayMode: topRightDisplayMode ?? this.topRightDisplayMode,
       noteStyle: noteStyle ?? this.noteStyle,
+      holdStyle: SimaiNoteStyle.normalizeForHold(holdStyle ?? this.holdStyle),
       showApproachLine: showApproachLine ?? this.showApproachLine,
       showHitEffects: showHitEffects ?? this.showHitEffects,
+      hitEffectStyle: hitEffectStyle ?? this.hitEffectStyle,
       showInputPartitions: showInputPartitions ?? this.showInputPartitions,
       showTouchIndicators: showTouchIndicators ?? this.showTouchIndicators,
     );
@@ -320,6 +337,7 @@ class SimaiGameplaySettings {
     final safe = normalized();
     return <String, dynamic>{
       'noteSpeed': safe.noteSpeed,
+      'touchSpeed': safe.touchSpeed,
       'musicOffsetMs': safe.musicOffsetMs,
       'judgementOffsetMs': safe.judgementOffsetMs,
       'musicVolume': safe.musicVolume,
@@ -335,8 +353,10 @@ class SimaiGameplaySettings {
       'centerDisplayMode': safe.centerDisplayMode.name,
       'topRightDisplayMode': safe.topRightDisplayMode.name,
       'noteStyle': safe.noteStyle.name,
+      'holdStyle': safe.holdStyle.name,
       'showApproachLine': safe.showApproachLine,
       'showHitEffects': safe.showHitEffects,
+      'hitEffectStyle': safe.hitEffectStyle.name,
       'showInputPartitions': safe.showInputPartitions,
       'showTouchIndicators': safe.showTouchIndicators,
     };
@@ -344,8 +364,20 @@ class SimaiGameplaySettings {
 
   factory SimaiGameplaySettings.fromJson(Map<String, dynamic> json) {
     const defaults = SimaiGameplaySettings();
+    final parsedNoteSpeed = NoteMotion.parseSpeed(
+      json['noteSpeed'],
+      fallback: defaults.noteSpeed,
+    );
+    final parsedNoteStyle = SimaiNoteStyle.fromName(
+      json['noteStyle'],
+      fallback: defaults.noteStyle,
+    );
     return SimaiGameplaySettings(
-      noteSpeed: _readDouble(json['noteSpeed'], defaults.noteSpeed),
+      noteSpeed: parsedNoteSpeed,
+      touchSpeed: NoteMotion.parseSpeed(
+        json['touchSpeed'],
+        fallback: parsedNoteSpeed,
+      ),
       musicOffsetMs: _readInt(json['musicOffsetMs'], defaults.musicOffsetMs),
       judgementOffsetMs: _readInt(
         json['judgementOffsetMs'],
@@ -396,9 +428,10 @@ class SimaiGameplaySettings {
         json['topRightDisplayMode'],
         fallback: defaults.topRightDisplayMode,
       ),
-      noteStyle: SimaiNoteStyle.fromName(
-        json['noteStyle'],
-        fallback: defaults.noteStyle,
+      noteStyle: parsedNoteStyle,
+      holdStyle: SimaiNoteStyle.fromHoldName(
+        json['holdStyle'],
+        fallback: SimaiNoteStyle.normalizeForHold(parsedNoteStyle),
       ),
       showApproachLine: _readBool(
         json['showApproachLine'],
@@ -407,6 +440,10 @@ class SimaiGameplaySettings {
       showHitEffects: _readBool(
         json['showHitEffects'],
         defaults.showHitEffects,
+      ),
+      hitEffectStyle: SimaiHitEffectStyle.fromName(
+        json['hitEffectStyle'],
+        fallback: defaults.hitEffectStyle,
       ),
       showInputPartitions: _readBool(
         json['showInputPartitions'],
@@ -455,6 +492,7 @@ class SimaiGameplaySettings {
       identical(this, other) ||
       other is SimaiGameplaySettings &&
           noteSpeed == other.noteSpeed &&
+          touchSpeed == other.touchSpeed &&
           musicOffsetMs == other.musicOffsetMs &&
           judgementOffsetMs == other.judgementOffsetMs &&
           musicVolume == other.musicVolume &&
@@ -470,14 +508,17 @@ class SimaiGameplaySettings {
           centerDisplayMode == other.centerDisplayMode &&
           topRightDisplayMode == other.topRightDisplayMode &&
           noteStyle == other.noteStyle &&
+          holdStyle == other.holdStyle &&
           showApproachLine == other.showApproachLine &&
           showHitEffects == other.showHitEffects &&
+          hitEffectStyle == other.hitEffectStyle &&
           showInputPartitions == other.showInputPartitions &&
           showTouchIndicators == other.showTouchIndicators;
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     noteSpeed,
+    touchSpeed,
     musicOffsetMs,
     judgementOffsetMs,
     musicVolume,
@@ -493,11 +534,13 @@ class SimaiGameplaySettings {
     centerDisplayMode,
     topRightDisplayMode,
     noteStyle,
+    holdStyle,
     showApproachLine,
     showHitEffects,
+    hitEffectStyle,
     showInputPartitions,
     showTouchIndicators,
-  );
+  ]);
 }
 
 @immutable

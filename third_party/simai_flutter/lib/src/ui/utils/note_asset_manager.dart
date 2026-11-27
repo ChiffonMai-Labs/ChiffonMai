@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 
 import '../note_geometry.dart';
 import '../note_style.dart';
+import '../rendering/astro_simple_star_painter.dart';
 import '../simai_colors.dart';
 import '../simai_visual_tokens.dart';
 import 'note_utils.dart';
@@ -135,13 +136,25 @@ class NoteAssetManager {
   /// 打击特效预烘焙时的基准光环半径（留足外扩高斯柔光安全边距，避免跨格渗色）。
   static const double hitGlowBakedRadius = 26.0;
 
+  /// 机台光爆六边形冲击波预烘焙基准半径。
+  static const double hitHexRingBakedRadius = 26.0;
+
+  /// 机台光爆八向星芒预烘焙基准半径。
+  static const double hitStarburstBakedRadius = 30.0;
+
+  /// 机台光爆四角星屑粒子预烘焙基准半径。
+  static const double hitSparkleBakedRadius = 22.0;
+
+  /// 机台光爆核心爆闪预烘焙基准半径。
+  static const double hitCoreFlashBakedRadius = 24.0;
+
   /// 滑星箭头在图集内的烘焙倍率（2× 烘焙可提升任意角度旋转时的边缘锐度）。
   static const double slideArrowBakeScale = 2.0;
 
   /// Touch 中心圆点在图集内的烘焙半径。
   static const double touchCenterBakedRadius = 40.0;
 
-  /// 4×5（17 格）图集槽位定义。
+  /// 4×7（25 格）图集槽位定义。
   static const Map<String, int> _atlasSlots = <String, int>{
     'tap_normal': 0,
     'tap_each': 1,
@@ -160,11 +173,35 @@ class NoteAssetManager {
     'touch_center': 14,
     'star_tap_break': 15,
     'slide_arrow_break': 16,
+    'bar_slide_head_normal': 17,
+    'bar_slide_head_each': 18,
+    'bar_slide_head_break': 19,
+    'bar_slide_head_pink': 20,
+    'hit_hex_ring': 21,
+    'hit_starburst': 22,
+    'hit_sparkle': 23,
+    'hit_core_flash': 24,
   };
 
   /// 根据目标光环半径换算 `'hit_glow'` 精灵绘制尺寸。
   static double hitGlowSpriteSize(double targetRadius) =>
       targetRadius * (_cellExtent / hitGlowBakedRadius);
+
+  /// 根据目标半径换算 `'hit_hex_ring'` 精灵绘制尺寸。
+  static double hitHexRingSpriteSize(double targetRadius) =>
+      targetRadius * (_cellExtent / hitHexRingBakedRadius);
+
+  /// 根据目标半径换算 `'hit_starburst'` 精灵绘制尺寸。
+  static double hitStarburstSpriteSize(double targetRadius) =>
+      targetRadius * (_cellExtent / hitStarburstBakedRadius);
+
+  /// 根据目标半径换算 `'hit_sparkle'` 精灵绘制尺寸。
+  static double hitSparkleSpriteSize(double targetRadius) =>
+      targetRadius * (_cellExtent / hitSparkleBakedRadius);
+
+  /// 根据目标半径换算 `'hit_core_flash'` 精灵绘制尺寸。
+  static double hitCoreFlashSpriteSize(double targetRadius) =>
+      targetRadius * (_cellExtent / hitCoreFlashBakedRadius);
 
   /// 根据目标箭头缩放倍率换算 `'slide_arrow'` 精灵绘制尺寸。
   static double slideArrowSpriteSize(double arrowScale) =>
@@ -479,7 +516,6 @@ class NoteAssetManager {
     final bool arcade = noteStyle == SimaiNoteStyle.arcade;
     final bool simple = noteStyle == SimaiNoteStyle.simple;
     final bool bar = noteStyle == SimaiNoteStyle.bar;
-    final bool enhanced = noteStyle.usesEnhancedVisuals;
     switch (key) {
       case 'tap_normal':
         if (arcade) {
@@ -495,11 +531,14 @@ class NoteAssetManager {
           _drawSimpleTapBody(
             canvas,
             center,
-            SimaiModernNoteColors.pinkDot,
-            SimaiModernNoteColors.pinkLight,
-            SimaiModernNoteColors.pinkMid,
-            SimaiModernNoteColors.pinkDeep,
-            noteScale,
+            topColor: SimaiAstroSimpleColors.tapPinkTop,
+            sideColor: SimaiAstroSimpleColors.tapPinkSide,
+            bottomColor: SimaiAstroSimpleColors.tapPinkBottom,
+            bevelColor: SimaiAstroSimpleColors.tapPinkBevel,
+            rimTop: SimaiAstroSimpleColors.tapPinkRimTop,
+            rimSide: SimaiAstroSimpleColors.tapPinkRimSide,
+            rimBottom: SimaiAstroSimpleColors.tapPinkRimBottom,
+            noteScale: noteScale,
           );
         } else if (bar) {
           _drawBarTapBody(
@@ -528,11 +567,14 @@ class NoteAssetManager {
           _drawSimpleTapBody(
             canvas,
             center,
-            SimaiModernNoteColors.eachDot,
-            SimaiModernNoteColors.eachLight,
-            SimaiModernNoteColors.eachMid,
-            SimaiModernNoteColors.eachDeep,
-            noteScale,
+            topColor: SimaiAstroSimpleColors.tapEachTop,
+            sideColor: SimaiAstroSimpleColors.tapEachSide,
+            bottomColor: SimaiAstroSimpleColors.tapEachBottom,
+            bevelColor: SimaiAstroSimpleColors.tapEachBevel,
+            rimTop: SimaiAstroSimpleColors.tapEachRimTop,
+            rimSide: SimaiAstroSimpleColors.tapEachRimSide,
+            rimBottom: SimaiAstroSimpleColors.tapEachRimBottom,
+            noteScale: noteScale,
           );
         } else if (bar) {
           _drawBarTapBody(
@@ -561,11 +603,14 @@ class NoteAssetManager {
           _drawSimpleTapBody(
             canvas,
             center,
-            SimaiModernNoteColors.breakDot,
-            SimaiModernNoteColors.breakLight,
-            SimaiModernNoteColors.breakMid,
-            SimaiModernNoteColors.breakDeep,
-            noteScale,
+            topColor: SimaiAstroSimpleColors.tapBreakTop,
+            sideColor: SimaiAstroSimpleColors.tapBreakSide,
+            bottomColor: SimaiAstroSimpleColors.tapBreakBottom,
+            bevelColor: SimaiAstroSimpleColors.tapBreakBevel,
+            rimTop: SimaiAstroSimpleColors.tapBreakRimTop,
+            rimSide: SimaiAstroSimpleColors.tapBreakRimSide,
+            rimBottom: SimaiAstroSimpleColors.tapBreakRimBottom,
+            noteScale: noteScale,
           );
         } else if (bar) {
           _drawBarTapBody(
@@ -598,146 +643,135 @@ class NoteAssetManager {
       case 'star_tap_break':
         _drawStarEntry(canvas, center, SimaiColors.tapBreak, noteScale, noteStyle);
         return;
+      // TOUCH 与 SLIDE 滑条箭头统一使用经典（机台）样式，不受音符样式设置影响。
       case 'touch_normal':
-        if (enhanced) {
-          final bool modern = simple || bar;
-          _drawTouchPetalBody(
-            canvas,
-            center,
-            modern
-                ? SimaiModernNoteColors.touchCyanStart
-                : SimaiVisualTokens.colorTouchCyan,
-            255,
-            noteScale,
-            gradientStart: modern
-                ? SimaiModernNoteColors.touchCyanStart
-                : SimaiVisualTokens.colorTouchCyan,
-            gradientEnd: modern
-                ? SimaiModernNoteColors.touchCyanEnd
-                : SimaiVisualTokens.colorTouchBlue,
-            bakeShadow: true,
-            arcadeOutline: arcade,
-          );
-        } else {
-          _drawTouchPetalBody(
-            canvas,
-            center,
-            SimaiColors.touchNormal,
-            255,
-            noteScale,
-          );
-        }
+        _drawTouchPetalBody(
+          canvas,
+          center,
+          SimaiVisualTokens.colorTouchCyan,
+          255,
+          noteScale,
+          gradientStart: SimaiVisualTokens.colorTouchCyan,
+          gradientEnd: SimaiVisualTokens.colorTouchBlue,
+          bakeShadow: true,
+          arcadeOutline: true,
+        );
         return;
       case 'touch_each':
-        if (enhanced) {
-          final bool modern = simple || bar;
-          _drawTouchPetalBody(
-            canvas,
-            center,
-            modern
-                ? SimaiModernNoteColors.touchEachStart
-                : const Color(0xFFFFFF00),
-            255,
-            noteScale,
-            gradientStart: modern
-                ? SimaiModernNoteColors.touchEachStart
-                : const Color(0xFFFFFF00),
-            gradientEnd: modern
-                ? SimaiModernNoteColors.touchEachEnd
-                : SimaiVisualTokens.colorSimultaneousGold,
-            bakeShadow: true,
-            arcadeOutline: arcade,
-          );
-        } else {
-          _drawTouchPetalBody(
-            canvas,
-            center,
-            SimaiColors.touchEach,
-            255,
-            noteScale,
-          );
-        }
+        _drawTouchPetalBody(
+          canvas,
+          center,
+          const Color(0xFFFFFF00),
+          255,
+          noteScale,
+          gradientStart: const Color(0xFFFFFF00),
+          gradientEnd: SimaiVisualTokens.colorSimultaneousGold,
+          bakeShadow: true,
+          arcadeOutline: true,
+        );
         return;
       case 'touch_break':
-        if (enhanced) {
-          final bool modern = simple || bar;
-          _drawTouchPetalBody(
-            canvas,
-            center,
-            modern ? SimaiModernNoteColors.breakMid : SimaiColors.touchBreak,
-            255,
-            noteScale,
-            gradientStart: modern
-                ? SimaiModernNoteColors.breakLight
-                : SimaiVisualTokens.colorBreakGradientStart,
-            gradientEnd: modern
-                ? SimaiModernNoteColors.breakDeep
-                : SimaiVisualTokens.colorBreakGradientEnd,
-            bakeShadow: true,
-            arcadeOutline: arcade,
-          );
-        } else {
-          _drawTouchPetalBody(
-            canvas,
-            center,
-            SimaiColors.touchBreak,
-            255,
-            noteScale,
-          );
-        }
+        _drawTouchPetalBody(
+          canvas,
+          center,
+          SimaiColors.touchBreak,
+          255,
+          noteScale,
+          gradientStart: SimaiVisualTokens.colorBreakGradientStart,
+          gradientEnd: SimaiVisualTokens.colorBreakGradientEnd,
+          bakeShadow: true,
+          arcadeOutline: true,
+        );
         return;
       case 'touch_multi':
         _drawTouchMultiPetalBody(
           canvas,
           center,
           noteScale,
-          arcadeOutline: arcade,
-          modernTone: simple || bar,
+          arcadeOutline: true,
         );
         return;
       case 'hit_glow':
         _drawHitGlowBody(canvas, center, noteScale);
         return;
+      case 'hit_hex_ring':
+        _drawHitHexRingBody(canvas, center, noteScale);
+        return;
+      case 'hit_starburst':
+        _drawHitStarburstBody(canvas, center, noteScale);
+        return;
+      case 'hit_sparkle':
+        _drawHitSparkleBody(canvas, center, noteScale);
+        return;
+      case 'hit_core_flash':
+        _drawHitCoreFlashBody(canvas, center, noteScale);
+        return;
       case 'slide_arrow':
-        if (arcade) {
-          _drawArcadeSlideArrowBody(
-            canvas,
-            center,
-            noteScale,
-            isBreakDualColor: false,
-          );
-        } else if (simple || bar) {
-          _drawSimpleSlideArrowBody(
-            canvas,
-            center,
-            noteScale,
-            isBreakDualColor: false,
-          );
-        } else {
-          _drawSlideArrowBody(canvas, center, noteScale);
-        }
+        _drawArcadeSlideArrowBody(
+          canvas,
+          center,
+          noteScale,
+          isBreakDualColor: false,
+        );
         return;
       case 'slide_arrow_break':
-        if (arcade) {
-          _drawArcadeSlideArrowBody(
-            canvas,
-            center,
-            noteScale,
-            isBreakDualColor: true,
-          );
-        } else if (simple || bar) {
-          _drawSimpleSlideArrowBody(
-            canvas,
-            center,
-            noteScale,
-            isBreakDualColor: true,
-          );
-        } else {
-          _drawSlideArrowBody(canvas, center, noteScale);
-        }
+        _drawArcadeSlideArrowBody(
+          canvas,
+          center,
+          noteScale,
+          isBreakDualColor: true,
+        );
         return;
       case 'touch_center':
         _drawTouchCenterBody(canvas, center, noteScale);
+        return;
+      case 'bar_slide_head_normal':
+        if (bar) {
+          _drawBarSlideHeadBody(
+            canvas,
+            center,
+            SimaiModernNoteColors.cyanLight,
+            SimaiModernNoteColors.cyanMid,
+            SimaiModernNoteColors.cyanDeep,
+            noteScale,
+          );
+        }
+        return;
+      case 'bar_slide_head_each':
+        if (bar) {
+          _drawBarSlideHeadBody(
+            canvas,
+            center,
+            SimaiModernNoteColors.eachLight,
+            SimaiModernNoteColors.eachMid,
+            SimaiModernNoteColors.eachDeep,
+            noteScale,
+          );
+        }
+        return;
+      case 'bar_slide_head_break':
+        if (bar) {
+          _drawBarSlideHeadBody(
+            canvas,
+            center,
+            SimaiModernNoteColors.breakLight,
+            SimaiModernNoteColors.breakMid,
+            SimaiModernNoteColors.breakDeep,
+            noteScale,
+          );
+        }
+        return;
+      case 'bar_slide_head_pink':
+        if (bar) {
+          _drawBarSlideHeadBody(
+            canvas,
+            center,
+            SimaiModernNoteColors.pinkLight,
+            SimaiModernNoteColors.pinkMid,
+            SimaiModernNoteColors.pinkDeep,
+            noteScale,
+          );
+        }
         return;
     }
   }
@@ -753,6 +787,7 @@ class NoteAssetManager {
       case SimaiNoteStyle.arcade:
         _drawArcadeStarBody(canvas, center, color, noteScale);
       case SimaiNoteStyle.simple:
+        _drawAstroSimpleStarBody(canvas, center, color, noteScale);
       case SimaiNoteStyle.bar:
         _drawSimpleStarBody(canvas, center, color, noteScale);
       case SimaiNoteStyle.classic:
@@ -872,87 +907,114 @@ class NoteAssetManager {
     canvas.drawCircle(position, outerRadius * 0.15, dotPaint);
   }
 
-  /// 舞萌 DX「简洁（シンプル）」风格 Tap：圆润厚环、平滑径向光泽、纯净白描边与轻暗影。
+  /// 参考 AstroDX `Design/Sample Skin` 的简洁风格 Tap：
+  /// 顶底高光与左右深色的宝石环面渐变、内外缘立体倒角阴影、外圈「白-彩-白」三层光环与纯净镂空中心。
   void _drawSimpleTapBody(
     Canvas canvas,
-    Offset position,
-    Color dotColor,
-    Color lightColor,
-    Color midColor,
-    Color deepColor,
-    double noteScale,
-  ) {
+    Offset position, {
+    required Color topColor,
+    required Color sideColor,
+    required Color bottomColor,
+    required Color bevelColor,
+    required Color rimTop,
+    required Color rimSide,
+    required Color rimBottom,
+    required double noteScale,
+  }) {
     final double outerRadius = NoteGeometry.tapStarHoldRadius * noteScale;
-    final double innerRadius = outerRadius * 0.58;
-    final double strokeW = 2.4 * noteScale;
+    final double innerWhiteR = outerRadius * 0.50;
+    final double bodyInnerR = outerRadius * 0.525;
+    final double bodyOuterR = outerRadius * 0.89;
+    final double haloMidR = (bodyOuterR + outerRadius) * 0.5;
+    final double haloBandW = outerRadius - bodyOuterR;
+    final double innerStrokeW = outerRadius * 0.048;
 
-    final Path ringPath = Path()
+    final Path shadowRing = Path()
       ..fillType = PathFillType.evenOdd
       ..addOval(Rect.fromCircle(center: position, radius: outerRadius))
-      ..addOval(Rect.fromCircle(center: position, radius: innerRadius));
+      ..addOval(Rect.fromCircle(center: position, radius: innerWhiteR));
 
-    // 预烘焙柔和外投影，呈现现代 DX 简洁样式的立体悬浮感。
-    final Paint shadowPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = const Color(0x66000000)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 2.8 * noteScale)
-      ..isAntiAlias = true;
-    canvas.drawPath(ringPath, shadowPaint);
-
-    final Paint fillPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..isAntiAlias = true
-      ..shader = ui.Gradient.radial(
-        position,
-        outerRadius,
-        [lightColor, midColor, deepColor],
-        const [0.58, 0.80, 1.0],
-      );
-    canvas.drawPath(ringPath, fillPaint);
-
-    // 外环柔和亮带，模拟 DX シンプル 的光泽环。
-    final Paint sheenPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = (outerRadius - innerRadius) * 0.22
-      ..color = Colors.white.withValues(alpha: 0.22)
-      ..isAntiAlias = true;
-    canvas.drawCircle(
-      position,
-      innerRadius + (outerRadius - innerRadius) * 0.34,
-      sheenPaint,
+    // 预烘焙内外双向柔影，还原 AstroDX 浮雕通透感。
+    canvas.drawPath(
+      shadowRing,
+      Paint()
+        ..style = PaintingStyle.fill
+        ..color = const Color(0xBA000000)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 3.6 * noteScale)
+        ..isAntiAlias = true,
     );
 
-    // 纯净白描边 + 外缘极细深灰收边，避免强对比黑框感。
-    final Paint outerRim = Paint()
-      ..color = const Color(0xAA181820)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeW * 0.65
-      ..isAntiAlias = true;
-    canvas.drawCircle(position, outerRadius + strokeW * 0.65, outerRim);
+    final Path bodyRing = Path()
+      ..fillType = PathFillType.evenOdd
+      ..addOval(Rect.fromCircle(center: position, radius: bodyOuterR))
+      ..addOval(Rect.fromCircle(center: position, radius: bodyInnerR));
 
-    final Paint whiteStroke = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeW
-      ..isAntiAlias = true;
-    canvas.drawCircle(position, outerRadius, whiteStroke);
-    canvas.drawCircle(position, innerRadius, whiteStroke);
+    // 角度扫掠宝石色：左右深饱和、顶底柔亮。
+    canvas.drawPath(
+      bodyRing,
+      Paint()
+        ..style = PaintingStyle.fill
+        ..isAntiAlias = true
+        ..shader = ui.Gradient.sweep(
+          position,
+          [sideColor, bottomColor, sideColor, topColor, sideColor],
+          const [0.0, 0.25, 0.50, 0.75, 1.0],
+        ),
+    );
 
-    // 中心点带细白圈，强化视觉中心对位。
-    final double dotR = outerRadius * 0.16;
+    // 内外缘圆管立体倒角阴影。
+    canvas.drawPath(
+      bodyRing,
+      Paint()
+        ..style = PaintingStyle.fill
+        ..isAntiAlias = true
+        ..shader = ui.Gradient.radial(
+          position,
+          bodyOuterR,
+          [
+            bevelColor.withAlpha(215),
+            bevelColor.withAlpha(0),
+            bevelColor.withAlpha(0),
+            bevelColor.withAlpha(225),
+          ],
+          const [0.59, 0.70, 0.88, 1.0],
+        ),
+    );
+
+    // 内孔纯净白描边。
     canvas.drawCircle(
       position,
-      dotR + 1.0 * noteScale,
+      innerWhiteR,
       Paint()
         ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = innerStrokeW
+        ..isAntiAlias = true,
+    );
+
+    // 外环「白-彩-白」三层标志性边框：先铺满白环，再在正中压入彩色细线。
+    canvas.drawCircle(
+      position,
+      haloMidR,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = haloBandW
         ..isAntiAlias = true,
     );
     canvas.drawCircle(
       position,
-      dotR,
+      haloMidR,
       Paint()
-        ..color = dotColor
-        ..isAntiAlias = true,
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = haloBandW * 0.34
+        ..isAntiAlias = true
+        ..shader = ui.Gradient.linear(
+          position + Offset(0, -outerRadius),
+          position + Offset(0, outerRadius),
+          [rimTop, rimSide, rimBottom],
+          const [0.0, 0.5, 1.0],
+        ),
     );
   }
 
@@ -1016,6 +1078,125 @@ class NoteAssetManager {
         ..color = Colors.white.withValues(alpha: 0.72)
         ..isAntiAlias = true,
     );
+
+    canvas.drawRRect(
+      outerBar.inflate(strokeW * 0.7),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeW * 0.75
+        ..color = const Color(0xCC000000)
+        ..isAntiAlias = true,
+    );
+    canvas.drawRRect(
+      outerBar,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeW
+        ..color = Colors.white
+        ..isAntiAlias = true,
+    );
+  }
+
+  /// 舞萌 DX「条形（バー）」风格 SLIDE 头部按键：
+  /// 与条形 TAP 同规格切向圆角条身，中央嵌精致白色五角星标记，开启粉色星星头时也能清晰区分普通条形 TAP。
+  void _drawBarSlideHeadBody(
+    Canvas canvas,
+    Offset position,
+    Color lightColor,
+    Color midColor,
+    Color deepColor,
+    double noteScale,
+  ) {
+    final double outerRadius = NoteGeometry.tapStarHoldRadius * noteScale;
+    final double radialThickness = outerRadius * 0.66;
+    final double tangentLength = outerRadius * 1.96;
+    final double cornerR = radialThickness * 0.46;
+    final double strokeW = 2.0 * noteScale;
+
+    final RRect outerBar = RRect.fromRectAndRadius(
+      Rect.fromCenter(
+        center: position,
+        width: radialThickness,
+        height: tangentLength,
+      ),
+      Radius.circular(cornerR),
+    );
+
+    canvas.drawRRect(
+      outerBar,
+      Paint()
+        ..style = PaintingStyle.fill
+        ..color = const Color(0x70000000)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 2.5 * noteScale)
+        ..isAntiAlias = true,
+    );
+
+    canvas.drawRRect(
+      outerBar,
+      Paint()
+        ..style = PaintingStyle.fill
+        ..isAntiAlias = true
+        ..shader = ui.Gradient.linear(
+          position + Offset(-radialThickness * 0.5, 0),
+          position + Offset(radialThickness * 0.5, 0),
+          [deepColor, lightColor, midColor, deepColor],
+          const [0.0, 0.30, 0.70, 1.0],
+        ),
+    );
+
+    // 两侧细白短引导杠，保留条形判定面清晰度同时为中央星标留白。
+    final double segLen = tangentLength * 0.19;
+    final double segOffset = tangentLength * 0.27;
+    final double stripeW = radialThickness * 0.20;
+    final Paint stripePaint = Paint()
+      ..style = PaintingStyle.fill
+      ..color = Colors.white.withValues(alpha: 0.70)
+      ..isAntiAlias = true;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: position + Offset(0, -segOffset),
+          width: stripeW,
+          height: segLen,
+        ),
+        Radius.circular(stripeW * 0.5),
+      ),
+      stripePaint,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: position + Offset(0, segOffset),
+          width: stripeW,
+          height: segLen,
+        ),
+        Radius.circular(stripeW * 0.5),
+      ),
+      stripePaint,
+    );
+
+    // 中央精致白色五角星标记。
+    final Path starBadge = NoteUtils.createStarPath(radialThickness * 0.36);
+    canvas.save();
+    canvas.translate(position.dx, position.dy);
+    canvas.rotate(-math.pi / 2);
+    canvas.drawPath(
+      starBadge,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4 * noteScale
+        ..strokeJoin = StrokeJoin.round
+        ..color = const Color(0x66000000)
+        ..isAntiAlias = true,
+    );
+    canvas.drawPath(
+      starBadge,
+      Paint()
+        ..style = PaintingStyle.fill
+        ..color = Colors.white
+        ..isAntiAlias = true,
+    );
+    canvas.restore();
 
     canvas.drawRRect(
       outerBar.inflate(strokeW * 0.7),
@@ -1126,7 +1307,24 @@ class NoteAssetManager {
     canvas.restore();
   }
 
-  /// 舞萌 DX「简洁（シンプル）」风格五角星：柔和圆角、径向高光、干净白边与轻外影。
+  /// 参照 AstroDX `Design/Skinnable Elements 1.1_STAR*.ai` 的简洁风格五角星：
+  /// 烘焙入图集时旋转 `+π/2` 朝右，与运行时滑星朝向约定保持一致。
+  void _drawAstroSimpleStarBody(
+    Canvas canvas,
+    Offset position,
+    Color color,
+    double noteScale,
+  ) {
+    AstroSimpleStarPainter.paint(
+      canvas,
+      center: position,
+      unitScale: AstroSimpleStarPainter.unitScaleForNoteScale(noteScale),
+      variant: AstroSimpleStarPainter.variantForColor(color),
+      rotation: math.pi / 2.0,
+    );
+  }
+
+  /// 舞萌 DX「条形（バー）」配套五角星：柔和圆角、径向高光、干净白边与轻外影。
   void _drawSimpleStarBody(
     Canvas canvas,
     Offset position,
@@ -1332,28 +1530,21 @@ class NoteAssetManager {
     canvas.drawPath(inner, strokePaint);
   }
 
-  /// 预烘焙黄色多押 Touch 花瓣（含柔和外阴影与金黄渐变）。
+  /// 预烘焙黄色多押 Touch 花瓣（统一经典机台风格：柔和外阴影、黑底白描边与金黄渐变）。
   void _drawTouchMultiPetalBody(
     Canvas canvas,
     Offset center,
     double noteScale, {
-    bool arcadeOutline = false,
-    bool modernTone = false,
+    bool arcadeOutline = true,
   }) {
     _drawTouchPetalBody(
       canvas,
       center,
-      modernTone
-          ? SimaiModernNoteColors.touchEachStart
-          : const Color(0xFFFFFF00),
+      const Color(0xFFFFFF00),
       255,
       noteScale,
-      gradientStart: modernTone
-          ? SimaiModernNoteColors.touchEachStart
-          : const Color(0xFFFFFF00),
-      gradientEnd: modernTone
-          ? SimaiModernNoteColors.touchEachEnd
-          : const Color(0xFFFFD700),
+      gradientStart: const Color(0xFFFFFF00),
+      gradientEnd: const Color(0xFFFFD700),
       bakeShadow: true,
       arcadeOutline: arcadeOutline,
     );
@@ -1390,19 +1581,177 @@ class NoteAssetManager {
     canvas.drawCircle(center, r - ringStroke * 0.32, highlightPaint);
   }
 
-  /// 预烘焙白色通用滑星箭头（运行时通过 RSTransform 旋转缩放 + 颜色调制合批）。
-  void _drawSlideArrowBody(Canvas canvas, Offset center, double noteScale) {
-    canvas.save();
-    canvas.translate(center.dx, center.dy);
-    final Path arrowPath = NoteGeometry.buildSlideArrowPath(
-      noteScale * slideArrowBakeScale,
-    );
-    final Paint paint = Paint()
+  /// 预烘焙纯白正六边形冲击波（外柔光 + 锐利主框 + 内细亮框）。
+  void _drawHitHexRingBody(Canvas canvas, Offset center, double noteScale) {
+    final double r = hitHexRingBakedRadius * noteScale;
+    Path buildHex(double radius) {
+      final path = Path();
+      for (int i = 0; i < 6; i++) {
+        final double angle = -math.pi / 2 + i * math.pi / 3;
+        final Offset pt =
+            center + Offset(math.cos(angle) * radius, math.sin(angle) * radius);
+        if (i == 0) {
+          path.moveTo(pt.dx, pt.dy);
+        } else {
+          path.lineTo(pt.dx, pt.dy);
+        }
+      }
+      path.close();
+      return path;
+    }
+
+    final Path outerHex = buildHex(r);
+    final Path innerHex = buildHex(r * 0.86);
+
+    final Paint glowPaint = Paint()
       ..isAntiAlias = true
-      ..color = Colors.white
-      ..style = PaintingStyle.fill;
-    canvas.drawPath(arrowPath, paint);
-    canvas.restore();
+      ..style = PaintingStyle.stroke
+      ..strokeJoin = StrokeJoin.miter
+      ..strokeWidth = r * 0.38
+      ..color = Colors.white.withAlpha(110)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.22);
+
+    final Paint ringPaint = Paint()
+      ..isAntiAlias = true
+      ..style = PaintingStyle.stroke
+      ..strokeJoin = StrokeJoin.miter
+      ..strokeWidth = r * 0.17
+      ..color = Colors.white.withAlpha(240);
+
+    final Paint highlightPaint = Paint()
+      ..isAntiAlias = true
+      ..style = PaintingStyle.stroke
+      ..strokeJoin = StrokeJoin.miter
+      ..strokeWidth = (r * 0.065).clamp(1.0, 3.5 * noteScale)
+      ..color = Colors.white.withAlpha(210);
+
+    canvas.drawPath(outerHex, glowPaint);
+    canvas.drawPath(outerHex, ringPaint);
+    canvas.drawPath(innerHex, highlightPaint);
+  }
+
+  /// 预烘焙纯白八向菱形星芒爆裂（4 主芒 + 4 次芒 + 中心辉光核）。
+  void _drawHitStarburstBody(Canvas canvas, Offset center, double noteScale) {
+    final double r = hitStarburstBakedRadius * noteScale;
+    final Paint ambientPaint = Paint()
+      ..isAntiAlias = true
+      ..shader = ui.Gradient.radial(
+        center,
+        r * 0.62,
+        [Colors.white.withAlpha(175), Colors.white.withAlpha(0)],
+      );
+    canvas.drawCircle(center, r * 0.62, ambientPaint);
+
+    final Path raysPath = Path();
+    void addRay(double angle, double tipLength, double waistWidth) {
+      final double ca = math.cos(angle);
+      final double sa = math.sin(angle);
+      final double px = -sa;
+      final double py = ca;
+      final Offset tip = center + Offset(ca * tipLength, sa * tipLength);
+      final Offset baseA = center + Offset(px * waistWidth, py * waistWidth);
+      final Offset baseB = center - Offset(px * waistWidth, py * waistWidth);
+      final Offset inner = center - Offset(ca * waistWidth, sa * waistWidth);
+      raysPath
+        ..moveTo(tip.dx, tip.dy)
+        ..lineTo(baseA.dx, baseA.dy)
+        ..lineTo(inner.dx, inner.dy)
+        ..lineTo(baseB.dx, baseB.dy)
+        ..close();
+    }
+
+    for (int i = 0; i < 4; i++) {
+      final double primaryAngle = i * math.pi / 2;
+      addRay(primaryAngle, r * 1.18, r * 0.14);
+      addRay(primaryAngle + math.pi / 4, r * 0.78, r * 0.10);
+    }
+
+    final Paint haloPaint = Paint()
+      ..isAntiAlias = true
+      ..style = PaintingStyle.fill
+      ..color = Colors.white.withAlpha(125)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.12);
+
+    final Paint fillPaint = Paint()
+      ..isAntiAlias = true
+      ..style = PaintingStyle.fill
+      ..color = Colors.white.withAlpha(245);
+
+    canvas.drawPath(raysPath, haloPaint);
+    canvas.drawPath(raysPath, fillPaint);
+
+    final double coreR = r * 0.24;
+    final Path coreDiamond = Path()
+      ..moveTo(center.dx, center.dy - coreR)
+      ..lineTo(center.dx + coreR, center.dy)
+      ..lineTo(center.dx, center.dy + coreR)
+      ..lineTo(center.dx - coreR, center.dy)
+      ..close();
+    canvas.drawPath(
+      coreDiamond,
+      Paint()
+        ..isAntiAlias = true
+        ..color = Colors.white,
+    );
+  }
+
+  /// 预烘焙纯白凹边四角星屑粒子。
+  void _drawHitSparkleBody(Canvas canvas, Offset center, double noteScale) {
+    final double r = hitSparkleBakedRadius * noteScale;
+    final double c = r * 0.24;
+    final Path starPath = Path()..moveTo(center.dx, center.dy - r);
+    for (int i = 0; i < 4; i++) {
+      final double cornerAngle = -math.pi / 2 + i * math.pi / 2 + math.pi / 4;
+      final double nextTipAngle = -math.pi / 2 + (i + 1) * math.pi / 2;
+      final Offset ctrl =
+          center +
+          Offset(math.cos(cornerAngle) * c, math.sin(cornerAngle) * c);
+      final Offset nextTip =
+          center +
+          Offset(math.cos(nextTipAngle) * r, math.sin(nextTipAngle) * r);
+      starPath.quadraticBezierTo(ctrl.dx, ctrl.dy, nextTip.dx, nextTip.dy);
+    }
+    starPath.close();
+
+    final Paint haloPaint = Paint()
+      ..isAntiAlias = true
+      ..style = PaintingStyle.fill
+      ..color = Colors.white.withAlpha(140)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.24);
+
+    final Paint fillPaint = Paint()
+      ..isAntiAlias = true
+      ..style = PaintingStyle.fill
+      ..color = Colors.white;
+
+    canvas.drawPath(starPath, haloPaint);
+    canvas.drawPath(starPath, fillPaint);
+  }
+
+  /// 预烘焙纯白瞬时核心爆闪与内亮环。
+  void _drawHitCoreFlashBody(Canvas canvas, Offset center, double noteScale) {
+    final double r = hitCoreFlashBakedRadius * noteScale;
+    final Paint flashPaint = Paint()
+      ..isAntiAlias = true
+      ..shader = ui.Gradient.radial(
+        center,
+        r,
+        [
+          Colors.white,
+          Colors.white.withAlpha(210),
+          Colors.white.withAlpha(75),
+          Colors.white.withAlpha(0),
+        ],
+        const [0.0, 0.35, 0.72, 1.0],
+      );
+    canvas.drawCircle(center, r, flashPaint);
+
+    final Paint innerRingPaint = Paint()
+      ..isAntiAlias = true
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = r * 0.10
+      ..color = Colors.white.withAlpha(220);
+    canvas.drawCircle(center, r * 0.62, innerRingPaint);
   }
 
   /// 官方机台风格 V 形角平分线滑星箭头（借鉴 LXNS `SlideRenderer.buildArrowPaths`：带阴影、黑边与绝赞双色）。
@@ -1516,108 +1865,6 @@ class NoteAssetManager {
         ..strokeWidth = 2.0 * s
         ..strokeJoin = StrokeJoin.miter
         ..color = Colors.black,
-    );
-    canvas.restore();
-  }
-
-  /// 舞萌 DX「简洁（シンプル）」风格滑星箭头：圆润折角、柔和投影与干净亮白边。
-  void _drawSimpleSlideArrowBody(
-    Canvas canvas,
-    Offset center,
-    double noteScale, {
-    required bool isBreakDualColor,
-  }) {
-    final s = noteScale * slideArrowBakeScale;
-    const arrowHeight = 42.0;
-    const arrowWidth = 11.4;
-    const lineWidth = 15.2;
-    const centerShiftX = 8.8;
-
-    final x1 = (-arrowWidth / 2 + centerShiftX) * s;
-    final y1 = (-arrowHeight / 2) * s;
-    final x2 = (arrowWidth / 2 + centerShiftX) * s;
-    const y2 = 0.0;
-    final x3 = (-arrowWidth / 2 + centerShiftX) * s;
-    final y3 = (arrowHeight / 2) * s;
-
-    final dx1 = x1 - x2;
-    final dy1 = y1 - y2;
-    final dx2 = x3 - x2;
-    final dy2 = y3 - y2;
-    final len1 = math.sqrt(dx1 * dx1 + dy1 * dy1);
-    final len2 = math.sqrt(dx2 * dx2 + dy2 * dy2);
-    if (len1 == 0 || len2 == 0) return;
-
-    final cosAngle = ((dx1 * dx2 + dy1 * dy2) / (len1 * len2)).clamp(-1.0, 1.0);
-    final sinHalf = math.sqrt((1.0 - cosAngle) / 2.0);
-    if (sinHalf <= 0.001) return;
-
-    final midX = (x1 + x3) * 0.5;
-    final midY = (y1 + y3) * 0.5;
-    final bLen = math.sqrt((midX - x2) * (midX - x2) + (midY - y2) * (midY - y2));
-    if (bLen == 0) return;
-    final edgeLen = (lineWidth * s) / sinHalf;
-    final bx = x2 + ((midX - x2) / bLen) * edgeLen;
-    final by = y2 + ((midY - y2) / bLen) * edgeLen;
-    final bx3 = bx + x3 - x2;
-    final by3 = by + y3 - y2;
-    final bx1 = bx + x1 - x2;
-    final by1 = by + y1 - y2;
-
-    final mainPath = Path()
-      ..moveTo(x2, y2)
-      ..lineTo(x3, y3)
-      ..lineTo(bx3, by3)
-      ..lineTo(bx, by)
-      ..lineTo(bx1, by1)
-      ..lineTo(x1, y1)
-      ..close();
-
-    canvas.save();
-    canvas.translate(center.dx, center.dy);
-
-    canvas.drawPath(
-      mainPath,
-      Paint()
-        ..isAntiAlias = true
-        ..style = PaintingStyle.fill
-        ..color = const Color(0x55000000)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 2.2 * s),
-    );
-
-    if (isBreakDualColor) {
-      canvas.drawPath(
-        mainPath,
-        Paint()
-          ..isAntiAlias = true
-          ..style = PaintingStyle.fill
-          ..shader = ui.Gradient.linear(
-            Offset(bx, -arrowHeight * 0.5 * s),
-            Offset(x2, arrowHeight * 0.5 * s),
-            const [
-              SimaiModernNoteColors.breakMid,
-              SimaiModernNoteColors.eachMid,
-            ],
-          ),
-      );
-    } else {
-      canvas.drawPath(
-        mainPath,
-        Paint()
-          ..isAntiAlias = true
-          ..style = PaintingStyle.fill
-          ..color = const Color(0xFFE0E0E0),
-      );
-    }
-
-    canvas.drawPath(
-      mainPath,
-      Paint()
-        ..isAntiAlias = true
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.0 * s
-        ..strokeJoin = StrokeJoin.round
-        ..color = const Color(0x88181820),
     );
     canvas.restore();
   }

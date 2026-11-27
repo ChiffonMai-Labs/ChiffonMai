@@ -7,6 +7,7 @@ import '../../structures/mai_chart.dart';
 import '../../structures/note.dart';
 import '../../structures/note_styles.dart';
 import '../../structures/note_type.dart';
+import '../auto_play_mode.dart';
 import '../center_display_mode.dart';
 import '../simai_game.dart';
 
@@ -283,9 +284,9 @@ class AchievementRateComponent extends PositionComponent
   double _lastFontSize = -1;
   double _lastLabelFontSize = -1;
   SimaiCenterDisplayMode? _lastMode;
+  SimaiAutoPlayMode? _lastAutoPlayMode;
   bool _wasVisible = false;
   double _labelElapsed = 0;
-  double _valueRefreshElapsed = 0.05;
 
   @override
   void onGameResize(Vector2 size) {
@@ -337,12 +338,46 @@ class AchievementRateComponent extends PositionComponent
       mode == SimaiCenterDisplayMode.none ||
       (!game.showAchievementRate && _isPercentageAchievementMode(mode));
 
+  static int _percentKey(double value) {
+    final normalized = value.abs() < 0.00005 ? 0.0 : value;
+    return (normalized * 10000.0).round();
+  }
+
+  /// 按当前显示模式的实际展示值生成增量键，避免 101- / BORDER / DX- 在 CP 音符过线时无意义重排。
+  static int _displayValueKey(
+    SimaiCenterDisplayMode mode,
+    SimaiAutoPlaySnapshot snapshot,
+  ) => switch (mode) {
+    SimaiCenterDisplayMode.achievementAdd => _percentKey(
+      snapshot.achievementAdd,
+    ),
+    SimaiCenterDisplayMode.achievement100Plus => _percentKey(
+      snapshot.achievement100Plus,
+    ),
+    SimaiCenterDisplayMode.achievement101Subtract => _percentKey(
+      snapshot.achievement101Subtract,
+    ),
+    SimaiCenterDisplayMode.overS => _percentKey(
+      snapshot.achievement101Subtract - 97.0,
+    ),
+    SimaiCenterDisplayMode.overSS => _percentKey(
+      snapshot.achievement101Subtract - 99.0,
+    ),
+    SimaiCenterDisplayMode.overSSS => _percentKey(
+      snapshot.achievement101Subtract - 100.0,
+    ),
+    SimaiCenterDisplayMode.dxScoreAdd => snapshot.earnedDxScore,
+    SimaiCenterDisplayMode.dxScoreSubtract ||
+    SimaiCenterDisplayMode.dxStars => snapshot.remainingDxScore,
+    SimaiCenterDisplayMode.combo => snapshot.combo,
+    SimaiCenterDisplayMode.none => 0,
+  };
+
   @override
   void update(double dt) {
     super.update(dt);
     if (dt.isFinite && dt > 0) {
       _labelElapsed = (_labelElapsed + dt) % _centerLabelCycleDuration;
-      _valueRefreshElapsed += dt;
     }
     final mode = game.centerDisplayMode;
     if (mode == SimaiCenterDisplayMode.none) {
@@ -361,50 +396,18 @@ class AchievementRateComponent extends PositionComponent
     if (_lastMode != null && mode != _lastMode) {
       _labelElapsed = 0;
     }
-    final int metricKey = switch (mode) {
-      SimaiCenterDisplayMode.achievementAdd ||
-      SimaiCenterDisplayMode.dxScoreAdd => index._judgedCountAt(game.chartTime),
-      SimaiCenterDisplayMode.achievement100Plus => index.judgedBreakCountAt(
-        index._judgedCountAt(game.chartTime),
-      ),
-      SimaiCenterDisplayMode.combo => comboAt(game.chartTime),
-      SimaiCenterDisplayMode.achievement101Subtract ||
-      SimaiCenterDisplayMode.dxScoreSubtract ||
-      SimaiCenterDisplayMode.dxStars ||
-      SimaiCenterDisplayMode.overS ||
-      SimaiCenterDisplayMode.overSS ||
-      SimaiCenterDisplayMode.overSSS ||
-      SimaiCenterDisplayMode.none => 0,
-    };
-    final bool reachedTerminal = switch (mode) {
-      SimaiCenterDisplayMode.achievementAdd ||
-      SimaiCenterDisplayMode.dxScoreAdd ||
-      SimaiCenterDisplayMode.combo => metricKey >= index.eventCount,
-      SimaiCenterDisplayMode.achievement100Plus =>
-        metricKey >= index.totalBreakCount,
-      _ => true,
-    };
+    final autoPlayMode = game.autoPlayMode;
+    final snapshot = game.autoPlayTimeline.snapshotAt(game.chartTime);
+    final int metricKey = _displayValueKey(mode, snapshot);
     final minEdge = min(size.x, size.y);
     final fontSize = game.headlessExport
         ? (minEdge * 0.064).clamp(22.0, 68.0)
         : (minEdge * 0.055).clamp(18.0, 34.0);
     if (_wasVisible &&
         mode == _lastMode &&
+        autoPlayMode == _lastAutoPlayMode &&
         metricKey == _lastMetricKey &&
         fontSize == _lastFontSize) {
-      return;
-    }
-
-    // 实时播放态下将高密音符引发的中心数字重排限频至 20Hz，暂停/跳转/离线导出/到达曲末终值保持即时更新。
-    if (_wasVisible &&
-        mode == _lastMode &&
-        fontSize == _lastFontSize &&
-        metricKey != _lastMetricKey &&
-        game.isPlaying &&
-        !game.headlessExport &&
-        _valueRefreshElapsed < 0.05 &&
-        (metricKey - _lastMetricKey).abs() < 15 &&
-        !reachedTerminal) {
       return;
     }
 
@@ -415,36 +418,36 @@ class AchievementRateComponent extends PositionComponent
         _autoplayLabelFillPainter == null ||
         _metricLabelFillPainter == null;
 
-    _valueRefreshElapsed = 0.0;
     _wasVisible = true;
     _lastMode = mode;
+    _lastAutoPlayMode = autoPlayMode;
     _lastMetricKey = metricKey;
     _lastFontSize = fontSize;
     switch (mode) {
       case SimaiCenterDisplayMode.achievementAdd:
         _rebuildPercentagePainters(
-          index._achievementFor(metricKey),
+          snapshot.achievementAdd,
           metricLabel: 'ACHIEVEMENT',
           fontSize: fontSize,
           rebuildLabels: needsLabelRebuild,
         );
       case SimaiCenterDisplayMode.achievement100Plus:
         _rebuildPercentagePainters(
-          index.achievement100PlusForBreakCount(metricKey),
+          snapshot.achievement100Plus,
           metricLabel: 'ACHIEVEMENT',
           fontSize: fontSize,
           rebuildLabels: needsLabelRebuild,
         );
       case SimaiCenterDisplayMode.achievement101Subtract:
         _rebuildPercentagePainters(
-          index.maxAchievement,
+          snapshot.achievement101Subtract,
           metricLabel: 'ACHIEVEMENT',
           fontSize: fontSize,
           rebuildLabels: needsLabelRebuild,
         );
       case SimaiCenterDisplayMode.dxScoreAdd:
         _rebuildPainters(
-          integerText: (metricKey * 3).toString(),
+          integerText: snapshot.earnedDxScore.toString(),
           decimalText: '',
           metricLabel: 'DX SCORE',
           fontSize: fontSize,
@@ -452,16 +455,18 @@ class AchievementRateComponent extends PositionComponent
         );
       case SimaiCenterDisplayMode.dxScoreSubtract:
         _rebuildPainters(
-          integerText: (index.eventCount * 3).toString(),
+          integerText: snapshot.remainingDxScore.toString(),
           decimalText: '',
           metricLabel: 'DX SCORE',
           fontSize: fontSize,
           rebuildLabels: needsLabelRebuild,
         );
       case SimaiCenterDisplayMode.dxStars:
-        final maxDxScore = index.eventCount * 3;
         _rebuildPainters(
-          integerText: formatSimaiDxStarBonus(maxDxScore, maxDxScore),
+          integerText: formatSimaiDxStarBonus(
+            snapshot.remainingDxScore,
+            snapshot.maxDxScore,
+          ),
           decimalText: '',
           metricLabel: 'DX STAR',
           fontSize: fontSize,
@@ -469,7 +474,7 @@ class AchievementRateComponent extends PositionComponent
         );
       case SimaiCenterDisplayMode.combo:
         _rebuildPainters(
-          integerText: metricKey.toString(),
+          integerText: snapshot.combo.toString(),
           decimalText: '',
           metricLabel: 'COMBO',
           fontSize: fontSize,
@@ -477,21 +482,21 @@ class AchievementRateComponent extends PositionComponent
         );
       case SimaiCenterDisplayMode.overS:
         _rebuildPercentagePainters(
-          index.maxAchievement - 97.0,
+          snapshot.achievement101Subtract - 97.0,
           metricLabel: 'S BORDER',
           fontSize: fontSize,
           rebuildLabels: needsLabelRebuild,
         );
       case SimaiCenterDisplayMode.overSS:
         _rebuildPercentagePainters(
-          index.maxAchievement - 99.0,
+          snapshot.achievement101Subtract - 99.0,
           metricLabel: 'SS BORDER',
           fontSize: fontSize,
           rebuildLabels: needsLabelRebuild,
         );
       case SimaiCenterDisplayMode.overSSS:
         _rebuildPercentagePainters(
-          index.maxAchievement - 100.0,
+          snapshot.achievement101Subtract - 100.0,
           metricLabel: 'SSS BORDER',
           fontSize: fontSize,
           rebuildLabels: needsLabelRebuild,

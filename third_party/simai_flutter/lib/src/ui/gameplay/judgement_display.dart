@@ -6,11 +6,32 @@ import '../../gameplay/gameplay_models.dart';
 
 const double simaiJudgementFeedbackDuration = 0.50;
 
+/// 判定反馈视觉分级，用于区分支行（CRITICAL / FAST / LATE）、绝赞与主判定配色。
+enum SimaiJudgementVisualKind {
+  critical,
+  criticalPerfect,
+  breakCritical,
+  breakCriticalPerfect,
+  perfect,
+  great,
+  good,
+  miss,
+  fast,
+  late,
+}
+
 class SimaiJudgementLine {
-  const SimaiJudgementLine({required this.text, required this.color});
+  const SimaiJudgementLine({
+    required this.text,
+    required this.color,
+    this.kind = SimaiJudgementVisualKind.perfect,
+    this.isSubLine = false,
+  });
 
   final String text;
   final Color color;
+  final SimaiJudgementVisualKind kind;
+  final bool isSubLine;
 }
 
 class SimaiJudgementAnimationState {
@@ -67,26 +88,37 @@ SimaiJudgementAnimationState simaiJudgementAnimationAt(double age) {
   if (!age.isFinite || age < 0 || age >= simaiJudgementFeedbackDuration) {
     return const SimaiJudgementAnimationState(opacity: 0, scale: 1);
   }
-  const enterDuration = 0.10;
-  const fadeStart = 0.30;
-  if (age < enterDuration) {
-    final progress = Curves.easeOutCubic.transform(age / enterDuration);
+  const overshootDuration = 0.055;
+  const settleDuration = 0.11;
+  const fadeStart = 0.34;
+  if (age < overshootDuration) {
+    final progress = Curves.easeOutCubic.transform(age / overshootDuration);
     return SimaiJudgementAnimationState(
-      opacity: progress,
-      scale: 1.0 + 0.55 * (1.0 - progress),
+      opacity: 0.35 + 0.65 * progress,
+      scale: 0.64 + 0.49 * progress,
+    );
+  }
+  if (age < settleDuration) {
+    final progress = Curves.easeOutCubic.transform(
+      (age - overshootDuration) / (settleDuration - overshootDuration),
+    );
+    return SimaiJudgementAnimationState(
+      opacity: 1.0,
+      scale: 1.13 - 0.13 * progress,
     );
   }
   if (age <= fadeStart) {
-    return const SimaiJudgementAnimationState(opacity: 1, scale: 1);
+    return const SimaiJudgementAnimationState(opacity: 1.0, scale: 1.0);
   }
   final progress =
       ((age - fadeStart) / (simaiJudgementFeedbackDuration - fadeStart)).clamp(
         0.0,
         1.0,
       );
+  final eased = Curves.easeInQuad.transform(progress);
   return SimaiJudgementAnimationState(
-    opacity: 1.0 - Curves.easeInQuad.transform(progress),
-    scale: 1,
+    opacity: 1.0 - eased,
+    scale: 1.0 - 0.04 * eased,
   );
 }
 
@@ -103,6 +135,9 @@ class SimaiJudgementPresentation {
 
   Color get color =>
       gradeLine?.color ?? timingLine?.color ?? Colors.transparent;
+
+  SimaiJudgementVisualKind get primaryKind =>
+      gradeLine?.kind ?? timingLine?.kind ?? SimaiJudgementVisualKind.perfect;
 
   List<SimaiJudgementLine> lines({required bool timingFirst}) {
     final grade = gradeLine;
@@ -127,55 +162,106 @@ class SimaiJudgementPresentation {
     };
     final gradeText = _gradeText(record, mode);
     final gradeColor = _gradeColor(record.grade);
+    final gradeKind = _gradeKind(record.grade, gradeText);
     final timingColor = switch (record.timing) {
-      SimaiJudgeTiming.fast => const Color(0xFF42A5F5),
-      SimaiJudgeTiming.late => const Color(0xFFEF5350),
+      SimaiJudgeTiming.fast => const Color(0xFF36C2FF),
+      SimaiJudgeTiming.late => const Color(0xFFFF4F64),
       SimaiJudgeTiming.none => gradeColor,
+    };
+    final timingKind = switch (record.timing) {
+      SimaiJudgeTiming.fast => SimaiJudgementVisualKind.fast,
+      SimaiJudgeTiming.late => SimaiJudgementVisualKind.late,
+      SimaiJudgeTiming.none => gradeKind,
     };
     final visibleTiming = allowsTiming ? timingText : null;
     final showsCritical = gradeText == 'CRITICAL PERFECT';
+    final isBreak = record.scoringType == SimaiGameplayScoringType.breakNote;
 
     // Critical occupies the same visual row as FAST/LATE while PERFECT stays
     // on the grade row. Variant D still hides C-Perfect as documented.
     if (showsCritical && mode.variant != 'D') {
       return SimaiJudgementPresentation(
-        gradeLine: SimaiJudgementLine(text: 'PERFECT', color: gradeColor),
-        timingLine: const SimaiJudgementLine(
+        gradeLine: SimaiJudgementLine(
+          text: 'PERFECT',
+          color: gradeColor,
+          kind: isBreak
+              ? SimaiJudgementVisualKind.breakCriticalPerfect
+              : SimaiJudgementVisualKind.criticalPerfect,
+        ),
+        timingLine: SimaiJudgementLine(
           text: 'CRITICAL',
-          color: Color(0xFFFFF176),
+          color: isBreak ? const Color(0xFFFFF49A) : const Color(0xFFFFF176),
+          kind: isBreak
+              ? SimaiJudgementVisualKind.breakCritical
+              : SimaiJudgementVisualKind.critical,
+          isSubLine: true,
         ),
       );
     }
 
     return switch (mode.variant) {
       'A' => SimaiJudgementPresentation(
-        gradeLine: SimaiJudgementLine(text: gradeText, color: gradeColor),
+        gradeLine: SimaiJudgementLine(
+          text: gradeText,
+          color: gradeColor,
+          kind: gradeKind,
+        ),
       ),
       'B' || 'E' => SimaiJudgementPresentation(
-        gradeLine: SimaiJudgementLine(text: gradeText, color: gradeColor),
+        gradeLine: SimaiJudgementLine(
+          text: gradeText,
+          color: gradeColor,
+          kind: gradeKind,
+        ),
         timingLine: visibleTiming == null
             ? null
-            : SimaiJudgementLine(text: visibleTiming, color: gradeColor),
+            : SimaiJudgementLine(
+                text: visibleTiming,
+                color: gradeColor,
+                kind: gradeKind,
+                isSubLine: true,
+              ),
       ),
       // 机台 x-C：保留主判定原色，副行以蓝/红双色显示 FAST/LATE。
       'C' => SimaiJudgementPresentation(
-        gradeLine: SimaiJudgementLine(text: gradeText, color: gradeColor),
+        gradeLine: SimaiJudgementLine(
+          text: gradeText,
+          color: gradeColor,
+          kind: gradeKind,
+        ),
         timingLine: visibleTiming == null
             ? null
-            : SimaiJudgementLine(text: visibleTiming, color: timingColor),
+            : SimaiJudgementLine(
+                text: visibleTiming,
+                color: timingColor,
+                kind: timingKind,
+                isSubLine: true,
+              ),
       ),
       // 机台 x-D：隐藏主判定字样仅显示 FAST/LATE，但 MISS 仍需保留显示。
       'D' => record.grade == SimaiJudgeGrade.miss
           ? SimaiJudgementPresentation(
-              gradeLine: SimaiJudgementLine(text: gradeText, color: gradeColor),
+              gradeLine: SimaiJudgementLine(
+                text: gradeText,
+                color: gradeColor,
+                kind: gradeKind,
+              ),
             )
           : SimaiJudgementPresentation(
               timingLine: visibleTiming == null
                   ? null
-                  : SimaiJudgementLine(text: visibleTiming, color: timingColor),
+                  : SimaiJudgementLine(
+                      text: visibleTiming,
+                      color: timingColor,
+                      kind: timingKind,
+                    ),
             ),
       _ => SimaiJudgementPresentation(
-        gradeLine: SimaiJudgementLine(text: gradeText, color: gradeColor),
+        gradeLine: SimaiJudgementLine(
+          text: gradeText,
+          color: gradeColor,
+          kind: gradeKind,
+        ),
       ),
     };
   }
@@ -214,11 +300,25 @@ class SimaiJudgementPresentation {
     };
   }
 
+  static SimaiJudgementVisualKind _gradeKind(
+    SimaiJudgeGrade grade,
+    String gradeText,
+  ) => switch (grade) {
+    SimaiJudgeGrade.criticalPerfect =>
+      gradeText == 'CRITICAL PERFECT'
+          ? SimaiJudgementVisualKind.criticalPerfect
+          : SimaiJudgementVisualKind.perfect,
+    SimaiJudgeGrade.perfect => SimaiJudgementVisualKind.perfect,
+    SimaiJudgeGrade.great => SimaiJudgementVisualKind.great,
+    SimaiJudgeGrade.good => SimaiJudgementVisualKind.good,
+    SimaiJudgeGrade.miss => SimaiJudgementVisualKind.miss,
+  };
+
   static Color _gradeColor(SimaiJudgeGrade grade) => switch (grade) {
-    SimaiJudgeGrade.criticalPerfect => const Color(0xFFFFD54F),
-    SimaiJudgeGrade.perfect => const Color(0xFFFFC107),
-    SimaiJudgeGrade.great => const Color(0xFFEC6BAA),
-    SimaiJudgeGrade.good => const Color(0xFF66BB6A),
-    SimaiJudgeGrade.miss => const Color(0xFFBDBDBD),
+    SimaiJudgeGrade.criticalPerfect => const Color(0xFFFFE04A),
+    SimaiJudgeGrade.perfect => const Color(0xFFFFC418),
+    SimaiJudgeGrade.great => const Color(0xFFFF52A2),
+    SimaiJudgeGrade.good => const Color(0xFF42DC5A),
+    SimaiJudgeGrade.miss => const Color(0xFFAAB4C4),
   };
 }

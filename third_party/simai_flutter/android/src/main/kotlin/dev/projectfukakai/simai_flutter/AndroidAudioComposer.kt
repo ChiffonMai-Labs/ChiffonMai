@@ -33,6 +33,7 @@ internal class AndroidAudioComposer(
         timelineStartUs: Long,
         musicOffsetUs: Long,
         musicVolume: Float,
+        hitSoundVolume: Float = 2.0f,
         hitEventTimesUs: List<Long>,
     ) {
         checkCancelled()
@@ -45,6 +46,7 @@ internal class AndroidAudioComposer(
             timelineStartUs = timelineStartUs,
             musicOffsetUs = musicOffsetUs,
             musicVolume = musicVolume,
+            hitSoundVolume = hitSoundVolume,
             hitEventTimesUs = hitEventTimesUs,
         )
         checkCancelled()
@@ -173,6 +175,7 @@ internal class AndroidAudioComposer(
         timelineStartUs: Long,
         musicOffsetUs: Long,
         musicVolume: Float,
+        hitSoundVolume: Float,
         hitEventTimesUs: List<Long>,
     ) {
         val outputFrames = ceil(durationUs * OUTPUT_SAMPLE_RATE / 1_000_000.0).toLong()
@@ -185,6 +188,7 @@ internal class AndroidAudioComposer(
             hitSound = hitSound,
             musicStartSeconds = musicStartSeconds,
             musicVolume = musicVolume,
+            hitSoundVolume = hitSoundVolume,
             hitStarts = hitStarts,
         )
 
@@ -369,6 +373,7 @@ private class PcmMixer(
     private val hitSound: WavPcm16?,
     private val musicStartSeconds: Double,
     private val musicVolume: Float,
+    private val hitSoundVolume: Float,
     private val hitStarts: List<Long>,
 ) {
     private val music = PcmFileSampler(decoded)
@@ -397,7 +402,7 @@ private class PcmMixer(
                     1,
                     upperBound(hitStarts, start) - lowerBound(hitStarts, start - hit.frameCount + 1),
                 )
-                val gain = (0.72 / sqrt(overlap.toDouble())).toFloat()
+                val gain = (hitSoundVolume.toDouble() / sqrt(overlap.toDouble())).toFloat()
                 for (outputFrame in from until to) {
                     val hitFrame = (outputFrame - start).toInt()
                     val value = hit.samples[hitFrame] / 32768f * gain

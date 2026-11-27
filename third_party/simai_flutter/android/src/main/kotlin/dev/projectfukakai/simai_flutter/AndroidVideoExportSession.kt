@@ -122,6 +122,7 @@ internal class AndroidVideoExportSession(
         timelineStartUs: Long,
         musicOffsetUs: Long,
         musicVolume: Double,
+        hitSoundVolume: Double = 2.0,
         hitEventTimesUs: List<Long>,
         directGallerySaver: ((File) -> String?)? = null,
     ): FinishOutcome {
@@ -153,6 +154,7 @@ internal class AndroidVideoExportSession(
                     timelineStartUs = timelineStartUs,
                     musicOffsetUs = musicOffsetUs,
                     musicVolume = musicVolume.toFloat().coerceIn(0f, 1f),
+                    hitSoundVolume = hitSoundVolume.toFloat().coerceIn(0f, 3f),
                     hitEventTimesUs = hitEventTimesUs,
                 )
                 checkCancelled()

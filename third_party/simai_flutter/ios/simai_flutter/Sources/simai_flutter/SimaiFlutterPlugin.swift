@@ -138,6 +138,7 @@ public final class SimaiFlutterPlugin: NSObject, FlutterPlugin {
     let timelineStartUs = try arguments.requiredInt64("timelineStartUs")
     let musicOffsetUs = try arguments.requiredInt64("musicOffsetUs")
     let musicVolume = try arguments.requiredDouble("musicVolume")
+    let hitSoundVolume = (arguments["hitSoundVolume"] as? NSNumber)?.doubleValue ?? 2.0
     DispatchQueue.global(qos: .userInitiated).async { [weak self] in
       var succeeded = false
       do {
@@ -146,6 +147,7 @@ public final class SimaiFlutterPlugin: NSObject, FlutterPlugin {
           timelineStartUs: timelineStartUs,
           musicOffsetUs: musicOffsetUs,
           musicVolume: musicVolume,
+          hitSoundVolume: hitSoundVolume,
           hitEventTimesUs: hits
         )
         let attributes = try FileManager.default.attributesOfItem(atPath: output.path)
@@ -795,6 +797,7 @@ private final class IOSVideoExportSession {
     timelineStartUs: Int64,
     musicOffsetUs: Int64,
     musicVolume: Double,
+    hitSoundVolume: Double = 2.0,
     hitEventTimesUs: [Int64]
   ) throws -> URL {
     try checkCancelled()
@@ -825,6 +828,7 @@ private final class IOSVideoExportSession {
         timelineStartUs: timelineStartUs,
         musicOffsetUs: musicOffsetUs,
         musicVolume: Float(musicVolume).clamped(to: 0...1),
+        hitSoundVolume: Float(hitSoundVolume).clamped(to: 0...3),
         hitEventTimesUs: hitEventTimesUs
       )
       try checkCancelled()
@@ -1101,6 +1105,7 @@ private final class IOSAudioMuxer {
     timelineStartUs: Int64,
     musicOffsetUs: Int64,
     musicVolume: Float,
+    hitSoundVolume: Float = 2.0,
     hitEventTimesUs: [Int64]
   ) throws {
     if isCancelled() {
@@ -1123,6 +1128,7 @@ private final class IOSAudioMuxer {
         to: composition,
         totalDuration: totalDuration,
         timelineStartUs: timelineStartUs,
+        hitSoundVolume: hitSoundVolume,
         hitEventTimesUs: hitEventTimesUs,
         mixParameters: &mixParameters
       )
@@ -1254,6 +1260,7 @@ private final class IOSAudioMuxer {
     to composition: AVMutableComposition,
     totalDuration: CMTime,
     timelineStartUs: Int64,
+    hitSoundVolume: Float,
     hitEventTimesUs: [Int64],
     mixParameters: inout [AVMutableAudioMixInputParameters]
   ) throws {
@@ -1292,7 +1299,8 @@ private final class IOSAudioMuxer {
           at: CMTime(value: targetStartUs, timescale: 1_000_000)
         )
         let overlap = max(1, upperBound(starts, startUs) - lowerBound(starts, startUs - hitDurationUs + 1))
-        trackEvents[slot].append((targetStartUs, Float(0.72 / sqrt(Double(overlap)))))
+        let gain = min(Float(1.0), Float(Double(hitSoundVolume) / sqrt(Double(overlap))))
+        trackEvents[slot].append((targetStartUs, gain))
       }
       availableAt[slot] = startUs + hitDurationUs
     }

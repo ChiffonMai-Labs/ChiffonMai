@@ -156,7 +156,10 @@ void _drawHold(
   );
 
   final bool isPressed =
-      (session == null && game.chartTime >= noteTime) ||
+      (session == null &&
+          game.chartTime >= noteTime &&
+          game.autoPlayTimeline.headGradeFor(collectionIndex, noteIndex) !=
+              SimaiJudgeGrade.miss) ||
       (session != null &&
           session.isHoldPressed(collectionIndex, noteIndex, game.chartTime));
   final double pressedElapsedMs = isPressed
@@ -175,7 +178,7 @@ void _drawHold(
     noteScale: game.noteScale,
     chartRadius: game.chartRadius,
     highlight: isEx,
-    noteStyle: game.noteStyle,
+    holdStyle: game.holdStyle,
     isBreak: isBreak,
     isEach: isEach,
     isPressed: isPressed,
@@ -194,7 +197,7 @@ void _drawHoldHexagon(
   required double noteScale,
   required double chartRadius,
   required bool highlight,
-  required SimaiNoteStyle noteStyle,
+  required SimaiNoteStyle holdStyle,
   required bool isBreak,
   required bool isEach,
   required bool isPressed,
@@ -210,7 +213,9 @@ void _drawHoldHexagon(
   final double ca = cos(angle);
   final double sa = sin(angle);
 
-  if (noteStyle == SimaiNoteStyle.arcade) {
+  final SimaiNoteStyle effectiveStyle =
+      SimaiNoteStyle.normalizeForHold(holdStyle);
+  if (effectiveStyle == SimaiNoteStyle.arcade) {
     _drawArcadeHoldBody(
       canvas,
       head: head,
@@ -230,19 +235,19 @@ void _drawHoldHexagon(
     );
     return;
   }
-  if (noteStyle == SimaiNoteStyle.simple || noteStyle == SimaiNoteStyle.bar) {
-    _drawModernHoldBody(
+  if (effectiveStyle == SimaiNoteStyle.simple) {
+    _drawAstroSimpleHoldBody(
       canvas,
       head: head,
       tail: tail,
-      angle: angle,
+      ca: ca,
+      sa: sa,
       outerRadius: outerRadius,
       scale: scale,
       alpha: alpha,
       noteScale: noteScale,
       chartRadius: chartRadius,
       highlight: highlight,
-      isBar: noteStyle == SimaiNoteStyle.bar,
       isBreak: isBreak,
       isEach: isEach,
       isPressed: isPressed,
@@ -479,70 +484,31 @@ void _drawArcadeHoldBody(
   canvas.drawCircle(tail, dotRadius, _holdFillPaint);
 }
 
-/// 舞萌 DX「简洁（シンプル）」与「条形（バー）」风格 Hold：圆润胶囊 / 切向平端条身、柔滑渐变、纯净白描边与按压辉光。
-void _drawModernHoldBody(
+/// 参考 AstroDX `Design/Sample Skin` 的简洁风格 Hold：
+/// 圆角六边形轮廓、外彩边 + 内白管线双层描边、侧轨深饱和与端头高光渐变、纯净镂空中心。
+void _drawAstroSimpleHoldBody(
   Canvas canvas, {
   required Offset head,
   required Offset tail,
-  required double angle,
+  required double ca,
+  required double sa,
   required double outerRadius,
   required double scale,
   required int alpha,
   required double noteScale,
   required double chartRadius,
   required bool highlight,
-  required bool isBar,
   required bool isBreak,
   required bool isEach,
   required bool isPressed,
   required double pressedElapsedMs,
 }) {
-  final double length = (head - tail).distance;
-  final double halfWidth = isBar ? outerRadius * 0.94 : outerRadius * 0.90;
-  final double endCapExtend = isBar ? outerRadius * 0.33 : outerRadius * 0.92;
-  final double cornerRadius = isBar ? outerRadius * 0.28 : halfWidth;
-  final double innerInset = isBar ? outerRadius * 0.26 : outerRadius * 0.34;
-  final double strokeW = 2.2 * scale * noteScale;
+  final double strokeW = 2.0 * scale * noteScale;
+  const double innerRatio = 0.56;
+  final double innerRadius = outerRadius * innerRatio;
 
-  final Color baseLight = isBreak
-      ? SimaiModernNoteColors.breakLight
-      : (isEach
-            ? SimaiModernNoteColors.eachLight
-            : SimaiModernNoteColors.pinkLight);
-  final Color baseDeep = isBreak
-      ? SimaiModernNoteColors.breakDeep
-      : (isEach
-            ? SimaiModernNoteColors.eachDeep
-            : SimaiModernNoteColors.pinkDeep);
-  final double brightness =
-      isPressed ? _holdActiveBrightness(pressedElapsedMs) : 1.0;
-  final Color lightColor = _tintHoldColor(baseLight, brightness, alpha);
-  final Color bodyColor = _tintHoldColor(baseDeep, brightness, alpha);
-
-  final Rect outerRect = Rect.fromLTRB(
-    -endCapExtend,
-    -halfWidth,
-    length + endCapExtend,
-    halfWidth,
-  );
-  final RRect outerRRect = RRect.fromRectAndRadius(
-    outerRect,
-    Radius.circular(cornerRadius),
-  );
-  final Rect innerRect = Rect.fromLTRB(
-    -max(0.0, endCapExtend - innerInset),
-    -max(1.0, halfWidth - innerInset),
-    length + max(0.0, endCapExtend - innerInset),
-    max(1.0, halfWidth - innerInset),
-  );
-  final RRect innerRRect = RRect.fromRectAndRadius(
-    innerRect,
-    Radius.circular(max(1.0, cornerRadius - innerInset * 0.8)),
-  );
-
-  canvas.save();
-  canvas.translate(tail.dx, tail.dy);
-  canvas.rotate(angle);
+  _writeHoldHullPath(_holdOuterPath, head, tail, outerRadius, ca, sa);
+  _writeHoldHullPath(_holdInnerPath, head, tail, innerRadius, ca, sa);
 
   if (highlight && alpha > 0) {
     final Color exColor = isBreak
@@ -550,94 +516,128 @@ void _drawModernHoldBody(
         : (isEach
               ? SimaiVisualTokens.colorExOverlaySimultaneous
               : SimaiVisualTokens.colorExOverlayNormal);
-    final double pad = outerRadius * 0.19;
-    final RRect exRRect = outerRRect.inflate(pad);
+    _writeHoldHullPath(
+      _holdHighlightPath,
+      head,
+      tail,
+      outerRadius * 1.19,
+      ca,
+      sa,
+    );
     _holdCombinedPath
       ..reset()
       ..fillType = PathFillType.evenOdd
-      ..addRRect(exRRect)
-      ..addRRect(outerRRect);
+      ..addPath(_holdHighlightPath, Offset.zero)
+      ..addPath(_holdOuterPath, Offset.zero);
     _holdFillPaint
       ..shader = null
       ..color = exColor.withAlpha((exColor.a * alpha).round().clamp(0, 255));
     canvas.drawPath(_holdCombinedPath, _holdFillPaint);
   }
 
+  final Color rimBase = isBreak
+      ? SimaiAstroSimpleColors.holdBreakRim
+      : (isEach
+            ? SimaiAstroSimpleColors.holdEachRim
+            : SimaiAstroSimpleColors.holdPinkRim);
+  final Color railBase = isBreak
+      ? SimaiAstroSimpleColors.holdBreakRail
+      : (isEach
+            ? SimaiAstroSimpleColors.holdEachRail
+            : SimaiAstroSimpleColors.holdPinkRail);
+  final Color capBase = isBreak
+      ? SimaiAstroSimpleColors.holdBreakCap
+      : (isEach
+            ? SimaiAstroSimpleColors.holdEachCap
+            : SimaiAstroSimpleColors.holdPinkCap);
+  final Color glowBase = isBreak
+      ? SimaiAstroSimpleColors.holdBreakGlow
+      : (isEach
+            ? SimaiAstroSimpleColors.holdEachGlow
+            : SimaiAstroSimpleColors.holdPinkGlow);
+
+  final double brightness =
+      isPressed ? _holdActiveBrightness(pressedElapsedMs) : 1.0;
+  final Color rimColor = _tintHoldColor(rimBase, brightness, alpha);
+  final Color railColor = _tintHoldColor(railBase, brightness, alpha);
+  final Color capColor = _tintHoldColor(capBase, brightness, alpha);
+  final Color glowColor = _tintHoldColor(glowBase, brightness, alpha);
+
+  // 轻量半透明黑影描边，免逐帧模糊开销，同时保持 AstroDX 立体轮廓对比度。
+  // 开启 EX 保护套时不画外圈黑影，避免脏边渗入保护套内缘。
+  _holdStrokePaint
+    ..color = Color.fromARGB((alpha * 0.34).round(), 0, 0, 0)
+    ..strokeWidth = strokeW * 4.2;
+  if (!highlight) {
+    canvas.drawPath(_holdOuterPath, _holdStrokePaint);
+  }
+  _holdStrokePaint.strokeWidth = strokeW * 2.8;
+  canvas.drawPath(_holdInnerPath, _holdStrokePaint);
+
+  // 外层高饱和彩框。
+  _holdStrokePaint
+    ..color = rimColor
+    ..strokeWidth = strokeW * 2.5;
+  canvas.drawPath(_holdOuterPath, _holdStrokePaint);
+  _holdStrokePaint.strokeWidth = strokeW * 2.0;
+  canvas.drawPath(_holdInnerPath, _holdStrokePaint);
+
+  // 主体横向宝石渐变：两侧直轨深饱和、中轴端头提亮。
+  final Offset mid = Offset((head.dx + tail.dx) * 0.5, (head.dy + tail.dy) * 0.5);
+  final Offset perp = Offset(-sa * outerRadius, ca * outerRadius);
   _holdCombinedPath
     ..reset()
     ..fillType = PathFillType.evenOdd
-    ..addRRect(outerRRect)
-    ..addRRect(innerRRect);
-
+    ..addPath(_holdOuterPath, Offset.zero)
+    ..addPath(_holdInnerPath, Offset.zero);
   _holdFillPaint.shader = ui.Gradient.linear(
-    Offset(0, -halfWidth),
-    Offset(0, halfWidth),
-    [bodyColor, lightColor, bodyColor],
-    const [0.0, 0.5, 1.0],
+    mid - perp,
+    mid + perp,
+    [railColor, capColor, glowColor, capColor, railColor],
+    const [0.0, 0.28, 0.5, 0.72, 1.0],
   );
   canvas.drawPath(_holdCombinedPath, _holdFillPaint);
   _holdFillPaint.shader = null;
 
-  // 条形样式在头尾端头补充白亮横杠，呼应条形 Tap。
-  if (isBar) {
-    final double barW = outerRadius * 0.14;
-    final double barH = halfWidth * 1.45;
-    _holdFillPaint.color = Colors.white.withAlpha((alpha * 0.72).round());
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(center: Offset(length, 0), width: barW, height: barH),
-        Radius.circular(barW * 0.5),
-      ),
-      _holdFillPaint,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(center: Offset.zero, width: barW, height: barH),
-        Radius.circular(barW * 0.5),
-      ),
-      _holdFillPaint,
-    );
-  }
-
-  _holdStrokePaint
-    ..color = Color.fromARGB((alpha * 0.55).round(), 24, 24, 32)
-    ..strokeWidth = strokeW * 1.6;
-  canvas.drawRRect(outerRRect, _holdStrokePaint);
-
+  // 紧贴彩框内侧的纯白亮线，呼应 AstroDX hold.png 双层边框。
+  _writeHoldHullPath(
+    _holdHighlightPath,
+    head,
+    tail,
+    outerRadius - strokeW * 0.65,
+    ca,
+    sa,
+  );
   _holdStrokePaint
     ..color = _tintHoldColor(Colors.white, brightness, alpha)
-    ..strokeWidth = strokeW;
-  canvas.drawRRect(outerRRect, _holdStrokePaint);
-  canvas.drawRRect(innerRRect, _holdStrokePaint);
+    ..strokeWidth = strokeW * 1.1;
+  canvas.drawPath(_holdHighlightPath, _holdStrokePaint);
 
-  final Color dotBaseColor = isBreak
-      ? SimaiModernNoteColors.breakDot
-      : (isEach
-            ? SimaiModernNoteColors.eachDot
-            : SimaiModernNoteColors.pinkDot);
+  _writeHoldHullPath(
+    _holdHighlightPath,
+    head,
+    tail,
+    innerRadius + strokeW * 0.55,
+    ca,
+    sa,
+  );
+  canvas.drawPath(_holdHighlightPath, _holdStrokePaint);
+
   if (isPressed && chartRadius > 0) {
     final double glowOuter = chartRadius * 0.058;
     if (glowOuter >= 1.0) {
       _holdFillPaint.shader = ui.Gradient.radial(
-        Offset(length, 0),
+        head,
         glowOuter,
         [
           Colors.white.withAlpha((alpha * 0.92).round()),
-          lightColor.withAlpha((alpha * 0.62).round()),
+          glowColor.withAlpha((alpha * 0.62).round()),
           const Color(0x00000000),
         ],
         const [0.0, 0.45, 1.0],
       );
-      canvas.drawCircle(Offset(length, 0), glowOuter, _holdFillPaint);
+      canvas.drawCircle(head, glowOuter, _holdFillPaint);
       _holdFillPaint.shader = null;
     }
-  } else if (!isBar) {
-    final double dotRadius = outerRadius * 0.15;
-    _holdFillPaint.color = dotBaseColor.withAlpha(alpha);
-    canvas.drawCircle(Offset(length, 0), dotRadius, _holdFillPaint);
-    _holdFillPaint.color = _tintHoldColor(dotBaseColor, brightness, alpha);
-    canvas.drawCircle(Offset.zero, dotRadius, _holdFillPaint);
   }
-
-  canvas.restore();
 }

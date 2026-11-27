@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../structures/mai_chart.dart';
 import '../../structures/note_styles.dart';
 import '../../structures/note_type.dart';
+import '../auto_play_mode.dart';
 import '../center_display_mode.dart';
 import '../simai_game.dart';
 import 'achievement_rate_component.dart';
@@ -87,8 +88,21 @@ class ChartCounterIndex {
     );
   }
 
+  int get totalBreakCount => _breakTimes.length;
+
   int comboAt(double chartTime) {
     return _upperBound(_comboTimes, chartTime.isFinite ? chartTime : 0.0);
+  }
+
+  int breakCountAt(double chartTime) {
+    return _upperBound(_breakTimes, chartTime.isFinite ? chartTime : 0.0);
+  }
+
+  int protectedBreakCountAt(double chartTime) {
+    return _upperBound(
+      _protectedBreakTimes,
+      chartTime.isFinite ? chartTime : 0.0,
+    );
   }
 
   static int _upperBound(List<double> values, double target) {
@@ -165,15 +179,11 @@ class ChartCounterOverlayComponent extends PositionComponent
   TextPainter? _topRightPainter;
   TextPainter? _breakPainter;
   TextPainter? _timePainter;
-  int _lastCombo = -1;
   int _lastBreak = -1;
   int _lastProtectedBreak = -1;
   int _lastCentisecond = -1;
   double _lastExportScale = -1;
   String? _lastTopRightText;
-  SimaiCenterDisplayMode? _lastTopRightMode;
-  bool? _lastShowAchievementRate;
-  double _counterRefreshElapsed = 0.05;
   double _timeRefreshElapsed = 0.05;
 
   @override
@@ -185,7 +195,6 @@ class ChartCounterOverlayComponent extends PositionComponent
       final scale = _exportScale;
       if ((scale - _lastExportScale).abs() > 1e-4) {
         _lastExportScale = scale;
-        _lastCombo = -1;
         _lastTopRightText = null;
         _lastBreak = -1;
         _lastProtectedBreak = -1;
@@ -207,33 +216,30 @@ class ChartCounterOverlayComponent extends PositionComponent
 
   String? _buildTopRightText(
     SimaiCenterDisplayMode mode,
-    ChartCounterSnapshot snapshot,
+    SimaiAutoPlaySnapshot sim,
   ) {
     if (_shouldHideTopRight(mode)) return null;
-    final chartTime = game.chartTime;
-    final maxDxScore = achievementIndex.eventCount * 3;
     return switch (mode) {
       SimaiCenterDisplayMode.achievementAdd =>
-        'ACHV ${_formatPercent(achievementIndex.achievementAt(chartTime))}%',
+        'ACHV ${_formatPercent(sim.achievementAdd)}%',
       SimaiCenterDisplayMode.achievement100Plus =>
-        'ACHV ${_formatPercent(achievementIndex.achievement100PlusForBreakCount(achievementIndex.judgedBreakCountAt(achievementIndex.judgedCountAt(chartTime))))}%',
+        'ACHV ${_formatPercent(sim.achievement100Plus)}%',
       SimaiCenterDisplayMode.achievement101Subtract =>
-        'ACHV ${_formatPercent(achievementIndex.maxAchievement)}%',
+        'ACHV ${_formatPercent(sim.achievement101Subtract)}%',
       SimaiCenterDisplayMode.dxScoreAdd =>
-        'DX ${achievementIndex.judgedCountAt(chartTime) * 3} / $maxDxScore',
-      SimaiCenterDisplayMode.dxScoreSubtract => 'DX $maxDxScore',
+        'DX ${sim.earnedDxScore} / ${sim.maxDxScore}',
+      SimaiCenterDisplayMode.dxScoreSubtract => 'DX ${sim.remainingDxScore}',
       SimaiCenterDisplayMode.dxStars => formatSimaiDxStarBonus(
-        maxDxScore,
-        maxDxScore,
+        sim.remainingDxScore,
+        sim.maxDxScore,
       ),
-      SimaiCenterDisplayMode.combo =>
-        'COMBO ${snapshot.combo} / ${snapshot.totalCombo}',
+      SimaiCenterDisplayMode.combo => 'COMBO ${sim.combo} / ${sim.totalCombo}',
       SimaiCenterDisplayMode.overS =>
-        'S ${_formatPercent(achievementIndex.maxAchievement - 97.0)}%',
+        'S ${_formatPercent(sim.achievement101Subtract - 97.0)}%',
       SimaiCenterDisplayMode.overSS =>
-        'SS ${_formatPercent(achievementIndex.maxAchievement - 99.0)}%',
+        'SS ${_formatPercent(sim.achievement101Subtract - 99.0)}%',
       SimaiCenterDisplayMode.overSSS =>
-        'SSS ${_formatPercent(achievementIndex.maxAchievement - 100.0)}%',
+        'SSS ${_formatPercent(sim.achievement101Subtract - 100.0)}%',
       SimaiCenterDisplayMode.none => null,
     };
   }
@@ -245,70 +251,41 @@ class ChartCounterOverlayComponent extends PositionComponent
     if (!game.showCornerInfo) return;
 
     if (dt.isFinite && dt > 0) {
-      _counterRefreshElapsed += dt;
       _timeRefreshElapsed += dt;
     }
 
-    final snapshot = index.at(game.chartTime);
+    final sim = game.autoPlayTimeline.snapshotAt(game.chartTime);
+    final breakCount = index.breakCountAt(game.chartTime);
+    final protectedBreakCount = index.protectedBreakCountAt(game.chartTime);
     final centisecond = (game.chartTime.clamp(0.0, double.infinity) * 100)
         .floor();
 
-    final topRightMode = game.topRightDisplayMode;
-    final bool topRightHidden = _shouldHideTopRight(topRightMode);
-    final bool modeChanged =
-        _lastTopRightMode != topRightMode ||
-        _lastShowAchievementRate != game.showAchievementRate;
-    final bool counterNeedsInit =
-        _breakPainter == null ||
-        modeChanged ||
-        (!topRightHidden && _topRightPainter == null);
-    final bool shouldRefreshCounters =
-        counterNeedsInit ||
-        game.headlessExport ||
-        !game.isPlaying ||
-        (snapshot.combo - _lastCombo).abs() > 15 ||
-        snapshot.combo == snapshot.totalCombo ||
-        _counterRefreshElapsed >= 0.05;
-
-    if (shouldRefreshCounters) {
-      _lastTopRightMode = topRightMode;
-      _lastShowAchievementRate = game.showAchievementRate;
-      _lastCombo = snapshot.combo;
-      var counterUpdated = false;
-
-      final topRightText = _buildTopRightText(topRightMode, snapshot);
-      if (topRightText == null) {
-        if (_topRightPainter != null || _lastTopRightText != null) {
-          _topRightPainter?.dispose();
-          _topRightPainter = null;
-          _lastTopRightText = null;
-          counterUpdated = true;
-        }
-      } else if (topRightText != _lastTopRightText ||
-          _topRightPainter == null) {
-        _lastTopRightText = topRightText;
+    // 右上角显示（101- / DX / COMBO 等）与左下角 BREAK 计数仅在文案真实变化时按帧即时更新，
+    // 消除 50ms 限频引起的掉分延迟，且在 101- 模式下 CP 音符过线零重建。
+    final topRightText = _buildTopRightText(game.topRightDisplayMode, sim);
+    if (topRightText == null) {
+      if (_topRightPainter != null || _lastTopRightText != null) {
         _topRightPainter?.dispose();
-        _topRightPainter = _textPainter(topRightText, _primaryStyle);
-        counterUpdated = true;
+        _topRightPainter = null;
+        _lastTopRightText = null;
       }
+    } else if (topRightText != _lastTopRightText || _topRightPainter == null) {
+      _lastTopRightText = topRightText;
+      _topRightPainter?.dispose();
+      _topRightPainter = _textPainter(topRightText, _primaryStyle);
+    }
 
-      if (snapshot.breakCount != _lastBreak ||
-          snapshot.protectedBreakCount != _lastProtectedBreak ||
-          _breakPainter == null) {
-        _lastBreak = snapshot.breakCount;
-        _lastProtectedBreak = snapshot.protectedBreakCount;
-        _breakPainter?.dispose();
-        _breakPainter = _textPainter(
-          'BREAK ${snapshot.breakCount} '
-          '(+${snapshot.protectedBreakCount} EX) / ${snapshot.totalBreakCount}',
-          _breakStyle,
-        );
-        counterUpdated = true;
-      }
-
-      if (counterUpdated) {
-        _counterRefreshElapsed = 0.0;
-      }
+    if (breakCount != _lastBreak ||
+        protectedBreakCount != _lastProtectedBreak ||
+        _breakPainter == null) {
+      _lastBreak = breakCount;
+      _lastProtectedBreak = protectedBreakCount;
+      _breakPainter?.dispose();
+      _breakPainter = _textPainter(
+        'BREAK $breakCount '
+        '(+$protectedBreakCount EX) / ${index.totalBreakCount}',
+        _breakStyle,
+      );
     }
 
     // 实时播放时将右下角计时文本限频至约 20Hz，暂停、跳转或离线导出时立即精确更新。

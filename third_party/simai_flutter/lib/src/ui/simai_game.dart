@@ -54,6 +54,9 @@ class SimaiGame extends FlameGame with KeyboardEvents {
   double chartTime = 0.0;
   double ringApproachTime;
   double touchApproachTime;
+  double slideDisplayTiming;
+  SimaiAutoPlayMode autoPlayMode;
+  SimaiAutoPlayTimeline? _autoPlayTimeline;
   double playbackRate;
   double musicVolume;
   double _hitSoundOffset;
@@ -69,6 +72,7 @@ class SimaiGame extends FlameGame with KeyboardEvents {
   bool highlightExNotes;
   bool showApproachLine;
   bool showHitEffects;
+  SimaiHitEffectStyle hitEffectStyle;
   bool showJudgementDisplay;
   SimaiJudgementDisplayMode judgementDisplayMode;
   bool showGameplayInputPartitions;
@@ -77,6 +81,7 @@ class SimaiGame extends FlameGame with KeyboardEvents {
   SimaiCenterDisplayMode centerDisplayMode;
   SimaiCenterDisplayMode topRightDisplayMode;
   SimaiNoteStyle noteStyle;
+  SimaiNoteStyle holdStyle;
   bool showCornerInfo;
   bool showFps;
   bool showDetailedPerformanceInfo;
@@ -200,10 +205,12 @@ class SimaiGame extends FlameGame with KeyboardEvents {
     this.ringApproachTime = NoteMotion.defaultApproachTime,
     this.touchApproachTime =
         NoteMotion.defaultApproachTime * NoteMotion.touchApproachMultiplier,
+    double slideDisplayTiming = 0.0,
+    this.autoPlayMode = SimaiAutoPlayMode.allCriticalPerfect,
     this.playbackRate = 1.0,
-    this.musicVolume = 0.8,
+    this.musicVolume = 0.5,
     double hitSoundOffset = 0.0,
-    double hitSoundVolume = 0.72,
+    double hitSoundVolume = 2.0,
     bool hitSoundEnabled = true,
     bool gameplayAnswerSoundEnabled = true,
     this.backgroundMode = SimaiBackgroundMode.judgeLine,
@@ -215,6 +222,7 @@ class SimaiGame extends FlameGame with KeyboardEvents {
     this.highlightExNotes = false,
     this.showApproachLine = true,
     this.showHitEffects = true,
+    this.hitEffectStyle = SimaiHitEffectStyle.ring,
     this.showJudgementDisplay = false,
     this.judgementDisplayMode = SimaiJudgementDisplayMode.twoB,
     this.showGameplayInputPartitions = false,
@@ -223,6 +231,7 @@ class SimaiGame extends FlameGame with KeyboardEvents {
     this.centerDisplayMode = SimaiCenterDisplayMode.achievementAdd,
     this.topRightDisplayMode = SimaiCenterDisplayMode.combo,
     this.noteStyle = SimaiNoteStyle.arcade,
+    SimaiNoteStyle? holdStyle,
     this.showCornerInfo = true,
     this.showFps = true,
     this.showDetailedPerformanceInfo = false,
@@ -238,7 +247,11 @@ class SimaiGame extends FlameGame with KeyboardEvents {
     this.backgroundImageProvider,
     double initialChartTime = 0.0,
     this.offset = 0.0,
-  }) : assert(
+  }) : slideDisplayTiming = NoteMotion.normalizeSlideDisplayTiming(
+         slideDisplayTiming,
+       ),
+       holdStyle = SimaiNoteStyle.normalizeForHold(holdStyle ?? noteStyle),
+       assert(
          audioAsset == null || audioFilePath == null,
          'audioAsset and audioFilePath cannot both be set.',
        ),
@@ -255,7 +268,7 @@ class SimaiGame extends FlameGame with KeyboardEvents {
          'gameplayContactRadiusScale must be finite and positive.',
        ),
        chartTime = initialChartTime,
-       hitSoundVolume = (hitSoundVolume.isFinite ? hitSoundVolume : 0.72)
+       hitSoundVolume = (hitSoundVolume.isFinite ? hitSoundVolume : 2.0)
            .clamp(0.0, simaiMaxHitSoundVolume)
            .toDouble(),
        backgroundOpacity =
@@ -400,6 +413,31 @@ class SimaiGame extends FlameGame with KeyboardEvents {
     if (noteStyle == style) return;
     noteStyle = style;
     unawaited(_scheduleNoteAssetsRebuild());
+  }
+
+  void setHoldStyle(SimaiNoteStyle style) {
+    final normalized = SimaiNoteStyle.normalizeForHold(style);
+    if (holdStyle == normalized) return;
+    holdStyle = normalized;
+    invalidateNotes();
+  }
+
+  /// 当前模拟游玩判定时间线（按需构建并缓存，供判定表示、击打特效与达成率共用）。
+  SimaiAutoPlayTimeline get autoPlayTimeline =>
+      _autoPlayTimeline ??= SimaiAutoPlayTimeline.build(chart, autoPlayMode);
+
+  void setSlideDisplayTiming(double value) {
+    final normalized = NoteMotion.normalizeSlideDisplayTiming(value);
+    if (slideDisplayTiming == normalized) return;
+    slideDisplayTiming = normalized;
+    invalidateNotes(resetWindow: true);
+  }
+
+  void setAutoPlayMode(SimaiAutoPlayMode mode) {
+    if (autoPlayMode == mode) return;
+    autoPlayMode = mode;
+    _autoPlayTimeline = null;
+    invalidateNotes();
   }
 
   /// 切换音符样式并等待精灵图集重新烘焙完成（供无头预览与视频导出同步使用）。
@@ -555,7 +593,7 @@ class SimaiGame extends FlameGame with KeyboardEvents {
           achievementIndex: achievementIndex,
         )..priority = 2,
       );
-      add(PlaybackJudgementComponent(chart)..priority = 3);
+      add(PlaybackJudgementComponent()..priority = 3);
     } else {
       add(GameplayHudComponent(gameplaySession!)..priority = 3);
     }
@@ -2464,7 +2502,14 @@ class NotesLayerComponent extends PositionComponent with Snapshot {
       }
     }
 
-    final maxApproachTime = max(game.ringApproachTime, game.touchApproachTime);
+    final slideTrackApproach = NoteMotion.slideTrackApproachTime(
+      ringApproachTime: game.ringApproachTime,
+      slideDisplayTiming: game.slideDisplayTiming,
+    );
+    final maxApproachTime = max(
+      max(game.ringApproachTime, game.touchApproachTime),
+      slideTrackApproach,
+    );
     _visibleEndIndex = game.runtimeIndex.visibleEnd(
       game.chart,
       game.chartTime + maxApproachTime,

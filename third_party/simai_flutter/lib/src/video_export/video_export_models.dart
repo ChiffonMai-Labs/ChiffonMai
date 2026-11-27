@@ -4,9 +4,22 @@ import 'package:flutter/material.dart';
 
 import '../gameplay/gameplay_models.dart';
 import '../simai_file.dart';
+import '../ui/auto_play_mode.dart';
 import '../ui/center_display_mode.dart';
+import '../ui/hit_effect_style.dart';
 import '../ui/note_style.dart';
 import '../ui/simai_player.dart';
+
+/// 视频导出页准备 PV 时的实时进度回调（progress 为 null 表示不确定进度，如探测/连接阶段）。
+typedef SimaiPvDownloadProgressCallback =
+    void Function({double? progress, String? status});
+
+/// 视频导出页下载 PV 的委托：返回本地文件路径；无 PV、取消或失败时返回 null。
+typedef SimaiVideoExportPvDownloader =
+    Future<String?> Function(
+      BuildContext context, {
+      SimaiPvDownloadProgressCallback? onProgress,
+    });
 
 enum SimaiChartDifficulty {
   basic,
@@ -265,22 +278,28 @@ class SimaiVideoExportSettings {
   final SimaiMirrorMode mirrorMode;
   final SimaiBackgroundMode backgroundMode;
   final double speed;
+  final double touchSpeed;
+  final double slideDisplayTiming;
+  final SimaiAutoPlayMode autoPlayMode;
   final bool rotateSlideStar;
   final bool pinkSlideStar;
   final bool standardBreakSlide;
   final bool showApproachLine;
   final bool showHitEffects;
+  final SimaiHitEffectStyle hitEffectStyle;
   final bool showJudgementDisplay;
   final SimaiJudgementDisplayMode judgementDisplayMode;
   final SimaiCenterDisplayMode centerDisplayMode;
   final SimaiCenterDisplayMode topRightDisplayMode;
   final SimaiNoteStyle noteStyle;
+  final SimaiNoteStyle holdStyle;
   final bool showAchievementRate;
   final bool highlightExNotes;
   final bool showCornerInfo;
   final bool showDetailedPerformanceInfo;
   final bool hitSoundEnabled;
   final double musicVolume;
+  final double hitSoundVolume;
   final int musicOffsetMs;
   final int hitSoundOffsetMs;
 
@@ -292,22 +311,28 @@ class SimaiVideoExportSettings {
     this.mirrorMode = SimaiMirrorMode.none,
     this.backgroundMode = SimaiBackgroundMode.judgeLine,
     this.speed = 8.0,
+    this.touchSpeed = 8.0,
+    this.slideDisplayTiming = 0.0,
+    this.autoPlayMode = SimaiAutoPlayMode.allCriticalPerfect,
     this.rotateSlideStar = true,
     this.pinkSlideStar = false,
     this.standardBreakSlide = false,
     this.showApproachLine = true,
     this.showHitEffects = true,
+    this.hitEffectStyle = SimaiHitEffectStyle.ring,
     this.showJudgementDisplay = false,
     this.judgementDisplayMode = SimaiJudgementDisplayMode.twoB,
     this.centerDisplayMode = SimaiCenterDisplayMode.achievementAdd,
     this.topRightDisplayMode = SimaiCenterDisplayMode.combo,
     this.noteStyle = SimaiNoteStyle.arcade,
+    this.holdStyle = SimaiNoteStyle.arcade,
     this.showAchievementRate = true,
     this.highlightExNotes = true,
     this.showCornerInfo = true,
     this.showDetailedPerformanceInfo = false,
-    this.hitSoundEnabled = false,
-    this.musicVolume = 0.8,
+    this.hitSoundEnabled = true,
+    this.musicVolume = 0.5,
+    this.hitSoundVolume = 2.0,
     this.musicOffsetMs = 0,
     this.hitSoundOffsetMs = 0,
   });
@@ -327,22 +352,28 @@ class SimaiVideoExportSettings {
       mirrorMode: controller.mirrorMode,
       backgroundMode: controller.backgroundMode,
       speed: controller.speed,
+      touchSpeed: controller.touchSpeed,
+      slideDisplayTiming: controller.slideDisplayTiming,
+      autoPlayMode: controller.autoPlayMode,
       rotateSlideStar: controller.rotateSlideStar,
       pinkSlideStar: controller.pinkSlideStar,
       standardBreakSlide: controller.standardBreakSlide,
       showApproachLine: controller.showApproachLine,
       showHitEffects: controller.showHitEffects,
+      hitEffectStyle: controller.hitEffectStyle,
       showJudgementDisplay: controller.showJudgementDisplay,
       judgementDisplayMode: controller.judgementDisplayMode,
       centerDisplayMode: controller.centerDisplayMode,
       topRightDisplayMode: controller.topRightDisplayMode,
       noteStyle: controller.noteStyle,
+      holdStyle: controller.holdStyle,
       showAchievementRate: controller.showAchievementRate,
       highlightExNotes: controller.highlightExNotes,
       showCornerInfo: controller.showCornerInfo,
       showDetailedPerformanceInfo: controller.showDetailedPerformanceInfo,
       hitSoundEnabled: controller.hitSoundEnabled,
       musicVolume: controller.musicVolume,
+      hitSoundVolume: controller.hitSoundVolume,
       musicOffsetMs: controller.musicOffsetMs,
       hitSoundOffsetMs: controller.hitSoundOffsetMs,
     );
@@ -353,22 +384,28 @@ class SimaiVideoExportSettings {
       ..mirrorMode = mirrorMode
       ..backgroundMode = backgroundMode
       ..speed = speed
+      ..touchSpeed = touchSpeed
+      ..slideDisplayTiming = slideDisplayTiming
+      ..autoPlayMode = autoPlayMode
       ..rotateSlideStar = rotateSlideStar
       ..pinkSlideStar = pinkSlideStar
       ..standardBreakSlide = standardBreakSlide
       ..showApproachLine = showApproachLine
       ..showHitEffects = showHitEffects
+      ..hitEffectStyle = hitEffectStyle
       ..showJudgementDisplay = showJudgementDisplay
       ..judgementDisplayMode = judgementDisplayMode
       ..centerDisplayMode = centerDisplayMode
       ..topRightDisplayMode = topRightDisplayMode
       ..noteStyle = noteStyle
+      ..holdStyle = holdStyle
       ..showAchievementRate = showAchievementRate
       ..highlightExNotes = highlightExNotes
       ..showCornerInfo = showCornerInfo
       ..showDetailedPerformanceInfo = showDetailedPerformanceInfo
       ..hitSoundEnabled = hitSoundEnabled
       ..musicVolume = musicVolume
+      ..hitSoundVolume = hitSoundVolume
       ..musicOffsetMs = musicOffsetMs
       ..hitSoundOffsetMs = hitSoundOffsetMs;
   }

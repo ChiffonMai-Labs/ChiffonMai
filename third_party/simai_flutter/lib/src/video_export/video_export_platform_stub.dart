@@ -30,6 +30,7 @@ class _UnsupportedVideoExportPlatform
     required int timelineStartUs,
     required int musicOffsetUs,
     required double musicVolume,
+    double hitSoundVolume = 2.0,
     required List<int> hitEventTimesUs,
   }) async => _unsupported();
 

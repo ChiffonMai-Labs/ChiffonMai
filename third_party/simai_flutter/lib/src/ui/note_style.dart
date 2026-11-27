@@ -20,6 +20,35 @@ enum SimaiNoteStyle {
   /// 是否启用精细机台级视觉特效（如绝赞双色滑星箭头、柔光描边等）。
   bool get usesEnhancedVisuals => this != SimaiNoteStyle.classic;
 
+  /// HOLD 可选样式列表（不含条形）。
+  static const List<SimaiNoteStyle> holdValues = <SimaiNoteStyle>[
+    SimaiNoteStyle.arcade,
+    SimaiNoteStyle.simple,
+    SimaiNoteStyle.classic,
+  ];
+
+  /// 将样式规范化为 HOLD 允许的取值（条形回退至 [fallback]）。
+  static SimaiNoteStyle normalizeForHold(
+    SimaiNoteStyle style, {
+    SimaiNoteStyle fallback = SimaiNoteStyle.arcade,
+  }) {
+    if (style != SimaiNoteStyle.bar) return style;
+    return fallback == SimaiNoteStyle.bar ? SimaiNoteStyle.arcade : fallback;
+  }
+
+  /// 解析 HOLD 样式名称，未知或条形值回退至 [fallback]。
+  static SimaiNoteStyle fromHoldName(
+    Object? raw, {
+    SimaiNoteStyle fallback = SimaiNoteStyle.arcade,
+  }) {
+    final safeFallback = normalizeForHold(fallback);
+    if (raw == null) return safeFallback;
+    return normalizeForHold(
+      fromName(raw, fallback: safeFallback),
+      fallback: safeFallback,
+    );
+  }
+
   /// 解析枚举名称，未知或历史缺失值默认回退至 [fallback]。
   static SimaiNoteStyle fromName(
     Object? raw, {

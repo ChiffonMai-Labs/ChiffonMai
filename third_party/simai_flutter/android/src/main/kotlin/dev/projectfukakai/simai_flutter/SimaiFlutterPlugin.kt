@@ -186,6 +186,7 @@ class SimaiFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
         val timelineStartUs = call.requireLong("timelineStartUs")
         val musicOffsetUs = call.requireLong("musicOffsetUs")
         val musicVolume = call.requireDouble("musicVolume")
+        val hitSoundVolume = call.argument<Number>("hitSoundVolume")?.toDouble() ?: 2.0
         val hitEvents = call.argument<List<Number>>("hitEventTimesUs")
             ?.map { it.toLong() }
             .orEmpty()
@@ -197,6 +198,7 @@ class SimaiFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     timelineStartUs = timelineStartUs,
                     musicOffsetUs = musicOffsetUs,
                     musicVolume = musicVolume,
+                    hitSoundVolume = hitSoundVolume,
                     hitEventTimesUs = hitEvents,
                     directGallerySaver = if (session.saveToGallery) {
                         { renderedFile ->

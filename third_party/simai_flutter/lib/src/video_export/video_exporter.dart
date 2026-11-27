@@ -440,6 +440,9 @@ class SimaiVideoExporter with WidgetsBindingObserver {
         musicOffsetUs:
             (snapshotController.effectiveMusicOffsetSeconds * 1000000).round(),
         musicVolume: snapshotController.musicVolume.clamp(0.0, 1.0),
+        hitSoundVolume: snapshotController.hitSoundVolume
+            .clamp(0.0, simaiMaxHitSoundVolume)
+            .toDouble(),
         hitEventTimesUs: hitEvents,
       );
       nativeCompleted = true;
@@ -588,6 +591,9 @@ SimaiPlayerController createSimaiVideoExportControllerSnapshot(
   )..title = source.title;
   snapshot
     ..speed = source.speed
+    ..touchSpeed = source.touchSpeed
+    ..slideDisplayTiming = source.slideDisplayTiming
+    ..autoPlayMode = source.autoPlayMode
     ..playbackRate = source.playbackRate
     ..musicVolume = source.musicVolume
     ..hitSoundVolume = source.hitSoundVolume
@@ -604,12 +610,14 @@ SimaiPlayerController createSimaiVideoExportControllerSnapshot(
     ..highlightExNotes = source.highlightExNotes
     ..showApproachLine = source.showApproachLine
     ..showHitEffects = source.showHitEffects
+    ..hitEffectStyle = source.hitEffectStyle
     ..showJudgementDisplay = source.showJudgementDisplay
     ..judgementDisplayMode = source.judgementDisplayMode
     ..showAchievementRate = source.showAchievementRate
     ..centerDisplayMode = source.centerDisplayMode
     ..topRightDisplayMode = source.topRightDisplayMode
     ..noteStyle = source.noteStyle
+    ..holdStyle = source.holdStyle
     ..showCornerInfo = source.showCornerInfo
     ..showDetailedPerformanceInfo = source.showDetailedPerformanceInfo;
   return snapshot;

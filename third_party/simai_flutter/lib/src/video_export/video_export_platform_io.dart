@@ -140,6 +140,7 @@ class _MethodChannelVideoExportPlatform
     required int timelineStartUs,
     required int musicOffsetUs,
     required double musicVolume,
+    double hitSoundVolume = 2.0,
     required List<int> hitEventTimesUs,
   }) async {
     final result = await _channel.invokeMapMethod<String, Object?>('finish', {
@@ -148,6 +149,7 @@ class _MethodChannelVideoExportPlatform
       'timelineStartUs': timelineStartUs,
       'musicOffsetUs': musicOffsetUs,
       'musicVolume': musicVolume,
+      'hitSoundVolume': hitSoundVolume,
       'hitEventTimesUs': hitEventTimesUs,
     });
     if (result == null) {

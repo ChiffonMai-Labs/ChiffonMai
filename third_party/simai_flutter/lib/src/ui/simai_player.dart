@@ -59,14 +59,17 @@ class SimaiPlayerController extends ChangeNotifier {
   Timer? _pollTimer;
 
   double _speed = 8.0;
+  double _touchSpeed = 8.0;
+  double _slideDisplayTiming = 0.0;
+  SimaiAutoPlayMode _autoPlayMode = SimaiAutoPlayMode.allCriticalPerfect;
   bool _isPlaying = false;
   double _playbackRate = 1.0;
-  double _musicVolume = 0.8;
-  double _hitSoundVolume = 0.72;
+  double _musicVolume = 0.5;
+  double _hitSoundVolume = 2.0;
   int _musicOffsetMs = 0;
   int _hitSoundOffsetMs = 0;
   int _pvOffsetMs = 0;
-  bool _hitSoundEnabled = false;
+  bool _hitSoundEnabled = true;
   bool _isFullScreen = false;
   SimaiBackgroundMode _backgroundMode = SimaiBackgroundMode.judgeLine;
   double _backgroundOpacity = SimaiGame.defaultBackgroundOpacity;
@@ -77,6 +80,7 @@ class SimaiPlayerController extends ChangeNotifier {
   bool _highlightExNotes = false;
   bool _showApproachLine = true;
   bool _showHitEffects = true;
+  SimaiHitEffectStyle _hitEffectStyle = SimaiHitEffectStyle.ring;
   bool _showJudgementDisplay = false;
   SimaiJudgementDisplayMode _judgementDisplayMode =
       SimaiJudgementDisplayMode.twoB;
@@ -85,6 +89,7 @@ class SimaiPlayerController extends ChangeNotifier {
       SimaiCenterDisplayMode.achievementAdd;
   SimaiCenterDisplayMode _topRightDisplayMode = SimaiCenterDisplayMode.combo;
   SimaiNoteStyle _noteStyle = SimaiNoteStyle.arcade;
+  SimaiNoteStyle _holdStyle = SimaiNoteStyle.arcade;
   bool _showCornerInfo = true;
   bool _showDetailedPerformanceInfo = false;
 
@@ -117,6 +122,9 @@ class SimaiPlayerController extends ChangeNotifier {
   }
 
   double get speed => _speed;
+  double get touchSpeed => _touchSpeed;
+  double get slideDisplayTiming => _slideDisplayTiming;
+  SimaiAutoPlayMode get autoPlayMode => _autoPlayMode;
   bool get isPlaying => _isPlaying;
   double get playbackRate => _playbackRate;
   double get musicVolume => _musicVolume;
@@ -135,12 +143,14 @@ class SimaiPlayerController extends ChangeNotifier {
   bool get highlightExNotes => _highlightExNotes;
   bool get showApproachLine => _showApproachLine;
   bool get showHitEffects => _showHitEffects;
+  SimaiHitEffectStyle get hitEffectStyle => _hitEffectStyle;
   bool get showJudgementDisplay => _showJudgementDisplay;
   SimaiJudgementDisplayMode get judgementDisplayMode => _judgementDisplayMode;
   bool get showAchievementRate => _showAchievementRate;
   SimaiCenterDisplayMode get centerDisplayMode => _centerDisplayMode;
   SimaiCenterDisplayMode get topRightDisplayMode => _topRightDisplayMode;
   SimaiNoteStyle get noteStyle => _noteStyle;
+  SimaiNoteStyle get holdStyle => _holdStyle;
   bool get showCornerInfo => _showCornerInfo;
   bool get showDetailedPerformanceInfo => _showDetailedPerformanceInfo;
 
@@ -167,18 +177,39 @@ class SimaiPlayerController extends ChangeNotifier {
   }
 
   double get touchApproachTime =>
-      approachTime * NoteMotion.touchApproachMultiplier;
+      NoteMotion.touchApproachTimeForSpeed(_touchSpeed);
 
   double get effectiveMusicOffsetSeconds {
     return initialChartTime + _musicOffsetMs / 1000.0;
   }
 
   set speed(double value) {
-    final safeValue = value.isFinite ? value : 8.0;
-    final clamped = safeValue.clamp(3.0, 9.0).toDouble();
-    final quantized = (clamped / 0.25).round() * 0.25;
+    final quantized = NoteMotion.normalizeSpeed(value);
     if (_speed == quantized) return;
     _speed = quantized;
+    _applyToGame();
+    notifyListeners();
+  }
+
+  set touchSpeed(double value) {
+    final quantized = NoteMotion.normalizeSpeed(value);
+    if (_touchSpeed == quantized) return;
+    _touchSpeed = quantized;
+    _applyToGame();
+    notifyListeners();
+  }
+
+  set slideDisplayTiming(double value) {
+    final quantized = NoteMotion.normalizeSlideDisplayTiming(value);
+    if (_slideDisplayTiming == quantized) return;
+    _slideDisplayTiming = quantized;
+    _applyToGame();
+    notifyListeners();
+  }
+
+  set autoPlayMode(SimaiAutoPlayMode value) {
+    if (_autoPlayMode == value) return;
+    _autoPlayMode = value;
     _applyToGame();
     notifyListeners();
   }
@@ -315,6 +346,13 @@ class SimaiPlayerController extends ChangeNotifier {
     notifyListeners();
   }
 
+  set hitEffectStyle(SimaiHitEffectStyle value) {
+    if (_hitEffectStyle == value) return;
+    _hitEffectStyle = value;
+    _applyToGame();
+    notifyListeners();
+  }
+
   set showJudgementDisplay(bool value) {
     if (_showJudgementDisplay == value) return;
     _showJudgementDisplay = value;
@@ -353,6 +391,14 @@ class SimaiPlayerController extends ChangeNotifier {
   set noteStyle(SimaiNoteStyle value) {
     if (_noteStyle == value) return;
     _noteStyle = value;
+    _applyToGame();
+    notifyListeners();
+  }
+
+  set holdStyle(SimaiNoteStyle value) {
+    final normalized = SimaiNoteStyle.normalizeForHold(value);
+    if (_holdStyle == normalized) return;
+    _holdStyle = normalized;
     _applyToGame();
     notifyListeners();
   }
@@ -587,6 +633,8 @@ class SimaiPlayerController extends ChangeNotifier {
     final approach = approachTime;
     game.ringApproachTime = approach;
     game.touchApproachTime = touchApproachTime;
+    game.setSlideDisplayTiming(_slideDisplayTiming);
+    game.setAutoPlayMode(_autoPlayMode);
     game.offset = effectiveMusicOffsetSeconds;
     game.hitSoundOffset = _hitSoundOffsetMs / 1000.0;
     game.hitSoundEnabled = _hitSoundEnabled;
@@ -606,12 +654,14 @@ class SimaiPlayerController extends ChangeNotifier {
     game.highlightExNotes = _highlightExNotes;
     game.showApproachLine = _showApproachLine;
     game.showHitEffects = _showHitEffects;
+    game.hitEffectStyle = _hitEffectStyle;
     game.showJudgementDisplay = _showJudgementDisplay;
     game.judgementDisplayMode = _judgementDisplayMode;
     game.showAchievementRate = _showAchievementRate;
     game.centerDisplayMode = _centerDisplayMode;
     game.topRightDisplayMode = _topRightDisplayMode;
     game.setNoteStyle(_noteStyle);
+    game.setHoldStyle(_holdStyle);
     game.showCornerInfo = _showCornerInfo;
     game.showDetailedPerformanceInfo = _showDetailedPerformanceInfo;
     game.invalidateNotes();
@@ -719,6 +769,8 @@ class _SimaiPlayerState extends State<SimaiPlayer> {
       isPlaying: controller.isPlaying,
       ringApproachTime: controller.approachTime,
       touchApproachTime: controller.touchApproachTime,
+      slideDisplayTiming: controller.slideDisplayTiming,
+      autoPlayMode: controller.autoPlayMode,
       playbackRate: controller.playbackRate,
       musicVolume: controller.musicVolume,
       hitSoundVolume: controller.hitSoundVolume,
@@ -733,12 +785,14 @@ class _SimaiPlayerState extends State<SimaiPlayer> {
       highlightExNotes: controller.highlightExNotes,
       showApproachLine: controller.showApproachLine,
       showHitEffects: controller.showHitEffects,
+      hitEffectStyle: controller.hitEffectStyle,
       showJudgementDisplay: controller.showJudgementDisplay,
       judgementDisplayMode: controller.judgementDisplayMode,
       showAchievementRate: controller.showAchievementRate,
       centerDisplayMode: controller.centerDisplayMode,
       topRightDisplayMode: controller.topRightDisplayMode,
       noteStyle: controller.noteStyle,
+      holdStyle: controller.holdStyle,
       showCornerInfo: controller.showCornerInfo,
       showDetailedPerformanceInfo: controller.showDetailedPerformanceInfo,
       hasVideoBackground: widget.backgroundVideo != null,
@@ -1367,7 +1421,7 @@ class SimaiPlayerPage extends StatefulWidget {
   final ValueChanged<SimaiVideoExportSettings>? onVideoExportSettingsChanged;
   final Future<String?> Function()? resolveVideoExportAudio;
   final Future<String?> Function()? checkCachedPvFilePath;
-  final Future<String?> Function(BuildContext context)? downloadPvFilePath;
+  final SimaiVideoExportPvDownloader? downloadPvFilePath;
   final Widget Function(
     BuildContext context,
     String pvVideoPath,
@@ -1501,6 +1555,7 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
       title: widget.title ?? widget.controller.title,
       settings: SimaiGameplaySettings(
         noteSpeed: widget.controller.speed,
+        touchSpeed: widget.controller.touchSpeed,
         musicOffsetMs: widget.controller.musicOffsetMs,
         musicVolume: widget.controller.musicVolume,
         hitSoundVolume: widget.controller.hitSoundVolume,
@@ -1511,8 +1566,10 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
           widget.controller.centerDisplayMode.name,
         ),
         noteStyle: widget.controller.noteStyle,
+        holdStyle: widget.controller.holdStyle,
         showApproachLine: widget.controller.showApproachLine,
         showHitEffects: widget.controller.showHitEffects,
+        hitEffectStyle: widget.controller.hitEffectStyle,
       ),
     );
   }
@@ -1830,7 +1887,7 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
                         const SizedBox(height: 16),
                         _buildSegmentedSetting<SimaiNoteStyle>(
                           context,
-                          label: 'NOTE 样式',
+                          label: 'TAP / SLIDE 头部样式',
                           icon: Icons.style_outlined,
                           value: controller.noteStyle,
                           segments: [
@@ -1841,6 +1898,23 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
                               ),
                           ],
                           onChanged: (v) => controller.noteStyle = v,
+                        ),
+                        const SizedBox(height: 16),
+                        _buildSegmentedSetting<SimaiNoteStyle>(
+                          context,
+                          label: 'HOLD 样式',
+                          icon: Icons.hexagon_outlined,
+                          value: SimaiNoteStyle.normalizeForHold(
+                            controller.holdStyle,
+                          ),
+                          segments: [
+                            for (final style in SimaiNoteStyle.holdValues)
+                              ButtonSegment<SimaiNoteStyle>(
+                                value: style,
+                                label: Text(style.shortLabel),
+                              ),
+                          ],
+                          onChanged: (v) => controller.holdStyle = v,
                         ),
                         const SizedBox(height: 16),
                         _buildSegmentedSetting<SimaiBackgroundMode>(
@@ -1882,15 +1956,42 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
                         ),
                         _buildSliderSetting(
                           context,
-                          label: '流速',
+                          label: 'TAP/HOLD 流速',
                           icon: Icons.speed,
                           value: controller.speed,
-                          min: 3.0,
-                          max: 9.0,
-                          divisions: 24,
+                          min: NoteMotion.minSpeed,
+                          max: NoteMotion.sonicSpeedValue,
+                          divisions: NoteMotion.speedSliderDivisions,
                           onChanged: (v) => controller.speed = v,
-                          valueSuffix:
-                              'x${controller.speed.toStringAsFixed(2)}',
+                          valueSuffix: NoteMotion.formatSpeedLabel(
+                            controller.speed,
+                          ),
+                        ),
+                        _buildSliderSetting(
+                          context,
+                          label: 'TOUCH 流速',
+                          icon: Icons.touch_app_outlined,
+                          value: controller.touchSpeed,
+                          min: NoteMotion.minSpeed,
+                          max: NoteMotion.sonicSpeedValue,
+                          divisions: NoteMotion.speedSliderDivisions,
+                          onChanged: (v) => controller.touchSpeed = v,
+                          valueSuffix: NoteMotion.formatSpeedLabel(
+                            controller.touchSpeed,
+                          ),
+                        ),
+                        _buildSliderSetting(
+                          context,
+                          label: 'SLIDE 显示时机',
+                          icon: Icons.schedule,
+                          value: controller.slideDisplayTiming,
+                          min: NoteMotion.minSlideDisplayTiming,
+                          max: NoteMotion.maxSlideDisplayTiming,
+                          divisions: NoteMotion.slideDisplayTimingDivisions,
+                          onChanged: (v) => controller.slideDisplayTiming = v,
+                          valueSuffix: NoteMotion.formatSlideDisplayTiming(
+                            controller.slideDisplayTiming,
+                          ),
                         ),
                         _buildSliderSetting(
                           context,
@@ -1948,7 +2049,8 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
                         ),
                         _buildSwitchSetting(
                           context,
-                          label: '标准色绝赞星星',
+                          label: '绝赞星星使用普通配色',
+                          subtitle: '开启后，绝赞 SLIDE 头部与滑条改为普通蓝/黄配色，不显示绝赞橙红色',
                           icon: Icons.star_border,
                           value: controller.standardBreakSlide,
                           onChanged: (v) => controller.standardBreakSlide = v,
@@ -1967,6 +2069,64 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
                           value: controller.showHitEffects,
                           onChanged: (v) => controller.showHitEffects = v,
                         ),
+                        if (controller.showHitEffects)
+                          _buildDropdownSetting<SimaiHitEffectStyle>(
+                            context,
+                            label: '打击特效样式',
+                            icon: Icons.flare,
+                            value: controller.hitEffectStyle,
+                            helperText: controller.hitEffectStyle.description,
+                            itemHeight: null,
+                            selectedItemBuilder: (context) => [
+                              for (final style in SimaiHitEffectStyle.values)
+                                ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    minHeight: kMinInteractiveDimension,
+                                  ),
+                                  child: Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(style.label),
+                                  ),
+                                ),
+                            ],
+                            items: [
+                              for (final style in SimaiHitEffectStyle.values)
+                                DropdownMenuItem<SimaiHitEffectStyle>(
+                                  value: style,
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 6.0,
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          style.label,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          style.description,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: Theme.of(
+                                                  context,
+                                                ).colorScheme.onSurfaceVariant,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                            ],
+                            onChanged: (v) => controller.hitEffectStyle = v,
+                          ),
                         _buildSwitchSetting(
                           context,
                           label: '判定表示',
@@ -1986,9 +2146,14 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
                             selectedItemBuilder: (context) => [
                               for (final mode
                                   in SimaiJudgementDisplayMode.values)
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(mode.label),
+                                ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    minHeight: kMinInteractiveDimension,
+                                  ),
+                                  child: Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(mode.label),
+                                  ),
                                 ),
                             ],
                             items: [
@@ -2031,6 +2196,64 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
                             onChanged: (v) =>
                                 controller.judgementDisplayMode = v,
                           ),
+                        const SizedBox(height: 8),
+                        _buildDropdownSetting<SimaiAutoPlayMode>(
+                          context,
+                          label: '模拟游玩方式',
+                          icon: Icons.smart_toy_outlined,
+                          value: controller.autoPlayMode,
+                          helperText: controller.autoPlayMode.description,
+                          itemHeight: null,
+                          selectedItemBuilder: (context) => [
+                            for (final mode in SimaiAutoPlayMode.values)
+                              ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  minHeight: kMinInteractiveDimension,
+                                ),
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(mode.label),
+                                ),
+                              ),
+                          ],
+                          items: [
+                            for (final mode in SimaiAutoPlayMode.values)
+                              DropdownMenuItem<SimaiAutoPlayMode>(
+                                value: mode,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 6.0,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        mode.label,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        mode.description,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.onSurfaceVariant,
+                                            ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                          ],
+                          onChanged: (v) => controller.autoPlayMode = v,
+                        ),
                         const SizedBox(height: 16),
                         _buildDropdownSetting<SimaiCenterDisplayMode>(
                           context,
@@ -2332,6 +2555,7 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
   Widget _buildSwitchSetting(
     BuildContext context, {
     required String label,
+    String? subtitle,
     required IconData icon,
     required bool value,
     required ValueChanged<bool> onChanged,
@@ -2342,6 +2566,14 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
     return ListTile(
       leading: Icon(icon, color: colorScheme.onSurfaceVariant),
       title: Text(label, style: theme.textTheme.bodyLarge),
+      subtitle: subtitle != null
+          ? Text(
+              subtitle,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            )
+          : null,
       trailing:
           widget.switchBuilder?.call(context, value, onChanged) ??
           Switch(value: value, onChanged: onChanged),

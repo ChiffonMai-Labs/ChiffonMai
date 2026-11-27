@@ -16,6 +16,7 @@ import 'package:my_first_flutter_app/service/Media/SongMediaCache.dart';
 import 'package:my_first_flutter_app/service/Portable/PortablePlayerController.dart';
 import 'package:my_first_flutter_app/service/ChartPlay/VideoExportBackgroundService.dart';
 import 'package:my_first_flutter_app/api/ApiUrls.dart';
+import 'package:my_first_flutter_app/utils/ApiClient.dart';
 import 'package:my_first_flutter_app/utils/AppError.dart';
 import 'package:my_first_flutter_app/utils/CoverUtil.dart';
 import 'package:my_first_flutter_app/utils/NavigationPreferences.dart';
@@ -337,18 +338,21 @@ class _ChartPlayPageState extends State<ChartPlayPage>
     if (saved != null) return saved;
     return SimaiGameplaySettings(
       noteSpeed: controller.speed,
+      touchSpeed: controller.touchSpeed,
       musicOffsetMs: controller.musicOffsetMs,
       musicVolume: controller.musicVolume,
       hitSoundVolume: controller.hitSoundVolume,
       mirrorMode: controller.mirrorMode,
       backgroundOpacity: controller.backgroundOpacity,
       noteStyle: controller.noteStyle,
+      holdStyle: controller.holdStyle,
       judgementDisplayMode: controller.judgementDisplayMode,
       centerDisplayMode: SimaiGameplayCenterDisplayMode.fromNameOrLegacy(
         controller.centerDisplayMode.name,
       ),
       showApproachLine: controller.showApproachLine,
       showHitEffects: controller.showHitEffects,
+      hitEffectStyle: controller.hitEffectStyle,
     ).normalized();
   }
 
@@ -902,8 +906,68 @@ class _ChartPlayPageState extends State<ChartPlayPage>
     return null;
   }
 
-  /// 导出页开启 PV 背景但未命中缓存时，弹出确认（含移动数据警告）并下载 PV。
-  Future<String?> _downloadVideoExportPv(BuildContext dialogContext) async {
+  /// 使用短超时 HEAD 快速探测当前曲目在源站是否存在可用 PV（视频正文下载量为 0 字节）。
+  Future<({bool available, bool confirmedUnavailable, int? contentLengthBytes})>
+      _probeVideoExportPv(String songId) async {
+    try {
+      final response = await ApiClient.headAbortable(
+        Uri.parse(ApiUrls.wmcPvUrl(songId)),
+        headers: {
+          'Accept-Encoding': 'identity',
+          ..._pvHeaders,
+        },
+        timeout: const Duration(seconds: 6),
+      );
+      if (response.statusCode == 404 || response.statusCode == 410) {
+        return (
+          available: false,
+          confirmedUnavailable: true,
+          contentLengthBytes: null,
+        );
+      }
+      if (response.statusCode == 200 || response.statusCode == 206) {
+        final contentType =
+            response.headers['content-type']?.toLowerCase() ?? '';
+        if (contentType.contains('text/html') ||
+            contentType.contains('application/json')) {
+          return (
+            available: false,
+            confirmedUnavailable: true,
+            contentLengthBytes: null,
+          );
+        }
+        final parsedLen = int.tryParse(response.headers['content-length'] ?? '');
+        return (
+          available: true,
+          confirmedUnavailable: false,
+          contentLengthBytes:
+              parsedLen != null && parsedLen > 0 ? parsedLen : null,
+        );
+      }
+    } catch (error) {
+      debugPrint('[ChartPlay] 导出页 PV 探测失败: $error');
+    }
+    return (
+      available: false,
+      confirmedUnavailable: false,
+      contentLengthBytes: null,
+    );
+  }
+
+  String _formatPvSizeLabel(int bytes) {
+    if (bytes < 1024 * 1024) {
+      return '${(bytes / 1024).toStringAsFixed(0)} KB';
+    }
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  /// 导出页开启 PV 背景但未命中缓存时：
+  /// 1. 先用短超时 HEAD 秒级确认源站是否存在 PV，无 PV 立即提示返回，避免久等转圈；
+  /// 2. 仅移动网络下弹轻量流量确认，Wi-Fi 直接在导出页内以圆环进度条下载，不弹硬控对话框。
+  Future<String?> _downloadVideoExportPv(
+    BuildContext dialogContext, {
+    SimaiPvDownloadProgressCallback? onProgress,
+  }) async {
     final existing = await _checkVideoExportCachedPv();
     if (existing != null) return existing;
     if (!dialogContext.mounted) return null;
@@ -915,38 +979,59 @@ class _ChartPlayPageState extends State<ChartPlayPage>
       return null;
     }
 
+    onProgress?.call(progress: null, status: '正在检查 PV…');
+    final probe = await _probeVideoExportPv(_trimmedSongId);
+    if (!dialogContext.mounted) return null;
+    if (probe.confirmedUnavailable) {
+      AppToast.show(
+        dialogContext.l10n.videoExportPvNotAvailable,
+        tone: AppToastTone.warning,
+      );
+      return null;
+    }
+    if (!probe.available) {
+      AppToast.show(
+        dialogContext.l10n.videoExportPvDownloadFailed,
+        tone: AppToastTone.warning,
+      );
+      return null;
+    }
+
+    final sizeText = probe.contentLengthBytes != null
+        ? _formatPvSizeLabel(probe.contentLengthBytes!)
+        : null;
     final isCellular = await NetworkTypeUtil.isCellularNetwork();
     if (!dialogContext.mounted) return null;
 
-    final confirmed = await showDialog<bool>(
-      context: dialogContext,
-      builder: (ctx) {
-        final l10n = ctx.l10n;
-        final scheme = Theme.of(ctx).colorScheme;
-        final warningColor =
-            AppColors.warningOrange(Theme.of(ctx).brightness);
-        return AppAlertDialog(
-          icon: appDialogIconTile(
-            isCellular
-                ? Icons.warning_amber_rounded
-                : Icons.ondemand_video_rounded,
-            isCellular ? warningColor : scheme.primary,
-          ),
-          title: Text(l10n.videoExportPvNeedDownloadTitle),
-          scrollable: true,
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                l10n.videoExportPvNeedDownloadBody,
-                style: TextStyle(
-                  fontSize: 14,
-                  height: 1.45,
-                  color: scheme.onSurfaceVariant,
+    if (isCellular) {
+      final confirmed = await showDialog<bool>(
+        context: dialogContext,
+        builder: (ctx) {
+          final l10n = ctx.l10n;
+          final scheme = Theme.of(ctx).colorScheme;
+          final warningColor =
+              AppColors.warningOrange(Theme.of(ctx).brightness);
+          return AppAlertDialog(
+            icon: appDialogIconTile(
+              Icons.warning_amber_rounded,
+              warningColor,
+            ),
+            title: Text(l10n.videoExportPvNeedDownloadTitle),
+            scrollable: true,
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  sizeText != null
+                      ? '${l10n.videoExportPvNeedDownloadBody}（约 $sizeText）'
+                      : l10n.videoExportPvNeedDownloadBody,
+                  style: TextStyle(
+                    fontSize: 14,
+                    height: 1.45,
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
-              ),
-              if (isCellular) ...[
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -985,38 +1070,58 @@ class _ChartPlayPageState extends State<ChartPlayPage>
                   ),
                 ),
               ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: Text(l10n.featureCancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: Text(l10n.videoExportPvDownloadAction),
+              ),
             ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: Text(l10n.featureCancel),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: Text(l10n.videoExportPvDownloadAction),
-            ),
-          ],
-        );
-      },
-    );
-    if (confirmed != true || !dialogContext.mounted) return null;
-
-    final downloadedPath = await showDialog<String?>(
-      context: dialogContext,
-      barrierDismissible: false,
-      builder: (ctx) => _VideoExportPvDownloadDialog(
-        songId: _trimmedSongId,
-        headers: _pvHeaders,
-        formatSpeed: _formatLoadingSpeed,
-        isNotFoundError: _isPvNotFoundError,
-      ),
-    );
-    if (downloadedPath != null && downloadedPath.isNotEmpty) {
-      _pvCachedFilePath = downloadedPath;
-      return downloadedPath;
+          );
+        },
+      );
+      if (confirmed != true || !dialogContext.mounted) return null;
     }
-    return null;
+
+    onProgress?.call(
+      progress: null,
+      status: sizeText != null ? '正在下载 PV（约 $sizeText）…' : '正在下载 PV…',
+    );
+    try {
+      final file = await SongMediaCache.instance.ensurePv(
+        _trimmedSongId,
+        url: ApiUrls.wmcPvUrl(_trimmedSongId),
+        headers: _pvHeaders,
+        onProgress: (progress, speed, status) {
+          final speedText = _formatLoadingSpeed(speed);
+          final percentText =
+              progress != null ? ' ${(progress * 100).round()}%' : '…';
+          final suffix = speedText.isNotEmpty ? ' · $speedText' : '';
+          onProgress?.call(
+            progress: progress,
+            status: '正在下载 PV$percentText$suffix',
+          );
+        },
+      );
+      _pvCachedFilePath = file.path;
+      return file.path;
+    } catch (error) {
+      debugPrint('[ChartPlay] 导出页下载 PV 失败: $error');
+      if (dialogContext.mounted) {
+        final l10n = dialogContext.l10n;
+        AppToast.show(
+          _isPvNotFoundError(error)
+              ? l10n.videoExportPvNotAvailable
+              : l10n.videoExportPvDownloadFailed,
+          tone: AppToastTone.warning,
+        );
+      }
+      return null;
+    }
   }
 
   Widget _buildVideoExportPvPreview(
@@ -1887,146 +1992,6 @@ E
           ),
         ),
       ],
-    );
-  }
-}
-
-/// 视频导出页下载 PV 时的进度弹窗。
-class _VideoExportPvDownloadDialog extends StatefulWidget {
-  final String songId;
-  final Map<String, String> headers;
-  final String Function(double bytesPerSecond) formatSpeed;
-  final bool Function(Object error) isNotFoundError;
-
-  const _VideoExportPvDownloadDialog({
-    required this.songId,
-    required this.headers,
-    required this.formatSpeed,
-    required this.isNotFoundError,
-  });
-
-  @override
-  State<_VideoExportPvDownloadDialog> createState() =>
-      _VideoExportPvDownloadDialogState();
-}
-
-class _VideoExportPvDownloadDialogState
-    extends State<_VideoExportPvDownloadDialog> {
-  double? _progress;
-  double _speed = 0;
-  String _status = '';
-  bool _closed = false;
-
-  @override
-  void initState() {
-    super.initState();
-    unawaited(_startDownload());
-  }
-
-  Future<void> _startDownload() async {
-    try {
-      final file = await SongMediaCache.instance.ensurePv(
-        widget.songId,
-        url: ApiUrls.wmcPvUrl(widget.songId),
-        headers: widget.headers,
-        onProgress: (progress, speed, status) {
-          if (!mounted || _closed) return;
-          setState(() {
-            _progress = progress;
-            _speed = speed;
-            _status = status;
-          });
-        },
-      );
-      if (!mounted || _closed) return;
-      _closed = true;
-      Navigator.of(context).pop(file.path);
-    } catch (error) {
-      debugPrint('[ChartPlay] 导出页下载 PV 失败: $error');
-      if (!mounted || _closed) return;
-      _closed = true;
-      final l10n = context.l10n;
-      AppToast.show(
-        widget.isNotFoundError(error)
-            ? l10n.videoExportPvNotAvailable
-            : l10n.videoExportPvDownloadFailed,
-        tone: AppToastTone.warning,
-      );
-      Navigator.of(context).pop(null);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    final scheme = Theme.of(context).colorScheme;
-    final speedText = widget.formatSpeed(_speed);
-    final statusText = _status.isEmpty ? l10n.videoExportPvDownloading : _status;
-    return PopScope(
-      canPop: false,
-      child: AppAlertDialog(
-        icon: appDialogIconTile(
-          Icons.downloading_rounded,
-          scheme.primary,
-        ),
-        title: Text(l10n.videoExportPvDownloading),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    statusText,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: scheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-                if (_progress != null) ...[
-                  const SizedBox(width: 8),
-                  Text(
-                    '${(_progress! * 100).round()}%',
-                    style: AppTheme.number(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                      color: scheme.primary,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-            const SizedBox(height: 10),
-            SmoothLinearProgressIndicator(
-              value: _progress,
-              minHeight: 6,
-            ),
-            if (speedText.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(
-                speedText,
-                textAlign: TextAlign.right,
-                style: AppTheme.number(
-                  fontSize: 12,
-                  color: scheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              if (_closed) return;
-              _closed = true;
-              Navigator.of(context).pop(null);
-            },
-            child: Text(l10n.featureCancel),
-          ),
-        ],
-      ),
     );
   }
 }

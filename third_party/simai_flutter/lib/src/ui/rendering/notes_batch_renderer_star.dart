@@ -61,6 +61,7 @@ void _drawStarWithCache(
         alpha: alpha,
         rotation: rotation,
         noteScale: noteScale,
+        noteStyle: game.noteStyle,
       );
     }
 
@@ -100,6 +101,18 @@ void _drawStarHighlight(
   required double noteScale,
   SimaiNoteStyle noteStyle = SimaiNoteStyle.classic,
 }) {
+  if (noteStyle == SimaiNoteStyle.simple) {
+    AstroSimpleStarPainter.paintExHighlight(
+      canvas,
+      position: position,
+      color: color,
+      noteScale: noteScale,
+      scale: scale,
+      alpha: alpha,
+      rotation: rotation,
+    );
+    return;
+  }
   final double outerRadius = NoteGeometry.tapStarHoldRadius * scale * noteScale;
   if (noteStyle.usesEnhancedVisuals) {
     final Path outerEx = NoteUtils.createStarPath(outerRadius * 1.19);

@@ -9,7 +9,9 @@ import 'package:flutter_soloud/flutter_soloud.dart';
 
 import '../audio/soloud_audio_player.dart';
 import '../ui/fullscreen_utils.dart';
+import '../ui/hit_effect_style.dart';
 import '../ui/note_geometry.dart';
+import '../ui/note_motion.dart';
 import '../ui/note_style.dart';
 import '../ui/simai_colors.dart';
 import '../ui/simai_game.dart';
@@ -219,18 +221,34 @@ class _SimaiGameplaySetupPageState extends State<SimaiGameplaySetupPage> {
             ),
           ),
           _SliderSetting(
-            title: 'Note 速度',
-            value: _settings.noteSpeed,
-            min: 3,
-            max: 9,
-            divisions: 24,
-            valueLabel: _settings.noteSpeed.toStringAsFixed(2),
+            title: 'TAP/HOLD 流速',
+            value: NoteMotion.normalizeSpeed(_settings.noteSpeed),
+            min: NoteMotion.minSpeed,
+            max: NoteMotion.sonicSpeedValue,
+            divisions: NoteMotion.speedSliderDivisions,
+            valueLabel: NoteMotion.formatSpeedLabel(
+              _settings.noteSpeed,
+              withPrefixX: false,
+            ),
             onChanged: (value) => _update(_settings.copyWith(noteSpeed: value)),
           ),
           _NoteSpeedPreview(
             noteSpeed: _settings.noteSpeed,
             chartScale: _settings.chartScale,
             noteStyle: _settings.noteStyle,
+          ),
+          _SliderSetting(
+            title: 'TOUCH 流速',
+            value: NoteMotion.normalizeSpeed(_settings.touchSpeed),
+            min: NoteMotion.minSpeed,
+            max: NoteMotion.sonicSpeedValue,
+            divisions: NoteMotion.speedSliderDivisions,
+            valueLabel: NoteMotion.formatSpeedLabel(
+              _settings.touchSpeed,
+              withPrefixX: false,
+            ),
+            onChanged: (value) =>
+                _update(_settings.copyWith(touchSpeed: value)),
           ),
           _SliderSetting(
             title: '音乐偏移',
@@ -374,7 +392,7 @@ class _SimaiGameplaySetupPageState extends State<SimaiGameplaySetupPage> {
             ),
           ),
           ListTile(
-            title: const Text('NOTE 样式'),
+            title: const Text('TAP / SLIDE 头部样式'),
             trailing: DropdownButton<SimaiNoteStyle>(
               value: _settings.noteStyle,
               items: SimaiNoteStyle.values
@@ -386,6 +404,23 @@ class _SimaiGameplaySetupPageState extends State<SimaiGameplaySetupPage> {
               onChanged: (value) {
                 if (value != null) {
                   _update(_settings.copyWith(noteStyle: value));
+                }
+              },
+            ),
+          ),
+          ListTile(
+            title: const Text('HOLD 样式'),
+            trailing: DropdownButton<SimaiNoteStyle>(
+              value: SimaiNoteStyle.normalizeForHold(_settings.holdStyle),
+              items: SimaiNoteStyle.holdValues
+                  .map(
+                    (style) =>
+                        DropdownMenuItem(value: style, child: Text(style.label)),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                if (value != null) {
+                  _update(_settings.copyWith(holdStyle: value));
                 }
               },
             ),
@@ -473,6 +508,27 @@ class _SimaiGameplaySetupPageState extends State<SimaiGameplaySetupPage> {
             onChanged: (value) =>
                 _update(_settings.copyWith(showHitEffects: value)),
           ),
+          if (_settings.showHitEffects)
+            ListTile(
+              title: const Text('命中特效样式'),
+              subtitle: Text(_settings.hitEffectStyle.description),
+              trailing: DropdownButton<SimaiHitEffectStyle>(
+                value: _settings.hitEffectStyle,
+                items: SimaiHitEffectStyle.values
+                    .map(
+                      (style) => DropdownMenuItem(
+                        value: style,
+                        child: Text(style.label),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    _update(_settings.copyWith(hitEffectStyle: value));
+                  }
+                },
+              ),
+            ),
           SwitchListTile(
             title: const Text('显示触摸分区'),
             subtitle: const Text('显示内屏传感器与外键的判定范围'),
@@ -586,8 +642,10 @@ class _SimaiGameplayPageState extends State<SimaiGameplayPage>
       backgroundOpacity: settings.backgroundOpacity,
       mirrorMode: settings.mirrorMode,
       noteStyle: settings.noteStyle,
+      holdStyle: settings.holdStyle,
       showApproachLine: settings.showApproachLine,
       showHitEffects: settings.showHitEffects,
+      hitEffectStyle: settings.hitEffectStyle,
       showGameplayInputPartitions: settings.showInputPartitions,
       showGameplayTouchIndicators: settings.showTouchIndicators,
       showAchievementRate: false,
@@ -1269,10 +1327,15 @@ class _NoteSpeedPreviewState extends State<_NoteSpeedPreview>
         .clamp(0.75, 0.95)
         .toDouble();
     final chartRadius = canvasShortSide / 2 * safeScale;
-    final safeSpeed = (widget.noteSpeed.isFinite ? widget.noteSpeed : 8.0)
-        .clamp(3.0, 9.0)
-        .toDouble();
-    final pixelsPerSecond = chartRadius * safeSpeed / 3.6;
+    final normalizedSpeed = NoteMotion.normalizeSpeed(widget.noteSpeed);
+    final effectiveSpeed = NoteMotion.isSonicSpeed(normalizedSpeed)
+        ? NoteMotion.sonicEffectiveSpeed
+        : normalizedSpeed;
+    final pixelsPerSecond = chartRadius * effectiveSpeed / 3.6;
+    final speedLabel = NoteMotion.formatSpeedLabel(
+      normalizedSpeed,
+      withPrefixX: false,
+    );
     final gameplayNoteScale = chartRadius / NoteGeometry.referenceChartRadius;
     final gameplayTapDiameter =
         NoteGeometry.tapStarHoldRadius * 2 * gameplayNoteScale;
@@ -1287,7 +1350,7 @@ class _NoteSpeedPreviewState extends State<_NoteSpeedPreview>
         key: const ValueKey('simai_note_speed_preview'),
         container: true,
         label:
-            'Note 速度预览，当前 ${widget.noteSpeed.toStringAsFixed(2)}，'
+            'Note 速度预览，当前 $speedLabel，'
             '实际游玩速度 ${pixelsPerSecond.round()} 像素每秒',
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1440,54 +1503,83 @@ class _NoteSpeedPreviewPainter extends CustomPainter {
     }
 
     if (noteStyle == SimaiNoteStyle.simple) {
-      final simpleInnerR = outerRadius * 0.58;
-      final simpleStrokeW = max(1.2, 2.4 * noteScale);
-      final ringPath = Path()
+      final innerWhiteR = outerRadius * 0.50;
+      final bodyInnerR = outerRadius * 0.525;
+      final bodyOuterR = outerRadius * 0.89;
+      final haloMidR = (bodyOuterR + outerRadius) * 0.5;
+      final haloBandW = outerRadius - bodyOuterR;
+      final innerStrokeW = max(1.0, outerRadius * 0.048);
+
+      final bodyRing = Path()
         ..fillType = PathFillType.evenOdd
-        ..addOval(Rect.fromCircle(center: position, radius: outerRadius))
-        ..addOval(Rect.fromCircle(center: position, radius: simpleInnerR));
-      final ringPaint = Paint()
-        ..isAntiAlias = true
-        ..style = PaintingStyle.fill
-        ..shader = const RadialGradient(
-          colors: [
-            SimaiModernNoteColors.pinkLight,
-            SimaiModernNoteColors.pinkMid,
-            SimaiModernNoteColors.pinkDeep,
-          ],
-          stops: [0.58, 0.80, 1.0],
-        ).createShader(Rect.fromCircle(center: position, radius: outerRadius));
-      canvas.drawPath(ringPath, ringPaint);
+        ..addOval(Rect.fromCircle(center: position, radius: bodyOuterR))
+        ..addOval(Rect.fromCircle(center: position, radius: bodyInnerR));
+
+      canvas.drawPath(
+        bodyRing,
+        Paint()
+          ..isAntiAlias = true
+          ..style = PaintingStyle.fill
+          ..shader = const SweepGradient(
+            colors: [
+              SimaiAstroSimpleColors.tapPinkSide,
+              SimaiAstroSimpleColors.tapPinkBottom,
+              SimaiAstroSimpleColors.tapPinkSide,
+              SimaiAstroSimpleColors.tapPinkTop,
+              SimaiAstroSimpleColors.tapPinkSide,
+            ],
+            stops: [0.0, 0.25, 0.50, 0.75, 1.0],
+          ).createShader(Rect.fromCircle(center: position, radius: bodyOuterR)),
+      );
+      canvas.drawPath(
+        bodyRing,
+        Paint()
+          ..isAntiAlias = true
+          ..style = PaintingStyle.fill
+          ..shader = RadialGradient(
+            colors: [
+              SimaiAstroSimpleColors.tapPinkBevel.withAlpha(215),
+              SimaiAstroSimpleColors.tapPinkBevel.withAlpha(0),
+              SimaiAstroSimpleColors.tapPinkBevel.withAlpha(0),
+              SimaiAstroSimpleColors.tapPinkBevel.withAlpha(225),
+            ],
+            stops: const [0.59, 0.70, 0.88, 1.0],
+          ).createShader(Rect.fromCircle(center: position, radius: bodyOuterR)),
+      );
       canvas.drawCircle(
         position,
-        simpleInnerR + (outerRadius - simpleInnerR) * 0.34,
+        innerWhiteR,
         Paint()
           ..isAntiAlias = true
           ..style = PaintingStyle.stroke
-          ..strokeWidth = (outerRadius - simpleInnerR) * 0.22
-          ..color = Colors.white.withValues(alpha: 0.22),
-      );
-      final whitePaint = Paint()
-        ..isAntiAlias = true
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = simpleStrokeW
-        ..color = Colors.white;
-      canvas.drawCircle(position, outerRadius, whitePaint);
-      canvas.drawCircle(position, simpleInnerR, whitePaint);
-      final dotR = outerRadius * 0.16;
-      canvas.drawCircle(
-        position,
-        dotR + 1.0 * noteScale,
-        Paint()
-          ..isAntiAlias = true
+          ..strokeWidth = innerStrokeW
           ..color = Colors.white,
       );
       canvas.drawCircle(
         position,
-        dotR,
+        haloMidR,
         Paint()
           ..isAntiAlias = true
-          ..color = SimaiModernNoteColors.pinkDot,
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = haloBandW
+          ..color = Colors.white,
+      );
+      canvas.drawCircle(
+        position,
+        haloMidR,
+        Paint()
+          ..isAntiAlias = true
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = max(0.8, haloBandW * 0.34)
+          ..shader = const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              SimaiAstroSimpleColors.tapPinkRimTop,
+              SimaiAstroSimpleColors.tapPinkRimSide,
+              SimaiAstroSimpleColors.tapPinkRimBottom,
+            ],
+          ).createShader(Rect.fromCircle(center: position, radius: outerRadius)),
       );
       return;
     }

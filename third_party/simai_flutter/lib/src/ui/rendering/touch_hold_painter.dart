@@ -4,10 +4,9 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../note_style.dart';
-import '../simai_colors.dart';
 import '../utils/note_utils.dart';
 
-/// TouchHold 绘制器（支持经典扁平与官方机台还原两种样式，基于 300 逻辑半径）。
+/// TouchHold 绘制器（统一使用经典机台样式，基于 300 逻辑半径）。
 class TouchHoldPainter {
   static const double openDistance = 300 / 6.25 * 1.1;
   static const double closedDistance = 300 / 12.5 * 1.3;
@@ -15,12 +14,6 @@ class TouchHoldPainter {
   static const double progressHalf = 99.75 * 300 / 480;
   static const double _wedgeRadius = progressHalf * sqrt2;
   static const _angles = [-pi / 4, pi / 4, 3 * pi / 4, -3 * pi / 4];
-  static const _colors = [
-    SimaiColors.touchHoldTopRight,
-    SimaiColors.touchHoldBottomRight,
-    SimaiColors.touchHoldBottomLeft,
-    SimaiColors.touchHoldTopLeft,
-  ];
   // 借鉴 LXNS TouchRenderer：四片花瓣的官方机台四段纵向渐变与进度环四色。
   static const _arcadePalettes = <List<Color>>[
     [Color(0xFFFF5511), Color(0xFFF74601), Color(0xFFE74201), Color(0xFFFFF6F2)],
@@ -108,9 +101,8 @@ class TouchHoldPainter {
     final age = approachTime - timeUntilHead;
     final petalAlpha = timeUntilHead > 0 ? (age / 0.15).clamp(0.0, 1.0) : 1.0;
     final distance = petalDistance(1 - timeUntilHead / approachTime);
-    final bool arcade = noteStyle == SimaiNoteStyle.arcade;
-    final bool enhanced = noteStyle.usesEnhancedVisuals;
-    final double strokeWidth = enhanced ? 2.0 : 3.0;
+    // TouchHold 统一使用经典（机台）样式，不受 noteStyle 设置项影响。
+    const double strokeWidth = 2.0;
     canvas.save();
     canvas.translate(center.dx, center.dy);
     canvas.scale(scale);
@@ -119,7 +111,6 @@ class TouchHoldPainter {
         canvas,
         (-timeUntilHead / duration).clamp(0.0, 1.0),
         alpha,
-        arcade: enhanced,
       );
     }
     final opacity = (255 * alpha * petalAlpha).round();
@@ -128,37 +119,28 @@ class TouchHoldPainter {
       canvas.save();
       canvas.translate(position.dx, position.dy);
       final path = _petals[index];
-      if (enhanced) {
-        if (arcade) {
-          _strokePaint
-            ..strokeWidth = strokeWidth * 3.0
-            ..color = Colors.black.withAlpha(opacity);
-          canvas.drawPath(path, _strokePaint);
-        }
+      _strokePaint
+        ..strokeWidth = strokeWidth * 3.0
+        ..color = Colors.black.withAlpha(opacity);
+      canvas.drawPath(path, _strokePaint);
 
-        final palette = _arcadePalettes[index];
-        final tip = Offset.fromDirection(_angles[index] + pi, closedDistance);
-        _fillPaint
-          ..color = Colors.white.withAlpha(opacity)
-          ..shader = ui.Gradient.linear(
-            Offset.zero,
-            tip,
-            [
-              palette[0].withAlpha(opacity),
-              palette[1].withAlpha(opacity),
-              palette[2].withAlpha(opacity),
-              palette[3].withAlpha(opacity),
-            ],
-            const [0.0, 0.35, 0.72, 1.0],
-          );
-        canvas.drawPath(path, _fillPaint);
-        _fillPaint.shader = null;
-      } else {
-        _fillPaint
-          ..shader = null
-          ..color = _colors[index].withAlpha(opacity);
-        canvas.drawPath(path, _fillPaint);
-      }
+      final palette = _arcadePalettes[index];
+      final tip = Offset.fromDirection(_angles[index] + pi, closedDistance);
+      _fillPaint
+        ..color = Colors.white.withAlpha(opacity)
+        ..shader = ui.Gradient.linear(
+          Offset.zero,
+          tip,
+          [
+            palette[0].withAlpha(opacity),
+            palette[1].withAlpha(opacity),
+            palette[2].withAlpha(opacity),
+            palette[3].withAlpha(opacity),
+          ],
+          const [0.0, 0.35, 0.72, 1.0],
+        );
+      canvas.drawPath(path, _fillPaint);
+      _fillPaint.shader = null;
       _strokePaint
         ..strokeWidth = strokeWidth
         ..color = Colors.white.withAlpha(opacity);
@@ -166,12 +148,10 @@ class TouchHoldPainter {
       canvas.restore();
     }
     final dotAlpha = (255 * alpha).round();
-    if (arcade) {
-      _strokePaint
-        ..strokeWidth = strokeWidth * 3.0
-        ..color = Colors.black.withAlpha(dotAlpha);
-      canvas.drawCircle(Offset.zero, centerRadius, _strokePaint);
-    }
+    _strokePaint
+      ..strokeWidth = strokeWidth * 3.0
+      ..color = Colors.black.withAlpha(dotAlpha);
+    canvas.drawCircle(Offset.zero, centerRadius, _strokePaint);
     _fillPaint
       ..shader = null
       ..color = (isEach ? const Color(0xFFFFFF00) : const Color(0xFF00BFFF))
@@ -189,41 +169,34 @@ class TouchHoldPainter {
   static void _paintProgress(
     Canvas canvas,
     double progress,
-    double alpha, {
-    required bool arcade,
-  }) {
+    double alpha,
+  ) {
     if (progress <= 0) return;
     final int paintAlpha = (255 * alpha).round().clamp(0, 255);
     const double unit = 300 / 480;
     canvas.save();
-    canvas.clipPath(arcade ? arcadeProgressRing : progressRing);
+    canvas.clipPath(arcadeProgressRing);
     final double scaledProgress = progress * 4.0;
     for (var index = 0; index < 4; index++) {
       final double quadProgress = (scaledProgress - index).clamp(0.0, 1.0);
       if (quadProgress <= 0.0) break;
-      if (arcade) {
-        final angle = -pi / 4 + index * (pi / 2);
-        final dx = cos(angle);
-        final dy = sin(angle);
-        final c = _arcadeProgressColors[index];
-        _fillPaint
-          ..color = Colors.white.withAlpha(paintAlpha)
-          ..shader = ui.Gradient.linear(
-            Offset(dx * 50.5 * unit, dy * 50.5 * unit),
-            Offset(dx * 82.75 * unit, dy * 82.75 * unit),
-            [
-              Color.lerp(c, Colors.black, 0.28)!.withAlpha(paintAlpha),
-              c.withAlpha(paintAlpha),
-              Color.lerp(c, Colors.white, 0.32)!.withAlpha(paintAlpha),
-              Color.lerp(c, Colors.white, 0.08)!.withAlpha(paintAlpha),
-            ],
-            const [0.0, 0.35, 0.72, 1.0],
-          );
-      } else {
-        _fillPaint
-          ..shader = null
-          ..color = _colors[index].withAlpha(paintAlpha);
-      }
+      final angle = -pi / 4 + index * (pi / 2);
+      final dx = cos(angle);
+      final dy = sin(angle);
+      final c = _arcadeProgressColors[index];
+      _fillPaint
+        ..color = Colors.white.withAlpha(paintAlpha)
+        ..shader = ui.Gradient.linear(
+          Offset(dx * 50.5 * unit, dy * 50.5 * unit),
+          Offset(dx * 82.75 * unit, dy * 82.75 * unit),
+          [
+            Color.lerp(c, Colors.black, 0.28)!.withAlpha(paintAlpha),
+            c.withAlpha(paintAlpha),
+            Color.lerp(c, Colors.white, 0.32)!.withAlpha(paintAlpha),
+            Color.lerp(c, Colors.white, 0.08)!.withAlpha(paintAlpha),
+          ],
+          const [0.0, 0.35, 0.72, 1.0],
+        );
       if (quadProgress >= 1.0) {
         canvas.drawRect(_quadrantRects[index], _fillPaint);
       } else {

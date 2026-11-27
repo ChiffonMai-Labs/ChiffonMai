@@ -9,7 +9,10 @@ import 'package:flutter_soloud/flutter_soloud.dart';
 
 import '../audio/soloud_audio_player.dart';
 import '../gameplay/gameplay_models.dart';
+import '../ui/auto_play_mode.dart';
 import '../ui/center_display_mode.dart';
+import '../ui/hit_effect_style.dart';
+import '../ui/note_motion.dart';
 import '../ui/note_style.dart';
 import '../ui/simai_game.dart';
 import '../ui/simai_player.dart';
@@ -34,7 +37,7 @@ class SimaiVideoExportPage extends StatefulWidget {
   final ValueChanged<SimaiVideoExportSettings>? onSettingsChanged;
   final Future<String?> Function()? resolveAudioFilePath;
   final Future<String?> Function()? checkCachedPvFilePath;
-  final Future<String?> Function(BuildContext context)? downloadPvFilePath;
+  final SimaiVideoExportPvDownloader? downloadPvFilePath;
   final Widget Function(
     BuildContext context,
     String pvVideoPath,
@@ -116,6 +119,9 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
   bool _usePvBackground = false;
   String? _pvVideoPath;
   bool _resolvingPv = false;
+  double? _pvDownloadProgress;
+  String? _pvDownloadStatus;
+  int _pvResolveGeneration = 0;
   Duration? _lastTickElapsed;
   double? _queuedPreviewTime;
   bool _queuedResetWindow = false;
@@ -1041,23 +1047,50 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
   }
 
   Future<void> _setUsePvBackground(bool value) async {
-    if (_resolvingPv || _disposed) return;
+    if (_disposed) return;
     if (!value) {
-      if (!_usePvBackground && _pvVideoPath == null) return;
+      final wasActive = _usePvBackground || _pvVideoPath != null;
+      final wasResolving = _resolvingPv;
+      _pvResolveGeneration++;
+      if (!wasActive && !wasResolving) return;
       setState(() {
+        _resolvingPv = false;
+        _pvDownloadProgress = null;
+        _pvDownloadStatus = null;
         _usePvBackground = false;
         _pvVideoPath = null;
       });
-      _schedulePreviewRebuild();
+      if (wasActive) {
+        _schedulePreviewRebuild();
+      }
       return;
     }
-    setState(() => _resolvingPv = true);
+    if (_resolvingPv) return;
+    final generation = ++_pvResolveGeneration;
+    setState(() {
+      _resolvingPv = true;
+      _pvDownloadProgress = null;
+      _pvDownloadStatus = '正在检查 PV…';
+    });
     try {
       String? path = await widget.checkCachedPvFilePath?.call();
-      if (_disposed || !mounted) return;
+      if (_disposed || !mounted || generation != _pvResolveGeneration) return;
       if (path == null || path.isEmpty) {
-        path = await widget.downloadPvFilePath?.call(context);
-        if (_disposed || !mounted) return;
+        path = await widget.downloadPvFilePath?.call(
+          context,
+          onProgress: ({double? progress, String? status}) {
+            if (_disposed || !mounted || generation != _pvResolveGeneration) {
+              return;
+            }
+            setState(() {
+              _pvDownloadProgress = progress;
+              if (status != null) {
+                _pvDownloadStatus = status;
+              }
+            });
+          },
+        );
+        if (_disposed || !mounted || generation != _pvResolveGeneration) return;
       }
       if (path != null && path.isNotEmpty) {
         setState(() {
@@ -1073,8 +1106,12 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
         });
       }
     } finally {
-      if (mounted) {
-        setState(() => _resolvingPv = false);
+      if (mounted && generation == _pvResolveGeneration) {
+        setState(() {
+          _resolvingPv = false;
+          _pvDownloadProgress = null;
+          _pvDownloadStatus = null;
+        });
       }
     }
   }
@@ -1743,7 +1780,7 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
         const SizedBox(height: 16),
         _buildSegmentedSetting<SimaiNoteStyle>(
           theme,
-          label: 'NOTE 样式',
+          label: 'TAP / SLIDE 头部样式',
           icon: Icons.style_outlined,
           value: controller.noteStyle,
           segments: SimaiNoteStyle.values
@@ -1756,6 +1793,24 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
               .toList(growable: false),
           onChanged: (value) => _updateVisualSetting(
             (controller) => controller.noteStyle = value,
+          ),
+        ),
+        const SizedBox(height: 16),
+        _buildSegmentedSetting<SimaiNoteStyle>(
+          theme,
+          label: 'HOLD 样式',
+          icon: Icons.hexagon_outlined,
+          value: SimaiNoteStyle.normalizeForHold(controller.holdStyle),
+          segments: SimaiNoteStyle.holdValues
+              .map(
+                (style) => ButtonSegment<SimaiNoteStyle>(
+                  value: style,
+                  label: Text(style.shortLabel),
+                ),
+              )
+              .toList(growable: false),
+          onChanged: (value) => _updateVisualSetting(
+            (controller) => controller.holdStyle = value,
           ),
         ),
         const SizedBox(height: 16),
@@ -1783,14 +1838,7 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
         if (widget.checkCachedPvFilePath != null ||
             widget.downloadPvFilePath != null) ...[
           const SizedBox(height: 8),
-          _buildSwitchSetting(
-            theme,
-            label: '使用 PV 作为背景',
-            icon: Icons.ondemand_video_outlined,
-            value: _usePvBackground,
-            enabled: !_resolvingPv,
-            onChanged: (value) => unawaited(_setUsePvBackground(value)),
-          ),
+          _buildPvBackgroundSetting(theme),
           if (_usePvBackground) ...[
             _buildSliderSetting(
               theme,
@@ -1827,15 +1875,43 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
         ],
         _buildSliderSetting(
           theme,
-          label: '流速',
+          label: 'TAP/HOLD 流速',
           icon: Icons.speed,
           value: controller.speed,
-          min: 3,
-          max: 9,
-          divisions: 24,
-          valueSuffix: 'x${controller.speed.toStringAsFixed(2)}',
+          min: NoteMotion.minSpeed,
+          max: NoteMotion.sonicSpeedValue,
+          divisions: NoteMotion.speedSliderDivisions,
+          valueSuffix: NoteMotion.formatSpeedLabel(controller.speed),
           onChanged: (value) =>
               _updateVisualSetting((controller) => controller.speed = value),
+        ),
+        _buildSliderSetting(
+          theme,
+          label: 'TOUCH 流速',
+          icon: Icons.touch_app_outlined,
+          value: controller.touchSpeed,
+          min: NoteMotion.minSpeed,
+          max: NoteMotion.sonicSpeedValue,
+          divisions: NoteMotion.speedSliderDivisions,
+          valueSuffix: NoteMotion.formatSpeedLabel(controller.touchSpeed),
+          onChanged: (value) => _updateVisualSetting(
+            (controller) => controller.touchSpeed = value,
+          ),
+        ),
+        _buildSliderSetting(
+          theme,
+          label: 'SLIDE 显示时机',
+          icon: Icons.schedule,
+          value: controller.slideDisplayTiming,
+          min: NoteMotion.minSlideDisplayTiming,
+          max: NoteMotion.maxSlideDisplayTiming,
+          divisions: NoteMotion.slideDisplayTimingDivisions,
+          valueSuffix: NoteMotion.formatSlideDisplayTiming(
+            controller.slideDisplayTiming,
+          ),
+          onChanged: (value) => _updateVisualSetting(
+            (controller) => controller.slideDisplayTiming = value,
+          ),
         ),
         const SizedBox(height: 16),
         _buildSwitchSetting(
@@ -1858,7 +1934,8 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
         ),
         _buildSwitchSetting(
           theme,
-          label: '标准色绝赞星星',
+          label: '绝赞星星使用普通配色',
+          subtitle: '开启后，绝赞 SLIDE 头部与滑条改为普通蓝/黄配色，不显示绝赞橙红色',
           icon: Icons.star_border,
           value: controller.standardBreakSlide,
           onChanged: (value) => _updateVisualSetting(
@@ -1883,6 +1960,116 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
             (controller) => controller.showHitEffects = value,
           ),
         ),
+        if (controller.showHitEffects)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.flare,
+                        size: 20,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          '打击特效样式',
+                          style: theme.textTheme.bodyLarge,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: theme.colorScheme.outlineVariant),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<SimaiHitEffectStyle>(
+                      value: controller.hitEffectStyle,
+                      isExpanded: true,
+                      itemHeight: null,
+                      borderRadius: BorderRadius.circular(12),
+                      selectedItemBuilder: (context) =>
+                          SimaiHitEffectStyle.values
+                              .map(
+                                (style) => ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    minHeight: kMinInteractiveDimension,
+                                  ),
+                                  child: Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(style.label),
+                                  ),
+                                ),
+                              )
+                              .toList(growable: false),
+                      items: SimaiHitEffectStyle.values
+                          .map(
+                            (style) =>
+                                DropdownMenuItem<SimaiHitEffectStyle>(
+                                  value: style,
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 6,
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          style.label,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          style.description,
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                                color: theme
+                                                    .colorScheme
+                                                    .onSurfaceVariant,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                          )
+                          .toList(growable: false),
+                      onChanged: (value) {
+                        if (value == null) return;
+                        _updateVisualSetting(
+                          (controller) => controller.hitEffectStyle = value,
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 6, 4, 0),
+                  child: Text(
+                    controller.hitEffectStyle.description,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         _buildSwitchSetting(
           theme,
           label: '判定表示',
@@ -1933,9 +2120,14 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
                       selectedItemBuilder: (context) =>
                           SimaiJudgementDisplayMode.values
                               .map(
-                                (mode) => Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(mode.label),
+                                (mode) => ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    minHeight: kMinInteractiveDimension,
+                                  ),
+                                  child: Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(mode.label),
+                                  ),
                                 ),
                               )
                               .toList(growable: false),
@@ -1998,6 +2190,107 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
               ],
             ),
           ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.smart_toy_outlined,
+                      size: 20,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        '模拟游玩方式',
+                        style: theme.textTheme.bodyLarge,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: theme.colorScheme.outlineVariant),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<SimaiAutoPlayMode>(
+                    value: controller.autoPlayMode,
+                    isExpanded: true,
+                    itemHeight: null,
+                    borderRadius: BorderRadius.circular(12),
+                    selectedItemBuilder: (context) => SimaiAutoPlayMode.values
+                        .map(
+                          (mode) => ConstrainedBox(
+                            constraints: const BoxConstraints(
+                              minHeight: kMinInteractiveDimension,
+                            ),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(mode.label),
+                            ),
+                          ),
+                        )
+                        .toList(growable: false),
+                    items: SimaiAutoPlayMode.values
+                        .map(
+                          (mode) => DropdownMenuItem<SimaiAutoPlayMode>(
+                            value: mode,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    mode.label,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    mode.description,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        )
+                        .toList(growable: false),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      _updateVisualSetting(
+                        (controller) => controller.autoPlayMode = value,
+                      );
+                    },
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 6, 4, 0),
+                child: Text(
+                  controller.autoPlayMode.description,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
         _buildDropdownSetting<SimaiCenterDisplayMode>(
           theme,
           label: '中央显示',
@@ -2116,6 +2409,23 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
         ),
         _buildSliderSetting(
           theme,
+          label: '正解音音量',
+          icon: Icons.graphic_eq,
+          value: controller.hitSoundVolume.clamp(
+            0.0,
+            simaiMaxHitSoundVolume,
+          ),
+          min: 0,
+          max: simaiMaxHitSoundVolume,
+          divisions: 60,
+          enabled: _audioEnabled && controller.hitSoundEnabled,
+          valueSuffix: '${(controller.hitSoundVolume * 100).round()}%',
+          onChanged: (value) => _updateAudioSetting(
+            (controller) => controller.hitSoundVolume = value,
+          ),
+        ),
+        _buildSliderSetting(
+          theme,
           label: '音乐偏移',
           icon: Icons.audiotrack,
           value: controller.musicOffsetMs.toDouble(),
@@ -2230,9 +2540,80 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     );
   }
 
+  Widget _buildPvBackgroundSetting(ThemeData theme) {
+    final progress = _pvDownloadProgress;
+    return ListTile(
+      leading: Icon(
+        Icons.ondemand_video_outlined,
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
+      title: Text('使用 PV 作为背景', style: theme.textTheme.bodyLarge),
+      subtitle: _resolvingPv
+          ? Text(
+              _pvDownloadStatus ?? '正在准备 PV…',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.primary,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            )
+          : null,
+      trailing: _resolvingPv
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 30,
+                  height: 30,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      CircularProgressIndicator(
+                        value: progress,
+                        strokeWidth: 2.8,
+                        backgroundColor: theme.colorScheme.outlineVariant
+                            .withValues(alpha: 0.45),
+                      ),
+                      if (progress != null)
+                        Text(
+                          '${(progress * 100).round()}',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            color: theme.colorScheme.primary,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  tooltip: '取消',
+                  visualDensity: VisualDensity.compact,
+                  iconSize: 18,
+                  onPressed: () => unawaited(_setUsePvBackground(false)),
+                  icon: Icon(
+                    Icons.close_rounded,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            )
+          : Switch(
+              value: _usePvBackground,
+              onChanged: (value) => unawaited(_setUsePvBackground(value)),
+            ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+    );
+  }
+
   Widget _buildSwitchSetting(
     ThemeData theme, {
     required String label,
+    String? subtitle,
     required IconData icon,
     required bool value,
     required ValueChanged<bool> onChanged,
@@ -2242,6 +2623,14 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
       enabled: enabled,
       leading: Icon(icon, color: theme.colorScheme.onSurfaceVariant),
       title: Text(label, style: theme.textTheme.bodyLarge),
+      subtitle: subtitle != null
+          ? Text(
+              subtitle,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            )
+          : null,
       trailing: Switch(value: value, onChanged: enabled ? onChanged : null),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),

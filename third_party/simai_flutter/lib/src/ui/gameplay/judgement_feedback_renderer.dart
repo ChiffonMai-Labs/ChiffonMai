@@ -36,25 +36,179 @@ class _BakedFeedbackBitmap {
 /// 2. 单/双行弧形判定文字合批烘焙为单张 `ui.Image`，运行时每条判定仅 1 次 `drawImageRect`；
 /// 3. 滑星/扇形（WiFi）反馈将投影、渐变箭头底板与弯曲文字一次性合批烘焙为单张 `ui.Image`，
 ///    动画持续期间零 `ui.Gradient` 创建、零 Path 光栅化、零 `TextPainter` 分配。
+/// 判定颜色与多层描边配色表（参考舞萌 DX 机台 / AstroDX 贴纸字样层级）。
+class _JudgementPalette {
+  const _JudgementPalette({
+    required this.gradientColors,
+    required this.gradientStops,
+    required this.outerStrokeColor,
+    required this.innerStrokeColor,
+    required this.glowColor,
+    required this.bannerColors,
+    required this.bannerEdgeColor,
+  });
+
+  final List<Color> gradientColors;
+  final List<double> gradientStops;
+  final Color outerStrokeColor;
+  final Color innerStrokeColor;
+  final Color glowColor;
+  final List<Color> bannerColors;
+  final Color bannerEdgeColor;
+}
+
 class SimaiJudgementFeedbackRenderer {
   static const double _bitmapPixelRatio = 2.0;
-  static const int _maxArcCompositeCacheEntries = 96;
+  static const int _maxArcCompositeCacheEntries = 160;
+  static const double _glyphStretchX = 1.05;
 
   static const TextStyle _hudBaseStyle = TextStyle(
-    fontWeight: FontWeight.w800,
+    fontWeight: FontWeight.w900,
     fontSize: 17,
-    height: 1,
+    height: 1.0,
     fontFeatures: [FontFeature.tabularFigures()],
   );
 
-  static const TextStyle _hudStyle = TextStyle(
-    color: Colors.white,
-    fontWeight: FontWeight.w800,
-    fontSize: 17,
-    height: 1,
-    fontFeatures: [FontFeature.tabularFigures()],
-    shadows: [Shadow(color: Colors.black, blurRadius: 4)],
-  );
+  static const Map<SimaiJudgementVisualKind, _JudgementPalette> _palettes =
+      <SimaiJudgementVisualKind, _JudgementPalette>{
+        SimaiJudgementVisualKind.breakCritical: _JudgementPalette(
+          gradientColors: <Color>[
+            Color(0xFFFFFFFF),
+            Color(0xFFFFD8F0),
+            Color(0xFFFFEC6E),
+            Color(0xFFB8F6FF),
+            Color(0xFFFFB420),
+          ],
+          gradientStops: <double>[0.0, 0.28, 0.52, 0.76, 1.0],
+          outerStrokeColor: Color(0xF25C1A00),
+          innerStrokeColor: Color(0xFFFFFFFF),
+          glowColor: Color(0x99FFE066),
+          bannerColors: <Color>[Color(0xFFFFDC52), Color(0xFFFF8818)],
+          bannerEdgeColor: Color(0xEEFFF8D0),
+        ),
+        SimaiJudgementVisualKind.breakCriticalPerfect: _JudgementPalette(
+          gradientColors: <Color>[
+            Color(0xFFFFFFFF),
+            Color(0xFFFFF38A),
+            Color(0xFFFFC52E),
+            Color(0xFFFF8818),
+          ],
+          gradientStops: <double>[0.0, 0.32, 0.68, 1.0],
+          outerStrokeColor: Color(0xF25C1A00),
+          innerStrokeColor: Color(0xFFFFFFFF),
+          glowColor: Color(0x99FFE066),
+          bannerColors: <Color>[Color(0xFFFFDC52), Color(0xFFFF8818)],
+          bannerEdgeColor: Color(0xEEFFF8D0),
+        ),
+        SimaiJudgementVisualKind.critical: _JudgementPalette(
+          gradientColors: <Color>[
+            Color(0xFFFFFFFF),
+            Color(0xFFFFF6A8),
+            Color(0xFFFFCF38),
+          ],
+          gradientStops: <double>[0.0, 0.45, 1.0],
+          outerStrokeColor: Color(0xF24E1E00),
+          innerStrokeColor: Color(0xFFFFFFFF),
+          glowColor: Color(0x78FFD43B),
+          bannerColors: <Color>[Color(0xFFFFD448), Color(0xFFFF9B10)],
+          bannerEdgeColor: Color(0xEEFFF4C2),
+        ),
+        SimaiJudgementVisualKind.criticalPerfect: _JudgementPalette(
+          gradientColors: <Color>[
+            Color(0xFFFFFDE0),
+            Color(0xFFFFEA52),
+            Color(0xFFFFB810),
+            Color(0xFFFF8600),
+          ],
+          gradientStops: <double>[0.0, 0.32, 0.70, 1.0],
+          outerStrokeColor: Color(0xF24E1E00),
+          innerStrokeColor: Color(0xFFFFFFFF),
+          glowColor: Color(0x78FFD43B),
+          bannerColors: <Color>[Color(0xFFFFD448), Color(0xFFFF9B10)],
+          bannerEdgeColor: Color(0xEEFFF4C2),
+        ),
+        SimaiJudgementVisualKind.perfect: _JudgementPalette(
+          gradientColors: <Color>[
+            Color(0xFFFFF678),
+            Color(0xFFFFC818),
+            Color(0xFFFF8600),
+          ],
+          gradientStops: <double>[0.0, 0.52, 1.0],
+          outerStrokeColor: Color(0xF24E1E00),
+          innerStrokeColor: Color(0xFFFFFFFF),
+          glowColor: Color(0x66FFBA18),
+          bannerColors: <Color>[Color(0xFFFFCC32), Color(0xFFF58A00)],
+          bannerEdgeColor: Color(0xEBFFF0B8),
+        ),
+        SimaiJudgementVisualKind.great: _JudgementPalette(
+          gradientColors: <Color>[
+            Color(0xFFFFBEE0),
+            Color(0xFFFF55A6),
+            Color(0xFFD91674),
+          ],
+          gradientStops: <double>[0.0, 0.48, 1.0],
+          outerStrokeColor: Color(0xF24A0626),
+          innerStrokeColor: Color(0xFFFFFFFF),
+          glowColor: Color(0x6BFFA8D4),
+          bannerColors: <Color>[Color(0xFFFF66B2), Color(0xFFD91C78)],
+          bannerEdgeColor: Color(0xEBFFE0F0),
+        ),
+        SimaiJudgementVisualKind.good: _JudgementPalette(
+          gradientColors: <Color>[
+            Color(0xFFB8FF82),
+            Color(0xFF40E05C),
+            Color(0xFF149E34),
+          ],
+          gradientStops: <double>[0.0, 0.50, 1.0],
+          outerStrokeColor: Color(0xF2063B14),
+          innerStrokeColor: Color(0xFFFFFFFF),
+          glowColor: Color(0x6680F09A),
+          bannerColors: <Color>[Color(0xFF52E56B), Color(0xFF1CA63E)],
+          bannerEdgeColor: Color(0xEBDCFFE4),
+        ),
+        SimaiJudgementVisualKind.miss: _JudgementPalette(
+          gradientColors: <Color>[
+            Color(0xFFEDF2F8),
+            Color(0xFF9EA8BA),
+            Color(0xFF5D677A),
+          ],
+          gradientStops: <double>[0.0, 0.52, 1.0],
+          outerStrokeColor: Color(0xEB1E242E),
+          innerStrokeColor: Color(0xEBEEF2F7),
+          glowColor: Color(0x4798A4B8),
+          bannerColors: <Color>[Color(0xFF8C96A8), Color(0xFF566072)],
+          bannerEdgeColor: Color(0xCCE6ECF5),
+        ),
+        SimaiJudgementVisualKind.fast: _JudgementPalette(
+          gradientColors: <Color>[
+            Color(0xFFD0F8FF),
+            Color(0xFF3CC6FF),
+            Color(0xFF0078EE),
+          ],
+          gradientStops: <double>[0.0, 0.48, 1.0],
+          outerStrokeColor: Color(0xF2052654),
+          innerStrokeColor: Color(0xFFFFFFFF),
+          glowColor: Color(0x7058D0FF),
+          bannerColors: <Color>[Color(0xFF42C8FF), Color(0xFF0A84EB)],
+          bannerEdgeColor: Color(0xEBD6F6FF),
+        ),
+        SimaiJudgementVisualKind.late: _JudgementPalette(
+          gradientColors: <Color>[
+            Color(0xFFFFC8D0),
+            Color(0xFFFF5068),
+            Color(0xFFD91836),
+          ],
+          gradientStops: <double>[0.0, 0.48, 1.0],
+          outerStrokeColor: Color(0xF24E0614),
+          innerStrokeColor: Color(0xFFFFFFFF),
+          glowColor: Color(0x70FF687E),
+          bannerColors: <Color>[Color(0xFFFF5A70), Color(0xFFD91E3C)],
+          bannerEdgeColor: Color(0xEBFFDCE2),
+        ),
+      };
+
+  static _JudgementPalette _paletteFor(SimaiJudgementVisualKind kind) =>
+      _palettes[kind]!;
 
   int _cachedQuantizedRadius = -1;
   int _cachedCenterX = 0;
@@ -192,6 +346,7 @@ class SimaiJudgementFeedbackRenderer {
       game: game,
       record: record,
       lines: lines,
+      kind: presentation.primaryKind,
       color: presentation.color,
       animation: animation,
     )) {
@@ -286,7 +441,7 @@ class SimaiJudgementFeedbackRenderer {
     if (location.group == NoteGroup.tap) {
       final judgePoint = NoteUtils.getTouchPosition(center, radius, location);
       final direction = judgePoint - center;
-      return center + direction / max(direction.distance, 1e-9) * radius * 0.80;
+      return center + direction / max(direction.distance, 1e-9) * radius * 0.79;
     }
     if (location.group == NoteGroup.cSensor) {
       return center + Offset(0, radius * 0.18);
@@ -316,7 +471,7 @@ class SimaiJudgementFeedbackRenderer {
     final delta = position - center;
     final baseRadius = delta.distance;
     if (baseRadius <= 1e-9) return;
-    final fontSize = (game.chartRadius * 0.052).clamp(12.0, 18.0).toDouble();
+    final fontSize = (game.chartRadius * 0.064).clamp(13.0, 34.0).toDouble();
     final centerAngle = atan2(delta.dy, delta.dx);
     final clockwise = delta.dy <= 0;
 
@@ -360,8 +515,8 @@ class SimaiJudgementFeedbackRenderer {
     final double bakedRadius = max(bakedFontSize * 2.0, radiusBucket * 4.0);
 
     final String key = lines.length == 1
-        ? '${lines[0].text}|${lines[0].color.toARGB32()}|$quantizedFontSize|$radiusBucket|${clockwise ? 1 : 0}'
-        : '${lines[0].text}|${lines[0].color.toARGB32()}|${lines[1].text}|${lines[1].color.toARGB32()}|$quantizedFontSize|$radiusBucket|${clockwise ? 1 : 0}';
+        ? '${lines[0].text}|${lines[0].kind.index}|${lines[0].isSubLine ? 1 : 0}|$quantizedFontSize|$radiusBucket|${clockwise ? 1 : 0}'
+        : '${lines[0].text}|${lines[0].kind.index}|${lines[0].isSubLine ? 1 : 0}|${lines[1].text}|${lines[1].kind.index}|${lines[1].isSubLine ? 1 : 0}|$quantizedFontSize|$radiusBucket|${clockwise ? 1 : 0}';
 
     final existing = _arcCompositeBitmaps[key];
     if (existing != null) return existing;
@@ -382,35 +537,35 @@ class SimaiJudgementFeedbackRenderer {
     return baked;
   }
 
-  /// 将 1–2 行判定词按弧线布局一次性合批烘焙为单张带描边阴影的 ui.Image。
+  /// 将 1–2 行判定词按弧线布局一次性合批烘焙为单张带四层机台描边、渐变与投影的 ui.Image。
   _BakedFeedbackBitmap? _bakeArcCompositeBitmap({
     required List<SimaiJudgementLine> lines,
     required double fontSize,
     required double baseRadius,
     required bool clockwise,
   }) {
-    final outlinePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = max(1.6, fontSize * 0.14)
-      ..strokeJoin = StrokeJoin.round
-      ..color = Colors.black.withValues(alpha: 0.82);
-
-    final outlineStyle = _hudBaseStyle.copyWith(
-      foreground: outlinePaint,
-      fontSize: fontSize,
-      letterSpacing: 0.25,
-    );
-
-    final allFillPainters = <TextPainter>[];
-    final allOutlinePainters = <TextPainter>[];
+    final allPainters = <TextPainter>[];
+    final glyphGlow = <TextPainter>[];
+    final glyphOuter = <TextPainter>[];
+    final glyphInner = <TextPainter>[];
+    final glyphFill = <TextPainter>[];
+    final glyphShadowOffsets = <double>[];
     final allCenters = <Offset>[];
     final allRotations = <double>[];
 
     try {
       final bakeCenterAngle = clockwise ? -pi / 2 : pi / 2;
       final anchorOrigin = Offset(0.0, clockwise ? -baseRadius : baseRadius);
-      final lineOffset = fontSize * 0.58;
-      final double margin = fontSize * 0.45 + 6.0;
+      final lineFontSizes = <double>[
+        for (final line in lines)
+          line.isSubLine
+              ? (fontSize * 0.68).clamp(9.0, 24.0).toDouble()
+              : fontSize,
+      ];
+      final double halfSeparation = lines.length > 1
+          ? (lineFontSizes[0] + lineFontSizes[1]) * 0.275
+          : 0.0;
+      final double margin = fontSize * 0.65 + 8.0;
       double minX = double.infinity;
       double minY = double.infinity;
       double maxX = double.negativeInfinity;
@@ -419,47 +574,131 @@ class SimaiJudgementFeedbackRenderer {
       for (var lineIdx = 0; lineIdx < lines.length; lineIdx++) {
         final line = lines[lineIdx];
         if (line.text.isEmpty) continue;
-        final glyphs = line.text.split('');
-        final fillStyle = _hudStyle.copyWith(
-          color: line.color,
-          fontSize: fontSize,
-          letterSpacing: 0.25,
-          shadows: const [Shadow(color: Colors.black, blurRadius: 3.5)],
+        final double lineFontSize = lineFontSizes[lineIdx];
+        final _JudgementPalette palette = _paletteFor(line.kind);
+        final double letterSpacing = line.text == 'CRITICAL'
+            ? 0.35
+            : (line.isSubLine ? 0.15 : -0.25);
+
+        final glowPaint = Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = max(3.4, lineFontSize * 0.36)
+          ..strokeJoin = StrokeJoin.round
+          ..strokeCap = StrokeCap.round
+          ..color = palette.glowColor
+          ..maskFilter = ui.MaskFilter.blur(
+            ui.BlurStyle.normal,
+            max(1.1, lineFontSize * 0.085),
+          );
+        final outerPaint = Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = max(2.6, lineFontSize * 0.28)
+          ..strokeJoin = StrokeJoin.round
+          ..strokeCap = StrokeCap.round
+          ..color = palette.outerStrokeColor;
+        final innerPaint = Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = max(1.35, lineFontSize * 0.14)
+          ..strokeJoin = StrokeJoin.round
+          ..strokeCap = StrokeCap.round
+          ..color = palette.innerStrokeColor;
+
+        final glowStyle = _hudBaseStyle.copyWith(
+          foreground: glowPaint,
+          fontSize: lineFontSize,
+          letterSpacing: letterSpacing,
+          shadows: <Shadow>[
+            Shadow(
+              color: const Color(0x88000000),
+              offset: Offset(0, lineFontSize * 0.05),
+              blurRadius: max(1.5, lineFontSize * 0.12),
+            ),
+          ],
+        );
+        final outerStyle = _hudBaseStyle.copyWith(
+          foreground: outerPaint,
+          fontSize: lineFontSize,
+          letterSpacing: letterSpacing,
+        );
+        final innerStyle = _hudBaseStyle.copyWith(
+          foreground: innerPaint,
+          fontSize: lineFontSize,
+          letterSpacing: letterSpacing,
+        );
+        final probeStyle = _hudBaseStyle.copyWith(
+          color: Colors.white,
+          fontSize: lineFontSize,
+          letterSpacing: letterSpacing,
         );
 
-        final lineFills = <TextPainter>[];
+        final lineProbes = <TextPainter>[];
+        final glyphs = line.text.split('');
         for (final glyph in glyphs) {
-          final fp = _text(glyph, fillStyle);
-          final op = _text(glyph, outlineStyle);
-          lineFills.add(fp);
-          allFillPainters.add(fp);
-          allOutlinePainters.add(op);
+          final probe = _text(glyph, probeStyle);
+          lineProbes.add(probe);
+          allPainters.add(probe);
         }
+
+        final double sampleHeight = lineProbes.first.height;
+        final fillPaint = Paint()
+          ..isAntiAlias = true
+          ..shader = ui.Gradient.linear(
+            Offset(0.0, sampleHeight * 0.10),
+            Offset(0.0, sampleHeight * 0.90),
+            palette.gradientColors,
+            palette.gradientStops,
+          );
+        final fillStyle = _hudBaseStyle.copyWith(
+          foreground: fillPaint,
+          fontSize: lineFontSize,
+          letterSpacing: letterSpacing,
+        );
 
         final double radiusOffset = lines.length == 1
             ? 0.0
             : lineIdx == 0
-            ? (clockwise ? lineOffset : -lineOffset)
-            : (clockwise ? -lineOffset : lineOffset);
-        final double lineRadius = max(fontSize * 2.0, baseRadius + radiusOffset);
+            ? (clockwise ? halfSeparation : -halfSeparation)
+            : (clockwise ? -halfSeparation : halfSeparation);
+        final double lineRadius = max(
+          lineFontSize * 2.0,
+          baseRadius + radiusOffset,
+        );
 
         final placements = simaiArcGlyphLayout(
-          advances: lineFills.map((p) => p.width).toList(growable: false),
+          advances: lineProbes
+              .map((p) => p.width * _glyphStretchX)
+              .toList(growable: false),
           centerAngle: bakeCenterAngle,
           radius: lineRadius,
           clockwise: clockwise,
         );
 
-        for (var i = 0; i < lineFills.length; i++) {
-          final painter = lineFills[i];
+        for (var i = 0; i < lineProbes.length; i++) {
+          final glyph = glyphs[i];
+          final probe = lineProbes[i];
           final placement = placements[i];
           final relCenter =
               Offset(cos(placement.angle), sin(placement.angle)) * lineRadius -
               anchorOrigin;
+          final gp = _text(glyph, glowStyle);
+          final op = _text(glyph, outerStyle);
+          final ip = _text(glyph, innerStyle);
+          final fp = _text(glyph, fillStyle);
+          allPainters
+            ..add(gp)
+            ..add(op)
+            ..add(ip)
+            ..add(fp);
+          glyphGlow.add(gp);
+          glyphOuter.add(op);
+          glyphInner.add(ip);
+          glyphFill.add(fp);
+          glyphShadowOffsets.add(lineFontSize * 0.055);
           allCenters.add(relCenter);
           allRotations.add(placement.rotation);
+
           final double halfExtent =
-              _hypotHalf(painter.width, painter.height) + margin;
+              _hypotHalf(probe.width * _glyphStretchX, probe.height) + margin;
           if (relCenter.dx - halfExtent < minX) minX = relCenter.dx - halfExtent;
           if (relCenter.dy - halfExtent < minY) minY = relCenter.dy - halfExtent;
           if (relCenter.dx + halfExtent > maxX) maxX = relCenter.dx + halfExtent;
@@ -467,7 +706,7 @@ class SimaiJudgementFeedbackRenderer {
         }
       }
 
-      if (allFillPainters.isEmpty) return null;
+      if (glyphFill.isEmpty) return null;
 
       final double logicalW = max(1.0, maxX - minX);
       final double logicalH = max(1.0, maxY - minY);
@@ -479,16 +718,19 @@ class SimaiJudgementFeedbackRenderer {
         ..scale(_bitmapPixelRatio, _bitmapPixelRatio)
         ..translate(-minX, -minY);
 
-      for (var i = 0; i < allFillPainters.length; i++) {
-        final fillPainter = allFillPainters[i];
-        final outlinePainter = allOutlinePainters[i];
+      for (var i = 0; i < glyphFill.length; i++) {
+        final fillPainter = glyphFill[i];
         final relCenter = allCenters[i];
-        final offset = Offset(-fillPainter.width / 2, -fillPainter.height / 2);
+        final shadowDy = glyphShadowOffsets[i];
         canvas.save();
         canvas.translate(relCenter.dx, relCenter.dy);
         canvas.rotate(allRotations[i]);
-        outlinePainter.paint(canvas, offset);
-        fillPainter.paint(canvas, offset);
+        canvas.scale(_glyphStretchX, 1.0);
+        canvas.translate(-fillPainter.width / 2, -fillPainter.height / 2);
+        glyphGlow[i].paint(canvas, Offset(0.0, shadowDy));
+        glyphOuter[i].paint(canvas, Offset.zero);
+        glyphInner[i].paint(canvas, Offset.zero);
+        fillPainter.paint(canvas, Offset.zero);
         canvas.restore();
       }
 
@@ -509,10 +751,7 @@ class SimaiJudgementFeedbackRenderer {
         picture.dispose();
       }
     } finally {
-      for (final painter in allFillPainters) {
-        painter.dispose();
-      }
-      for (final painter in allOutlinePainters) {
+      for (final painter in allPainters) {
         painter.dispose();
       }
     }
@@ -523,6 +762,7 @@ class SimaiJudgementFeedbackRenderer {
     required SimaiGame game,
     required SimaiJudgementRecord record,
     required List<SimaiJudgementLine> lines,
+    required SimaiJudgementVisualKind kind,
     required Color color,
     required SimaiJudgementAnimationState animation,
   }) {
@@ -546,7 +786,7 @@ class SimaiJudgementFeedbackRenderer {
     final String textKey = lines.length == 1
         ? lines[0].text
         : '${lines[0].text}\n${lines[1].text}';
-    final String cacheKey = '$key|${color.toARGB32()}|$textKey';
+    final String cacheKey = '$key|${kind.index}|${color.toARGB32()}|$textKey';
     _activeSlideCompositeKeys.add(cacheKey);
 
     Offset textAnchor;
@@ -561,7 +801,7 @@ class SimaiJudgementFeedbackRenderer {
           game: game,
           geometry: geometry,
           lines: lines,
-          color: color,
+          kind: kind,
         );
         if (bitmap == null) return false;
         _slideCompositeBitmaps[cacheKey] = bitmap;
@@ -575,7 +815,7 @@ class SimaiJudgementFeedbackRenderer {
           game: game,
           geometry: geometry,
           lines: lines,
-          color: color,
+          kind: kind,
         );
         if (bitmap == null) return false;
         _slideCompositeBitmaps[cacheKey] = bitmap;
@@ -651,88 +891,119 @@ class SimaiJudgementFeedbackRenderer {
     return geometry;
   }
 
-  /// 将常规滑星判定「投影 + 渐变箭头底板 + 弯曲文字」一次性合批烘焙为单张位图。
+  /// 将常规滑星判定「投影 + 渐变高亮边框箭头底板 + 立体描边文字」一次性合批烘焙为单张位图。
   _BakedFeedbackBitmap? _bakeSlideCompositeBitmap({
     required SimaiGame game,
     required SimaiSlideFeedbackGeometry geometry,
     required List<SimaiJudgementLine> lines,
-    required Color color,
+    required SimaiJudgementVisualKind kind,
   }) {
-    var fontSize = (game.chartRadius * 0.043).clamp(10.0, 15.5).toDouble();
+    final _JudgementPalette bannerPalette = _paletteFor(kind);
+    var fontSize = (game.chartRadius * 0.048).clamp(10.5, 26.0).toDouble();
     final availableWidth = geometry.length * 0.68;
-    final probeStyle = _hudStyle.copyWith(fontSize: fontSize, letterSpacing: 0);
+    final probeStyle = _hudBaseStyle.copyWith(
+      color: Colors.white,
+      fontSize: fontSize,
+      letterSpacing: 0,
+    );
     double widest = 0.0;
     for (final line in lines) {
       final probe = _text(line.text, probeStyle);
-      widest = max(widest, probe.width);
+      widest = max(widest, probe.width * _glyphStretchX);
       probe.dispose();
     }
     if (widest > availableWidth && widest > 0) {
       fontSize *= availableWidth / widest;
     }
-    fontSize = max(8.0, fontSize);
+    fontSize = max(8.5, fontSize);
 
     final centerDistance = geometry.length * 0.34;
     final centerAngle = geometry.centerAngle;
     final forward = cos(centerAngle) >= 0;
     final pathDirection = forward ? 1.0 : -1.0;
-    final lineGap = fontSize * 0.48;
+    final lineFontSizes = <double>[
+      for (final line in lines)
+        line.isSubLine
+            ? (fontSize * 0.78).clamp(7.5, 20.0).toDouble()
+            : fontSize,
+    ];
+    final double halfSeparation = lines.length > 1
+        ? (lineFontSizes[0] + lineFontSizes[1]) * 0.28
+        : 0.0;
 
-    final outlinePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = max(1.4, fontSize * 0.14)
-      ..strokeJoin = StrokeJoin.round
-      ..color = Colors.black.withValues(alpha: 0.72);
-
-    final fillStyle = _hudStyle.copyWith(
-      color: Colors.white,
-      fontSize: fontSize,
-      letterSpacing: 0,
-      shadows: const <Shadow>[Shadow(color: Color(0xAA000000), blurRadius: 2)],
-    );
-    final outlineStyle = _hudBaseStyle.copyWith(
-      foreground: outlinePaint,
-      fontSize: fontSize,
-      letterSpacing: 0,
-    );
-
-    final allFillPainters = <TextPainter>[];
+    final allPainters = <TextPainter>[];
     final allOutlinePainters = <TextPainter>[];
+    final allFillPainters = <TextPainter>[];
     final glyphPositions = <Offset>[];
     final glyphRotations = <double>[];
 
     try {
-      final shadowPad = game.chartRadius * 0.024 + 4.0;
+      final shadowPad = game.chartRadius * 0.028 + 5.0;
       final pathBounds = geometry.arrowPath.getBounds();
       double minX = pathBounds.left - shadowPad;
       double minY = pathBounds.top - shadowPad;
       double maxX = pathBounds.right + shadowPad;
-      double maxY = pathBounds.bottom + shadowPad + game.chartRadius * 0.012;
+      double maxY = pathBounds.bottom + shadowPad + game.chartRadius * 0.014;
 
-      final double margin = fontSize * 0.45 + 4.0;
+      final double margin = fontSize * 0.55 + 6.0;
       for (var lineIndex = 0; lineIndex < lines.length; lineIndex++) {
-        final lineFillPainters = <TextPainter>[];
+        final line = lines[lineIndex];
+        final double lineFontSize = lineFontSizes[lineIndex];
+        final _JudgementPalette linePalette = _paletteFor(line.kind);
+        final outlinePaint = Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = max(2.2, lineFontSize * 0.24)
+          ..strokeJoin = StrokeJoin.round
+          ..strokeCap = StrokeCap.round
+          ..color = linePalette.outerStrokeColor;
+        final outlineStyle = _hudBaseStyle.copyWith(
+          foreground: outlinePaint,
+          fontSize: lineFontSize,
+          letterSpacing: 0,
+        );
+        final probeLineStyle = _hudBaseStyle.copyWith(
+          color: Colors.white,
+          fontSize: lineFontSize,
+          letterSpacing: 0,
+        );
+
+        final lineProbes = <TextPainter>[];
         double totalWidth = 0.0;
-        for (final glyph in lines[lineIndex].text.split('')) {
-          final fp = _text(glyph, fillStyle);
-          final op = _text(glyph, outlineStyle);
-          lineFillPainters.add(fp);
-          allFillPainters.add(fp);
-          allOutlinePainters.add(op);
-          totalWidth += fp.width;
+        final glyphs = line.text.split('');
+        for (final glyph in glyphs) {
+          final probe = _text(glyph, probeLineStyle);
+          lineProbes.add(probe);
+          allPainters.add(probe);
+          totalWidth += probe.width * _glyphStretchX;
         }
+        if (lineProbes.isEmpty) continue;
+
+        final double sampleHeight = lineProbes.first.height;
+        final fillPaint = Paint()
+          ..isAntiAlias = true
+          ..shader = ui.Gradient.linear(
+            Offset(0.0, sampleHeight * 0.12),
+            Offset(0.0, sampleHeight * 0.88),
+            <Color>[Colors.white, linePalette.gradientColors.first],
+          );
+        final fillStyle = _hudBaseStyle.copyWith(
+          foreground: fillPaint,
+          fontSize: lineFontSize,
+          letterSpacing: 0,
+        );
 
         var cursor = -totalWidth / 2;
-        final lateralOffset = lines.length == 1
+        final double lateralOffset = lines.length == 1
             ? 0.0
             : lineIndex == 0
-            ? -lineGap
-            : lineGap;
+            ? -halfSeparation
+            : halfSeparation;
 
-        for (var i = 0; i < lineFillPainters.length; i++) {
-          final painter = lineFillPainters[i];
+        for (var i = 0; i < lineProbes.length; i++) {
+          final probe = lineProbes[i];
+          final glyphAdvance = probe.width * _glyphStretchX;
           final glyphDistance =
-              (centerDistance + pathDirection * (cursor + painter.width / 2))
+              (centerDistance + pathDirection * (cursor + glyphAdvance / 2))
                   .clamp(0.0, geometry.length)
                   .toDouble();
           final angle = geometry.angleAt(glyphDistance);
@@ -742,14 +1013,23 @@ class SimaiJudgementFeedbackRenderer {
               geometry.pointAt(glyphDistance) + normal * lateralOffset;
           final rotation = angle + (forward ? 0.0 : pi);
 
+          final fp = _text(glyphs[i], fillStyle);
+          final op = _text(glyphs[i], outlineStyle);
+          allPainters
+            ..add(fp)
+            ..add(op);
+          allFillPainters.add(fp);
+          allOutlinePainters.add(op);
+
           glyphPositions.add(position);
           glyphRotations.add(rotation);
-          final halfExtent = _hypotHalf(painter.width, painter.height) + margin;
+          final halfExtent =
+              _hypotHalf(glyphAdvance, probe.height) + margin;
           if (position.dx - halfExtent < minX) minX = position.dx - halfExtent;
           if (position.dy - halfExtent < minY) minY = position.dy - halfExtent;
           if (position.dx + halfExtent > maxX) maxX = position.dx + halfExtent;
           if (position.dy + halfExtent > maxY) maxY = position.dy + halfExtent;
-          cursor += painter.width;
+          cursor += glyphAdvance;
         }
       }
 
@@ -770,43 +1050,63 @@ class SimaiJudgementFeedbackRenderer {
         ..isAntiAlias = true
         ..style = PaintingStyle.stroke
         ..strokeJoin = StrokeJoin.round
-        ..strokeWidth = game.chartRadius * 0.018
+        ..strokeWidth = game.chartRadius * 0.020
         ..shader = ui.Gradient.linear(fadeStart, fadeEnd, const [
           Colors.transparent,
-          Color(0x29000000),
+          Color(0x36000000),
         ]);
       final shadowFillPaint = Paint()
         ..isAntiAlias = true
         ..style = PaintingStyle.fill
         ..shader = ui.Gradient.linear(fadeStart, fadeEnd, const [
           Colors.transparent,
-          Color(0x47000000),
+          Color(0x52000000),
         ]);
       canvas.save();
-      canvas.translate(0, game.chartRadius * 0.010);
+      canvas.translate(0, game.chartRadius * 0.011);
       canvas.drawPath(geometry.arrowPath, shadowStrokePaint);
       canvas.drawPath(geometry.arrowPath, shadowFillPaint);
       canvas.restore();
 
+      final Color bannerTop = bannerPalette.bannerColors[0];
+      final Color bannerBottom = bannerPalette.bannerColors[1];
       final fillPaint = Paint()
         ..isAntiAlias = true
         ..style = PaintingStyle.fill
-        ..shader = ui.Gradient.linear(fadeStart, fadeEnd, [
-          color.withValues(alpha: 0),
-          color.withValues(alpha: 0.96),
-        ]);
+        ..shader = ui.Gradient.linear(
+          fadeStart,
+          fadeEnd,
+          [
+            bannerTop.withValues(alpha: 0),
+            bannerTop.withValues(alpha: 0.94),
+            bannerBottom.withValues(alpha: 0.96),
+          ],
+          const [0.0, 0.55, 1.0],
+        );
       canvas.drawPath(geometry.arrowPath, fillPaint);
+
+      final edgePaint = Paint()
+        ..isAntiAlias = true
+        ..style = PaintingStyle.stroke
+        ..strokeJoin = StrokeJoin.round
+        ..strokeWidth = max(1.4, game.chartRadius * 0.0085)
+        ..shader = ui.Gradient.linear(fadeStart, fadeEnd, [
+          Colors.transparent,
+          bannerPalette.bannerEdgeColor,
+        ]);
+      canvas.drawPath(geometry.arrowPath, edgePaint);
 
       for (var i = 0; i < allFillPainters.length; i++) {
         final fp = allFillPainters[i];
         final op = allOutlinePainters[i];
         final pos = glyphPositions[i];
-        final offset = Offset(-fp.width / 2, -fp.height / 2);
         canvas.save();
         canvas.translate(pos.dx, pos.dy);
         canvas.rotate(glyphRotations[i]);
-        op.paint(canvas, offset);
-        fp.paint(canvas, offset);
+        canvas.scale(_glyphStretchX, 1.0);
+        canvas.translate(-fp.width / 2, -fp.height / 2);
+        op.paint(canvas, Offset.zero);
+        fp.paint(canvas, Offset.zero);
         canvas.restore();
       }
 
@@ -828,89 +1128,127 @@ class SimaiJudgementFeedbackRenderer {
         picture.dispose();
       }
     } finally {
-      for (final painter in allFillPainters) {
-        painter.dispose();
-      }
-      for (final painter in allOutlinePainters) {
+      for (final painter in allPainters) {
         painter.dispose();
       }
     }
   }
 
-  /// 将扇形（WiFi）滑星判定「投影弧 + 渐变扇弧 + 弧形白字」一次性合批烘焙为单张位图。
+  /// 将扇形（WiFi）滑星判定「投影弧 + 渐变亮边扇弧 + 立体弧形文字」一次性合批烘焙为单张位图。
   _BakedFeedbackBitmap? _bakeWifiCompositeBitmap({
     required SimaiGame game,
     required SimaiWifiFeedbackGeometry geometry,
     required List<SimaiJudgementLine> lines,
-    required Color color,
+    required SimaiJudgementVisualKind kind,
   }) {
-    final fontSize = (game.chartRadius * 0.045).clamp(10.0, 16.0).toDouble();
+    final _JudgementPalette bannerPalette = _paletteFor(kind);
+    final fontSize = (game.chartRadius * 0.050).clamp(10.5, 27.0).toDouble();
     final clockwise = geometry.clockwise;
-    final lineOffset = fontSize * 0.52;
+    final lineFontSizes = <double>[
+      for (final line in lines)
+        line.isSubLine
+            ? (fontSize * 0.78).clamp(8.0, 21.0).toDouble()
+            : fontSize,
+    ];
+    final double halfSeparation = lines.length > 1
+        ? (lineFontSizes[0] + lineFontSizes[1]) * 0.285
+        : 0.0;
 
-    final outlinePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = max(1.4, fontSize * 0.14)
-      ..strokeJoin = StrokeJoin.round
-      ..color = Colors.black.withValues(alpha: 0.80);
-    final fillStyle = _hudStyle.copyWith(
-      color: Colors.white,
-      fontSize: fontSize,
-      letterSpacing: 0.25,
-      shadows: const [Shadow(color: Colors.black, blurRadius: 3.0)],
-    );
-    final outlineStyle = _hudBaseStyle.copyWith(
-      foreground: outlinePaint,
-      fontSize: fontSize,
-      letterSpacing: 0.25,
-    );
-
-    final allFillPainters = <TextPainter>[];
+    final allPainters = <TextPainter>[];
     final allOutlinePainters = <TextPainter>[];
+    final allFillPainters = <TextPainter>[];
     final glyphPositions = <Offset>[];
     final glyphRotations = <double>[];
 
     try {
-      final shadowPad = game.chartRadius * 0.024 + 4.0;
+      final shadowPad = game.chartRadius * 0.028 + 5.0;
       final arcBounds = geometry.arcPath.getBounds();
       double minX = arcBounds.left - shadowPad;
       double minY = arcBounds.top - shadowPad;
       double maxX = arcBounds.right + shadowPad;
-      double maxY = arcBounds.bottom + shadowPad + game.chartRadius * 0.012;
+      double maxY = arcBounds.bottom + shadowPad + game.chartRadius * 0.014;
 
-      final double margin = fontSize * 0.45 + 4.0;
+      final double margin = fontSize * 0.55 + 6.0;
       for (var lineIdx = 0; lineIdx < lines.length; lineIdx++) {
-        final text = lines[lineIdx].text;
+        final line = lines[lineIdx];
+        final text = line.text;
         if (text.isEmpty) continue;
-        final lineFills = <TextPainter>[];
-        for (final glyph in text.split('')) {
-          final fp = _text(glyph, fillStyle);
-          final op = _text(glyph, outlineStyle);
-          lineFills.add(fp);
-          allFillPainters.add(fp);
-          allOutlinePainters.add(op);
+        final double lineFontSize = lineFontSizes[lineIdx];
+        final _JudgementPalette linePalette = _paletteFor(line.kind);
+        final outlinePaint = Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = max(2.2, lineFontSize * 0.24)
+          ..strokeJoin = StrokeJoin.round
+          ..strokeCap = StrokeCap.round
+          ..color = linePalette.outerStrokeColor;
+        final outlineStyle = _hudBaseStyle.copyWith(
+          foreground: outlinePaint,
+          fontSize: lineFontSize,
+          letterSpacing: 0.20,
+        );
+        final probeStyle = _hudBaseStyle.copyWith(
+          color: Colors.white,
+          fontSize: lineFontSize,
+          letterSpacing: 0.20,
+        );
+
+        final lineProbes = <TextPainter>[];
+        final glyphs = text.split('');
+        for (final glyph in glyphs) {
+          final probe = _text(glyph, probeStyle);
+          lineProbes.add(probe);
+          allPainters.add(probe);
         }
-        final radiusOffset = lines.length == 1
+        if (lineProbes.isEmpty) continue;
+
+        final double sampleHeight = lineProbes.first.height;
+        final fillPaint = Paint()
+          ..isAntiAlias = true
+          ..shader = ui.Gradient.linear(
+            Offset(0.0, sampleHeight * 0.12),
+            Offset(0.0, sampleHeight * 0.88),
+            <Color>[Colors.white, linePalette.gradientColors.first],
+          );
+        final fillStyle = _hudBaseStyle.copyWith(
+          foreground: fillPaint,
+          fontSize: lineFontSize,
+          letterSpacing: 0.20,
+        );
+
+        final double radiusOffset = lines.length == 1
             ? 0.0
             : lineIdx == 0
-            ? (clockwise ? lineOffset : -lineOffset)
-            : (clockwise ? -lineOffset : lineOffset);
-        final lineRadius = max(fontSize * 2.0, geometry.radius + radiusOffset);
+            ? (clockwise ? halfSeparation : -halfSeparation)
+            : (clockwise ? -halfSeparation : halfSeparation);
+        final lineRadius = max(
+          lineFontSize * 2.0,
+          geometry.radius + radiusOffset,
+        );
         final placements = simaiArcGlyphLayout(
-          advances: lineFills.map((p) => p.width).toList(growable: false),
+          advances: lineProbes
+              .map((p) => p.width * _glyphStretchX)
+              .toList(growable: false),
           centerAngle: geometry.centerAngle,
           radius: lineRadius,
           clockwise: clockwise,
         );
-        for (var i = 0; i < lineFills.length; i++) {
-          final fp = lineFills[i];
+        for (var i = 0; i < lineProbes.length; i++) {
+          final probe = lineProbes[i];
           final placement = placements[i];
           final pos =
               game.chartCenter +
               Offset(cos(placement.angle), sin(placement.angle)) * lineRadius;
+          final fp = _text(glyphs[i], fillStyle);
+          final op = _text(glyphs[i], outlineStyle);
+          allPainters
+            ..add(fp)
+            ..add(op);
+          allFillPainters.add(fp);
+          allOutlinePainters.add(op);
           glyphPositions.add(pos);
           glyphRotations.add(placement.rotation);
-          final halfExtent = _hypotHalf(fp.width, fp.height) + margin;
+          final halfExtent =
+              _hypotHalf(probe.width * _glyphStretchX, probe.height) + margin;
           if (pos.dx - halfExtent < minX) minX = pos.dx - halfExtent;
           if (pos.dy - halfExtent < minY) minY = pos.dy - halfExtent;
           if (pos.dx + halfExtent > maxX) maxX = pos.dx + halfExtent;
@@ -932,16 +1270,16 @@ class SimaiJudgementFeedbackRenderer {
         ..isAntiAlias = true
         ..style = PaintingStyle.stroke
         ..strokeJoin = StrokeJoin.round
-        ..strokeWidth = game.chartRadius * 0.018
+        ..strokeWidth = game.chartRadius * 0.020
         ..shader = ui.Gradient.sweep(
           game.chartCenter,
           const [
             Colors.transparent,
-            Color(0x29000000),
-            Color(0x29000000),
+            Color(0x36000000),
+            Color(0x36000000),
             Colors.transparent,
           ],
-          const [0.0, 0.18, 0.82, 1.0],
+          const [0.0, 0.16, 0.84, 1.0],
           TileMode.clamp,
           geometry.arcStart,
           geometry.arcEnd,
@@ -953,49 +1291,72 @@ class SimaiJudgementFeedbackRenderer {
           game.chartCenter,
           const [
             Colors.transparent,
-            Color(0x47000000),
-            Color(0x47000000),
+            Color(0x52000000),
+            Color(0x52000000),
             Colors.transparent,
           ],
-          const [0.0, 0.18, 0.82, 1.0],
+          const [0.0, 0.16, 0.84, 1.0],
           TileMode.clamp,
           geometry.arcStart,
           geometry.arcEnd,
         );
       canvas.save();
-      canvas.translate(0, game.chartRadius * 0.010);
+      canvas.translate(0, game.chartRadius * 0.011);
       canvas.drawPath(geometry.arcPath, shadowStrokePaint);
       canvas.drawPath(geometry.arcPath, shadowFillPaint);
       canvas.restore();
 
+      final Color bannerTop = bannerPalette.bannerColors[0];
+      final Color bannerBottom = bannerPalette.bannerColors[1];
       final fillPaint = Paint()
         ..isAntiAlias = true
         ..style = PaintingStyle.fill
         ..shader = ui.Gradient.sweep(
           game.chartCenter,
           [
-            color.withValues(alpha: 0),
-            color.withValues(alpha: 0.96),
-            color.withValues(alpha: 0.96),
-            color.withValues(alpha: 0),
+            bannerTop.withValues(alpha: 0),
+            bannerTop.withValues(alpha: 0.95),
+            bannerBottom.withValues(alpha: 0.95),
+            bannerBottom.withValues(alpha: 0),
           ],
-          const [0.0, 0.18, 0.82, 1.0],
+          const [0.0, 0.16, 0.84, 1.0],
           TileMode.clamp,
           geometry.arcStart,
           geometry.arcEnd,
         );
       canvas.drawPath(geometry.arcPath, fillPaint);
 
+      final edgePaint = Paint()
+        ..isAntiAlias = true
+        ..style = PaintingStyle.stroke
+        ..strokeJoin = StrokeJoin.round
+        ..strokeWidth = max(1.4, game.chartRadius * 0.0085)
+        ..shader = ui.Gradient.sweep(
+          game.chartCenter,
+          [
+            Colors.transparent,
+            bannerPalette.bannerEdgeColor,
+            bannerPalette.bannerEdgeColor,
+            Colors.transparent,
+          ],
+          const [0.0, 0.16, 0.84, 1.0],
+          TileMode.clamp,
+          geometry.arcStart,
+          geometry.arcEnd,
+        );
+      canvas.drawPath(geometry.arcPath, edgePaint);
+
       for (var i = 0; i < allFillPainters.length; i++) {
         final fp = allFillPainters[i];
         final op = allOutlinePainters[i];
         final pos = glyphPositions[i];
-        final offset = Offset(-fp.width / 2, -fp.height / 2);
         canvas.save();
         canvas.translate(pos.dx, pos.dy);
         canvas.rotate(glyphRotations[i]);
-        op.paint(canvas, offset);
-        fp.paint(canvas, offset);
+        canvas.scale(_glyphStretchX, 1.0);
+        canvas.translate(-fp.width / 2, -fp.height / 2);
+        op.paint(canvas, Offset.zero);
+        fp.paint(canvas, Offset.zero);
         canvas.restore();
       }
 
@@ -1017,10 +1378,7 @@ class SimaiJudgementFeedbackRenderer {
         picture.dispose();
       }
     } finally {
-      for (final painter in allFillPainters) {
-        painter.dispose();
-      }
-      for (final painter in allOutlinePainters) {
+      for (final painter in allPainters) {
         painter.dispose();
       }
     }

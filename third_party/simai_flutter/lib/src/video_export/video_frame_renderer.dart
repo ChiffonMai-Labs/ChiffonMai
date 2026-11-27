@@ -86,6 +86,9 @@ class SimaiVideoFrameRenderer {
     if (!_prepared || _disposed) return;
     controller
       ..speed = source.speed
+      ..touchSpeed = source.touchSpeed
+      ..slideDisplayTiming = source.slideDisplayTiming
+      ..autoPlayMode = source.autoPlayMode
       ..mirrorMode = source.mirrorMode
       ..backgroundMode = source.backgroundMode
       ..backgroundOpacity = source.backgroundOpacity
@@ -95,12 +98,14 @@ class SimaiVideoFrameRenderer {
       ..highlightExNotes = source.highlightExNotes
       ..showApproachLine = source.showApproachLine
       ..showHitEffects = source.showHitEffects
+      ..hitEffectStyle = source.hitEffectStyle
       ..showJudgementDisplay = source.showJudgementDisplay
       ..judgementDisplayMode = source.judgementDisplayMode
       ..showAchievementRate = source.showAchievementRate
       ..centerDisplayMode = source.centerDisplayMode
       ..topRightDisplayMode = source.topRightDisplayMode
       ..noteStyle = source.noteStyle
+      ..holdStyle = source.holdStyle
       ..showCornerInfo = source.showCornerInfo
       ..showDetailedPerformanceInfo = source.showDetailedPerformanceInfo;
 
@@ -113,6 +118,7 @@ class SimaiVideoFrameRenderer {
       ..highlightExNotes = source.highlightExNotes
       ..showApproachLine = source.showApproachLine
       ..showHitEffects = source.showHitEffects
+      ..hitEffectStyle = source.hitEffectStyle
       ..showJudgementDisplay = source.showJudgementDisplay
       ..judgementDisplayMode = source.judgementDisplayMode
       ..showAchievementRate = source.showAchievementRate
@@ -123,10 +129,13 @@ class SimaiVideoFrameRenderer {
       ..showDetailedPerformanceInfo = source.showDetailedPerformanceInfo;
     _game.setBackgroundMode(source.backgroundMode);
     _game.setBackgroundOpacity(source.backgroundOpacity);
+    _game.setSlideDisplayTiming(source.slideDisplayTiming);
+    _game.setAutoPlayMode(source.autoPlayMode);
     updateFrameRate(frameRate);
 
     await _game.setNoteStyleAsync(source.noteStyle);
     if (_disposed) return;
+    _game.setHoldStyle(source.holdStyle);
     await _game.setMirrorModeAsync(source.mirrorMode);
     if (_disposed) return;
     _game.invalidateNotes(resetWindow: true);
@@ -174,6 +183,8 @@ class SimaiVideoFrameRenderer {
       isPlaying: false,
       ringApproachTime: controller.approachTime,
       touchApproachTime: controller.touchApproachTime,
+      slideDisplayTiming: controller.slideDisplayTiming,
+      autoPlayMode: controller.autoPlayMode,
       playbackRate: 1.0,
       musicVolume: controller.musicVolume,
       hitSoundOffset: controller.hitSoundOffsetMs / 1000.0,
@@ -187,12 +198,14 @@ class SimaiVideoFrameRenderer {
       highlightExNotes: controller.highlightExNotes,
       showApproachLine: controller.showApproachLine,
       showHitEffects: controller.showHitEffects,
+      hitEffectStyle: controller.hitEffectStyle,
       showJudgementDisplay: controller.showJudgementDisplay,
       judgementDisplayMode: controller.judgementDisplayMode,
       showAchievementRate: controller.showAchievementRate,
       centerDisplayMode: controller.centerDisplayMode,
       topRightDisplayMode: controller.topRightDisplayMode,
       noteStyle: controller.noteStyle,
+      holdStyle: controller.holdStyle,
       showCornerInfo: controller.showCornerInfo,
       showFps: controller.showDetailedPerformanceInfo,
       showDetailedPerformanceInfo: controller.showDetailedPerformanceInfo,

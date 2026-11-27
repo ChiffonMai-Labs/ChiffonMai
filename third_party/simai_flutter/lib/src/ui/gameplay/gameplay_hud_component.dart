@@ -17,12 +17,16 @@ class GameplayHudComponent extends PositionComponent
   final SimaiJudgementFeedbackRenderer _feedbackRenderer =
       SimaiJudgementFeedbackRenderer();
 
-  // 中心与右上角显示仅监听 scoreRevision 与模式/尺寸变化，避免触控微移引发重建。
+  // 中心与右上角显示仅监听 scoreRevision 与模式/尺寸变化，并按实际文案差量重建。
   int _lastScoreRevision = -1;
   double _lastDimension = -1;
   SimaiGameplayCenterDisplayMode? _lastCenterMode;
   SimaiGameplayCenterDisplayMode? _lastTopRightMode;
   int _lastAutoAssistNotes = -1;
+  String? _lastCenterValueText;
+  String? _lastCenterLabelText;
+  double _lastCenterValueSize = -1;
+  String? _lastTopRightText;
   TextPainter? _centerValuePainter;
   TextPainter? _centerLabelPainter;
   TextPainter? _topRightPainter;
@@ -59,6 +63,7 @@ class GameplayHudComponent extends PositionComponent
         _lastAutoAssistNotes == autoAssistNotes) {
       return;
     }
+    final bool autoAssistChanged = _lastAutoAssistNotes != autoAssistNotes;
     _lastScoreRevision = scoreRevision;
     _lastDimension = dimension;
     _lastCenterMode = mode;
@@ -67,14 +72,16 @@ class GameplayHudComponent extends PositionComponent
     _rebuildCenterDisplay(dimension);
     _rebuildTopRightDisplay(topRightMode);
 
-    _autoPainter?.dispose();
-    if (autoAssistNotes > 0) {
-      _autoPainter = _text(
-        'AUTO ASSIST $autoAssistNotes',
-        _hudStyle.copyWith(color: const Color(0xFF80CBC4), fontSize: 12),
-      );
-    } else {
-      _autoPainter = null;
+    if (autoAssistChanged) {
+      _autoPainter?.dispose();
+      if (autoAssistNotes > 0) {
+        _autoPainter = _text(
+          'AUTO ASSIST $autoAssistNotes',
+          _hudStyle.copyWith(color: const Color(0xFF80CBC4), fontSize: 12),
+        );
+      } else {
+        _autoPainter = null;
+      }
     }
   }
 
@@ -91,6 +98,9 @@ class GameplayHudComponent extends PositionComponent
       _centerLabelPainter?.dispose();
       _centerValuePainter = null;
       _centerLabelPainter = null;
+      _lastCenterValueText = null;
+      _lastCenterLabelText = null;
+      _lastCenterValueSize = -1;
       return;
     }
     final value = switch (mode) {
@@ -133,31 +143,42 @@ class GameplayHudComponent extends PositionComponent
       SimaiGameplayCenterDisplayMode.none => '',
     };
     final valueSize = (dimension * 0.065).clamp(22.0, 42.0).toDouble();
-    _centerValuePainter?.dispose();
-    _centerValuePainter = _text(
-      value,
-      _hudStyle.copyWith(
-        fontSize: valueSize,
-        color: Colors.white.withValues(alpha: 0.88),
-        letterSpacing: -0.5,
-      ),
-    );
-    _centerLabelPainter?.dispose();
-    _centerLabelPainter = _text(
-      label,
-      _hudStyle.copyWith(
-        fontSize: (valueSize * 0.34).clamp(9.0, 13.0).toDouble(),
-        color: Colors.white.withValues(alpha: 0.62),
-        letterSpacing: 1.2,
-      ),
-    );
+    final bool sizeChanged = valueSize != _lastCenterValueSize;
+    if (sizeChanged || value != _lastCenterValueText || _centerValuePainter == null) {
+      _centerValuePainter?.dispose();
+      _centerValuePainter = _text(
+        value,
+        _hudStyle.copyWith(
+          fontSize: valueSize,
+          color: Colors.white.withValues(alpha: 0.88),
+          letterSpacing: -0.5,
+        ),
+      );
+      _lastCenterValueText = value;
+    }
+    if (sizeChanged || label != _lastCenterLabelText || _centerLabelPainter == null) {
+      _centerLabelPainter?.dispose();
+      _centerLabelPainter = _text(
+        label,
+        _hudStyle.copyWith(
+          fontSize: (valueSize * 0.34).clamp(9.0, 13.0).toDouble(),
+          color: Colors.white.withValues(alpha: 0.62),
+          letterSpacing: 1.2,
+        ),
+      );
+      _lastCenterLabelText = label;
+    }
+    _lastCenterValueSize = valueSize;
   }
 
   /// 构建游玩态右上角 11 模式统计文本。
   void _rebuildTopRightDisplay(SimaiGameplayCenterDisplayMode mode) {
-    _topRightPainter?.dispose();
     if (mode == SimaiGameplayCenterDisplayMode.none) {
-      _topRightPainter = null;
+      if (_topRightPainter != null || _lastTopRightText != null) {
+        _topRightPainter?.dispose();
+        _topRightPainter = null;
+        _lastTopRightText = null;
+      }
       return;
     }
     final text = switch (mode) {
@@ -183,9 +204,16 @@ class GameplayHudComponent extends PositionComponent
       SimaiGameplayCenterDisplayMode.none => '',
     };
     if (text.isEmpty) {
-      _topRightPainter = null;
+      if (_topRightPainter != null || _lastTopRightText != null) {
+        _topRightPainter?.dispose();
+        _topRightPainter = null;
+        _lastTopRightText = null;
+      }
       return;
     }
+    if (text == _lastTopRightText && _topRightPainter != null) return;
+    _lastTopRightText = text;
+    _topRightPainter?.dispose();
     _topRightPainter = _text(
       text,
       _hudStyle.copyWith(fontSize: 14, color: Colors.white),
@@ -202,6 +230,10 @@ class GameplayHudComponent extends PositionComponent
     _centerLabelPainter = null;
     _topRightPainter = null;
     _autoPainter = null;
+    _lastCenterValueText = null;
+    _lastCenterLabelText = null;
+    _lastCenterValueSize = -1;
+    _lastTopRightText = null;
     _feedbackRenderer.dispose();
     super.onRemove();
   }

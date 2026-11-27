@@ -48,6 +48,20 @@ Color _resolveSlideHeadColor(SimaiGame game, Note note, bool isEach) {
   return headColor;
 }
 
+String _resolveBarSlideHeadAssetKey(Color headColor) {
+  if (headColor == SimaiColors.slideBreak ||
+      headColor == SimaiColors.tapBreak) {
+    return 'bar_slide_head_break';
+  }
+  if (headColor == SimaiColors.slideEach || headColor == SimaiColors.tapEach) {
+    return 'bar_slide_head_each';
+  }
+  if (headColor == SimaiColors.tapNormal) {
+    return 'bar_slide_head_pink';
+  }
+  return 'bar_slide_head_normal';
+}
+
 Color _resolveSlidePathColor({
   required SimaiGame game,
   required SlidePath slidePath,
@@ -158,23 +172,41 @@ void _drawSlideVectorPass(
     final bool isEx =
         (note.styles & NoteStyles.ex) != 0 && game.highlightExNotes;
     if (isEx && alpha > 0) {
-      final double rotation = _resolveSlideHeadRotation(
-        game: game,
-        note: note,
-        collectionIndex: collectionIndex,
-        noteIndex: noteIndex,
-        state: state,
-      );
-      _drawStarHighlight(
-        canvas,
-        position: state.drawPosition,
-        color: headColor,
-        scale: state.drawScale,
-        alpha: alpha,
-        rotation: rotation,
-        noteScale: game.noteScale,
-        noteStyle: game.noteStyle,
-      );
+      if (game.noteStyle == SimaiNoteStyle.bar) {
+        final bool headIsBreak =
+            (note.styles & NoteStyles.breakHead) != 0 &&
+            !game.standardBreakSlide;
+        _drawTapHighlight(
+          canvas,
+          position: state.drawPosition,
+          color: headColor,
+          scale: state.drawScale,
+          alpha: alpha,
+          noteScale: game.noteScale,
+          noteStyle: SimaiNoteStyle.bar,
+          drawAngle: state.drawAngle,
+          isBreak: headIsBreak,
+          isEach: isEach,
+        );
+      } else {
+        final double rotation = _resolveSlideHeadRotation(
+          game: game,
+          note: note,
+          collectionIndex: collectionIndex,
+          noteIndex: noteIndex,
+          state: state,
+        );
+        _drawStarHighlight(
+          canvas,
+          position: state.drawPosition,
+          color: headColor,
+          scale: state.drawScale,
+          alpha: alpha,
+          rotation: rotation,
+          noteScale: game.noteScale,
+          noteStyle: game.noteStyle,
+        );
+      }
     }
   }
 
@@ -267,17 +299,16 @@ void _drawSlideVectorPass(
           Offset(fanLeftX[i], fanLeftY[i]) * drawScale + game.chartCenter;
       final Offset pRight =
           Offset(fanRightX[i], fanRightY[i]) * drawScale + game.chartCenter;
-      if (game.noteStyle.usesEnhancedVisuals) {
-        final double mainW = 12.0 * game.noteScale;
-        _fanArrowPaint
-          ..color = Colors.black.withAlpha((trackAlpha * 0.45).round())
-          ..strokeWidth = mainW + 4.0 * game.noteScale;
-        canvas.drawLine(pLeft, pCenter, _fanArrowPaint);
-        canvas.drawLine(pCenter, pRight, _fanArrowPaint);
-        _fanArrowPaint
-          ..color = effectiveColor.withAlpha(trackAlpha)
-          ..strokeWidth = mainW;
-      }
+      // WiFi 滑条轨道统一使用经典（机台）黑底描边样式，不受音符样式设置影响。
+      final double mainW = 12.0 * game.noteScale;
+      _fanArrowPaint
+        ..color = Colors.black.withAlpha((trackAlpha * 0.45).round())
+        ..strokeWidth = mainW + 4.0 * game.noteScale;
+      canvas.drawLine(pLeft, pCenter, _fanArrowPaint);
+      canvas.drawLine(pCenter, pRight, _fanArrowPaint);
+      _fanArrowPaint
+        ..color = effectiveColor.withAlpha(trackAlpha)
+        ..strokeWidth = mainW;
       canvas.drawLine(pLeft, pCenter, _fanArrowPaint);
       canvas.drawLine(pCenter, pRight, _fanArrowPaint);
     }
@@ -351,7 +382,6 @@ void _drawSlideArrowsSpritePass(
     final double arrowScale = game.noteScale;
     final double spriteSize = NoteAssetManager.slideArrowSpriteSize(arrowScale);
     final bool useBreakDualArrow =
-        game.noteStyle.usesEnhancedVisuals &&
         effectiveColor == SimaiColors.slideBreak &&
         game.noteAssets.hasAsset('slide_arrow_break');
     final String arrowKey =
@@ -416,29 +446,55 @@ void _drawSlideStarsSpritePass(
   required bool skipHead,
   required Map<double, int>? slideStartCounts,
 }) {
-  // 1) 星头（无头星或已判定头部时跳过；EX 光晕已在 Pass 1 绘制）
+  // 1) SLIDE 头部按键（受 TAP 样式统一管理；无头星或已判定头部时跳过，EX 光晕已在 Pass 1 绘制）
   if (!skipHead && state != null && state.progress >= 0.0) {
     final Color headColor = _resolveSlideHeadColor(game, note, isEach);
     final int alpha = _resolveSlideHeadAlpha(game, noteTime, state);
     if (alpha > 0) {
-      final double rotation = _resolveSlideHeadRotation(
-        game: game,
-        note: note,
-        collectionIndex: collectionIndex,
-        noteIndex: noteIndex,
-        state: state,
-      );
-      _drawStarWithCache(
-        canvas,
-        game: game,
-        position: state.drawPosition,
-        color: headColor,
-        scale: state.drawScale,
-        alpha: alpha,
-        rotation: rotation,
-        noteScale: game.noteScale,
-        highlight: false,
-      );
+      if (game.noteStyle == SimaiNoteStyle.bar) {
+        final String barHeadKey = _resolveBarSlideHeadAssetKey(headColor);
+        final double size =
+            NoteAssetManager.cellExtent * game.noteScale * state.drawScale;
+        if (!game.noteAssets.drawSprite(
+          canvas,
+          key: barHeadKey,
+          position: state.drawPosition,
+          size: size,
+          rotation: state.drawAngle,
+          alpha: alpha,
+        )) {
+          _drawStarWithCache(
+            canvas,
+            game: game,
+            position: state.drawPosition,
+            color: headColor,
+            scale: state.drawScale,
+            alpha: alpha,
+            rotation: state.drawAngle,
+            noteScale: game.noteScale,
+            highlight: false,
+          );
+        }
+      } else {
+        final double rotation = _resolveSlideHeadRotation(
+          game: game,
+          note: note,
+          collectionIndex: collectionIndex,
+          noteIndex: noteIndex,
+          state: state,
+        );
+        _drawStarWithCache(
+          canvas,
+          game: game,
+          position: state.drawPosition,
+          color: headColor,
+          scale: state.drawScale,
+          alpha: alpha,
+          rotation: rotation,
+          noteScale: game.noteScale,
+          highlight: false,
+        );
+      }
     }
   }
 

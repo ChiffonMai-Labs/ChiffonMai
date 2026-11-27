@@ -11,6 +11,7 @@ import '../simai_visual_tokens.dart';
 import '../utils/note_asset_manager.dart';
 import '../utils/note_utils.dart';
 import '../simai_game.dart';
+import 'astro_simple_star_painter.dart';
 import 'chart_runtime_index.dart';
 import 'touch_hold_painter.dart';
 
@@ -51,6 +52,9 @@ class _DeferredHitEffectEntry {
   double effectTime = 0.0;
   double holdDuration = 0.0;
   Color effectColor = const Color(0xFFFFC83D);
+  SimaiJudgeGrade grade = SimaiJudgeGrade.criticalPerfect;
+  bool isBreak = false;
+  int seed = 0;
 
   void clearRefs() {
     note = null;
@@ -99,12 +103,19 @@ class NotesBatchRenderer {
     int hitEffectCount = 0;
 
     try {
-      final double maxApproachTime = max(
-        game.ringApproachTime,
-        game.touchApproachTime,
-      );
       final double ringApproachTime = max(game.ringApproachTime, 0.001);
       final double touchApproachTime = max(game.touchApproachTime, 0.001);
+      final double slideTrackApproachTime = max(
+        NoteMotion.slideTrackApproachTime(
+          ringApproachTime: ringApproachTime,
+          slideDisplayTiming: game.slideDisplayTiming,
+        ),
+        0.001,
+      );
+      final double maxApproachTime = max(
+        max(ringApproachTime, touchApproachTime),
+        slideTrackApproachTime,
+      );
       final double chartTime = game.chartTime;
       final session = game.gameplaySession;
       final bool showHitEffects = game.showHitEffects;
@@ -197,7 +208,7 @@ class NotesBatchRenderer {
               approachTime: touchApproachTime,
               duration: note.length ?? 0.0,
               isEach: isEach,
-              noteStyle: game.noteStyle,
+              noteStyle: SimaiNoteStyle.arcade,
             );
             continue;
           }
@@ -227,15 +238,19 @@ class NotesBatchRenderer {
           }
 
           // 4) Slide 与无头星（forceInvalidate + 非空 slidePaths）：
-          //    头部已判定或无头星时跳过 computeDrawState，但仍绘制滑星轨道与移动滑星。
+          //    星头仍按 ringApproachTime 出现，滑星轨道按 slideTrackApproachTime 独立控制显示时机。
           if (note.type == NoteType.slide || isHeadlessSlide) {
-            if (collection.time - chartTime >= ringApproachTime) continue;
+            final double timeUntilHead = collection.time - chartTime;
+            final bool headInWindow = timeUntilHead < ringApproachTime;
+            final bool trackInWindow = timeUntilHead < slideTrackApproachTime;
+            if (!headInWindow && !trackInWindow) continue;
 
             final bool headResolved =
                 isHeadlessSlide ||
                 (session?.isHeadResolved(cIdx, nIdx) ?? false);
             final bool headPotentiallyVisible =
                 !headResolved &&
+                headInWindow &&
                 (chartTime < collection.time ||
                     (session != null &&
                         chartTime <=
@@ -261,7 +276,7 @@ class NotesBatchRenderer {
               noteTime: collection.time,
               isEach: isEach,
               isOpposite: isOpposite,
-              approachTime: ringApproachTime,
+              approachTime: slideTrackApproachTime,
               state: state,
               skipHead: isHeadlessSlide,
               slideStartCounts: slideStartCounts,
@@ -276,7 +291,7 @@ class NotesBatchRenderer {
               ..isEach = isEach
               ..isOpposite = isOpposite
               ..skipHead = isHeadlessSlide
-              ..approachTime = ringApproachTime
+              ..approachTime = slideTrackApproachTime
               ..state = state
               ..slideStartCounts = slideStartCounts;
             continue;
@@ -429,17 +444,27 @@ class NotesBatchRenderer {
   static List<double> hitEffectPulseAges({
     required double elapsed,
     double holdDuration = 0.0,
+    SimaiHitEffectStyle style = SimaiHitEffectStyle.ring,
+    bool isBreak = false,
   }) {
-    return _hitEffectPulseAges(elapsed: elapsed, holdDuration: holdDuration);
+    return _hitEffectPulseAges(
+      elapsed: elapsed,
+      holdDuration: holdDuration,
+      style: style,
+      isBreak: isBreak,
+    );
   }
 
   static List<double> hitEffectPulseAgesForNote({
     required Note note,
     required double elapsed,
+    SimaiHitEffectStyle style = SimaiHitEffectStyle.ring,
   }) {
     return _hitEffectPulseAges(
       elapsed: elapsed,
       holdDuration: _hitEffectHoldDuration(note),
+      style: style,
+      isBreak: _isBreakHitNote(note),
     );
   }
 

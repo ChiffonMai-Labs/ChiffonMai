@@ -19,7 +19,10 @@ export 'src/ui/simai_player.dart';
 export 'src/ui/simai_game.dart'
     show SimaiTextStyleResolver, simaiMaxHitSoundVolume;
 export 'src/ui/simai_mirror.dart';
+export 'src/ui/auto_play_mode.dart';
+export 'src/ui/note_motion.dart';
 export 'src/ui/note_style.dart';
+export 'src/ui/hit_effect_style.dart';
 export 'src/ui/simai_player_controls.dart';
 export 'src/ui/center_display_mode.dart';
 export 'src/gameplay/gameplay_models.dart';
