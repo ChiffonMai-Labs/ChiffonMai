@@ -8,9 +8,15 @@ import 'CurrentDataSourceNotifier.dart';
 
 /// 导出图片共用的个人信息（头部 `ExportPosterHeader` 和雷霆长图在用）。
 class ExportUserInfoWidget {
+  @visibleForTesting
+  static Map<String, dynamic>? debugUserInfoOverride;
+
   /// 在截图前读取账号数据。
-  static Future<Map<String, dynamic>> loadUserInfo() =>
-      _loadUserInfo(DateTime.now());
+  static Future<Map<String, dynamic>> loadUserInfo() {
+    final override = debugUserInfoOverride;
+    if (override != null) return Future<Map<String, dynamic>>.value(override);
+    return _loadUserInfo(DateTime.now());
+  }
 
   /// 预加载用户已选背景图到内存缓存，确保离屏截图首帧即命中，失败时静默回退纯色。
   static Future<void> precacheFrame(BuildContext context) async {

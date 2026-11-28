@@ -1052,19 +1052,21 @@ class MainActivity : AudioServiceActivity() {
         }
     }
 
-    // 不加 NEW_TASK：看图界面留在本任务里，返回时直接回到 App。
+    // 新开任务栈启动相册，避免在后台最近任务里仍归属于 ChiffonMai 进程。
     private fun startImageViewer(uri: Uri): Boolean {
         val intent = Intent(Intent.ACTION_VIEW)
             .setDataAndType(uri, contentResolver.getType(uri) ?: "image/*")
-            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
         return tryStartActivity(intent)
     }
 
     private fun openGallery(): Boolean {
         return tryStartActivity(
-            Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_GALLERY),
+            Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_GALLERY)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
         ) || tryStartActivity(
-            Intent(Intent.ACTION_VIEW, MediaStore.Images.Media.EXTERNAL_CONTENT_URI),
+            Intent(Intent.ACTION_VIEW, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
         )
     }
 
@@ -1096,6 +1098,7 @@ class MainActivity : AudioServiceActivity() {
             )
             val viewFolder = Intent(Intent.ACTION_VIEW)
                 .setDataAndType(uri, DocumentsContract.Document.MIME_TYPE_DIR)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             if (tryStartActivity(viewFolder)) return true
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false
             // 文件管理器未注册目录查看时，使用系统文件浏览界面定位到同一目录。

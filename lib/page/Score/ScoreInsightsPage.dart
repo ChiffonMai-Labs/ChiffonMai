@@ -2,16 +2,17 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/LocalizationsExtension.dart';
 import '../../service/GainRecommend/ScoreInsights.dart';
+import '../../service/Score/ScoreInsightsExportService.dart';
+import '../../service/System/BackgroundExportService.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../utils/AppTheme.dart';
-import '../../utils/ChartDifficulty.dart';
 import '../../utils/CoverUtil.dart';
-import '../../utils/ExportPathUtil.dart';
+import '../../utils/ExportQualitySelector.dart';
+import '../../utils/ImageEncodeUtil.dart';
 import '../../widgets/AnimatedChoiceBar.dart';
 import '../../widgets/AppToast.dart';
 import '../../widgets/AppUi.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
-import '../../widgets/ExportSuccessDialog.dart';
 import '../../widgets/SmoothLinearProgressIndicator.dart';
 import '../song_info/SongInfoPage.dart';
 
@@ -53,164 +54,176 @@ class _ScoreInsightsPageState extends State<ScoreInsightsPage> {
     });
   }
 
-  Future<void> _export(B50Audit audit, String? version) async {
+  Future<void> _exportImage(ScoreInsights score, {B50Audit? audit}) async {
     if (_exporting) return;
     final l10n = context.l10n;
-    setState(() => _exporting = true);
-    final rows = <List<Object?>>[
-      ['Version', version ?? l10n.awmcCurrentConstants],
-      ['B35/B15', l10n.awmcCurrentChartPools],
-      ['Current-constant fallbacks', audit.fallback],
-      ['B50 Rating', audit.baseline.raSum],
-      if (version != null) ['Rating change', audit.ratingDifference],
-      [
-        'Pool',
-        'Song ID',
-        'Chart',
-        'Difficulty',
-        'Constant',
-        'Used current constant',
-        'Achievement',
-        'Rating',
-        'Selected',
-        'Cutoff',
-        'Rating needed',
-        'Next target',
-        'Gain'
-      ],
-      for (final edge in audit.edges)
-        [
-          edge.record.isNew == true ? 'B15' : 'B35',
-          edge.record.songId,
-          edge.record.title,
-          ChartDifficulty.labelOf(edge.record.levelIndex),
-          edge.record.ds,
-          edge.usesCurrentConstant,
-          edge.record.achievements,
-          edge.record.ra,
-          edge.selected,
-          edge.floor,
-          edge.raNeeded,
-          edge.target,
-          edge.gain,
-        ],
-    ];
-    String cell(Object? value) {
-      var text = value?.toString() ?? '';
-      if (value is String && RegExp(r'^\s*[=+@-]').hasMatch(text)) {
-        text = "'$text";
+    final view = _view;
+    final version = _version;
+    final genre = _genre;
+    B50Audit? resolvedAudit = audit;
+    if (view == _View.audit && resolvedAudit == null) {
+      setState(() => _exporting = true);
+      try {
+        resolvedAudit = await (_audit ??= score.audit(version));
+      } catch (_) {
+        if (mounted) {
+          AppToast.show(l10n.flowExportFailedTryAgain, tone: AppToastTone.error);
+          setState(() => _exporting = false);
+        }
+        return;
       }
-      return '"${text.replaceAll('"', '""')}"';
+      if (!mounted) return;
+      setState(() => _exporting = false);
     }
 
-    final csv =
-        '\uFEFF${rows.map((row) => row.map(cell).join(',')).join('\r\n')}\r\n';
-    final name = 'b50-audit-${DateTime.now().millisecondsSinceEpoch}.csv';
-    try {
-      String? fallback;
-      final file = await ExportPathUtil.writeExportTextFile(
-        fileName: name,
-        content: csv,
-        subDir: '成绩分析',
-        onFallback: (path) => fallback = path,
-      );
-      if (mounted) {
-        await showExportSuccessDialog(context,
-            filePath: file.path, fileName: name, fallbackPath: fallback);
-      }
-    } catch (_) {
-      if (mounted) {
-        AppToast.show(l10n.flowExportFailedTryAgain, tone: AppToastTone.error);
-      }
-    } finally {
-      if (mounted) setState(() => _exporting = false);
-    }
+    final tab = switch (view) {
+      _View.overview => ScoreInsightsExportTab.overview,
+      _View.audit => ScoreInsightsExportTab.audit,
+      _View.coverage => ScoreInsightsExportTab.coverage,
+    };
+    final label = switch (view) {
+      _View.overview => '${l10n.awmcScoreInsights} · ${l10n.awmcScoreOverview}',
+      _View.audit => '${l10n.awmcScoreInsights} · ${l10n.awmcB50Audit}',
+      _View.coverage => '${l10n.awmcScoreInsights} · ${l10n.awmcChartCoverage}',
+    };
+    final estimatedCount = switch (view) {
+      _View.overview => 16,
+      _View.audit => (resolvedAudit?.edges.length ?? 12).clamp(6, 30),
+      _View.coverage => 18,
+    };
+    final quality = await ExportQualitySelector.show(
+      context,
+      estimatedPngSize: ImageEncodeUtil.estimatePngSize(songCount: estimatedCount),
+      exportingLabel: label,
+      enableBest50Background: true,
+      previewBuilder: (previewContext, previewQuality) =>
+          ScoreInsightsExportService.buildExportWidget(
+        previewContext,
+        tab: tab,
+        score: score,
+        audit: resolvedAudit,
+        version: version,
+        genre: genre,
+        theme: previewQuality.theme,
+        background: previewQuality.background,
+      ),
+    );
+    if (quality == null || !mounted) return;
+    BackgroundExport.run(
+      label: label,
+      task: (exportContext) => ScoreInsightsExportService.convertToImage(
+        exportContext,
+        tab: tab,
+        score: score,
+        audit: resolvedAudit,
+        version: version,
+        genre: genre,
+        theme: quality.theme,
+        background: quality.background,
+        jpegQuality: quality.jpegQuality,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final scheme = Theme.of(context).colorScheme;
-    return BackgroundPageScaffold(
-      title: l10n.awmcScoreInsights,
-      contentPadding: EdgeInsets.only(
-        bottom: MediaQuery.paddingOf(context).bottom,
-      ),
-      child: FutureBuilder(
-        future: _source,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final score = snapshot.data;
-          if (score == null) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(AppDesignTokens.gutter),
-                child: AppCard(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.insights_rounded,
-                          size: 40, color: scheme.onSurfaceVariant),
-                      const SizedBox(height: 10),
-                      Text(
-                        l10n.awmcInsightsNoCache,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: scheme.onSurfaceVariant),
+    return FutureBuilder(
+      future: _source,
+      builder: (context, snapshot) {
+        final score = snapshot.connectionState == ConnectionState.done
+            ? snapshot.data
+            : null;
+        return BackgroundPageScaffold(
+          title: l10n.awmcScoreInsights,
+          actions: [
+            if (score != null)
+              IconButton(
+                onPressed: _exporting ? null : () => _exportImage(score),
+                tooltip: l10n.flowExport,
+                icon: const Icon(Icons.ios_share, size: 20),
+              ),
+          ],
+          contentPadding: EdgeInsets.only(
+            bottom: MediaQuery.paddingOf(context).bottom,
+          ),
+          child: snapshot.connectionState != ConnectionState.done
+              ? const Center(child: CircularProgressIndicator())
+              : score == null
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppDesignTokens.gutter),
+                        child: AppCard(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.insights_rounded,
+                                  size: 40, color: scheme.onSurfaceVariant),
+                              const SizedBox(height: 10),
+                              Text(
+                                l10n.awmcInsightsNoCache,
+                                textAlign: TextAlign.center,
+                                style:
+                                    TextStyle(color: scheme.onSurfaceVariant),
+                              ),
+                              const SizedBox(height: 12),
+                              FilledButton.tonalIcon(
+                                onPressed: () => setState(() {
+                                  _source = ScoreInsights.load();
+                                  _audit = null;
+                                }),
+                                icon:
+                                    const Icon(Icons.refresh_rounded, size: 18),
+                                label: Text(l10n.flowRetry),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                      const SizedBox(height: 12),
-                      FilledButton.tonalIcon(
-                        onPressed: () => setState(() {
-                          _source = ScoreInsights.load();
-                          _audit = null;
-                        }),
-                        icon: const Icon(Icons.refresh_rounded, size: 18),
-                        label: Text(l10n.flowRetry),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }
-          return Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                    AppDesignTokens.gutter, 4, AppDesignTokens.gutter, 8),
-                child: AnimatedChoiceBar<_View>(
-                  values: _View.values,
-                  value: _view,
-                  label: (view) => switch (view) {
-                    _View.overview => l10n.awmcScoreOverview,
-                    _View.audit => l10n.awmcB50Audit,
-                    _View.coverage => l10n.awmcChartCoverage,
-                  },
-                  onChanged: (view) => setState(() {
-                    _view = view;
-                    if (view == _View.audit) _audit ??= score.audit(_version);
-                  }),
-                ),
-              ),
-              Expanded(
-                child: AnimatedSwitcher(
-                  duration: AppDesignTokens.motion(
-                      context, AppDesignTokens.mediumMotion),
-                  child: KeyedSubtree(
-                    key: ValueKey<_View>(_view),
-                    child: switch (_view) {
-                      _View.overview => _overview(score),
-                      _View.audit => _auditView(score),
-                      _View.coverage => _coverage(score),
-                    },
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
+                    )
+                  : Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(
+                              AppDesignTokens.gutter,
+                              4,
+                              AppDesignTokens.gutter,
+                              8),
+                          child: AnimatedChoiceBar<_View>(
+                            values: _View.values,
+                            value: _view,
+                            label: (view) => switch (view) {
+                              _View.overview => l10n.awmcScoreOverview,
+                              _View.audit => l10n.awmcB50Audit,
+                              _View.coverage => l10n.awmcChartCoverage,
+                            },
+                            onChanged: (view) => setState(() {
+                              _view = view;
+                              if (view == _View.audit) {
+                                _audit ??= score.audit(_version);
+                              }
+                            }),
+                          ),
+                        ),
+                        Expanded(
+                          child: AnimatedSwitcher(
+                            duration: AppDesignTokens.motion(
+                                context, AppDesignTokens.mediumMotion),
+                            child: KeyedSubtree(
+                              key: ValueKey<_View>(_view),
+                              child: switch (_view) {
+                                _View.overview => _overview(score),
+                                _View.audit => _auditView(score),
+                                _View.coverage => _coverage(score),
+                              },
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+        );
+      },
     );
   }
 
@@ -553,9 +566,10 @@ class _ScoreInsightsPageState extends State<ScoreInsightsPage> {
                       SizedBox(
                         height: 42,
                         child: FilledButton.tonalIcon(
-                          onPressed:
-                              _exporting ? null : () => _export(audit, version),
-                          icon: const Icon(Icons.ios_share, size: 18),
+                          onPressed: _exporting
+                              ? null
+                              : () => _exportImage(score, audit: audit),
+                          icon: const Icon(Icons.image_outlined, size: 18),
                           label: Text(l10n.flowExport),
                         ),
                       ),

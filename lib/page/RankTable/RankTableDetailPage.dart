@@ -9,6 +9,10 @@ import 'package:my_first_flutter_app/entity/DivingFish/Song.dart';
 import 'package:my_first_flutter_app/page/song_info/SongInfoPage.dart';
 import 'package:my_first_flutter_app/widgets/BackgroundPageScaffold.dart';
 import '../../service/RankTable/RankCompletionStore.dart';
+import '../../service/RankTable/RankTableExportService.dart';
+import '../../service/System/BackgroundExportService.dart';
+import '../../utils/ExportQualitySelector.dart';
+import '../../utils/ImageEncodeUtil.dart';
 import '../../widgets/EmptyState.dart';
 import '../../widgets/RankCompletionButton.dart';
 import '../../utils/AppDesignTokens.dart';
@@ -184,6 +188,71 @@ class _RankDetailPageState extends State<RankDetailPage> {
     }
   }
 
+  Future<void> _exportDetail(RankData rankData) async {
+    final songs = <RankCourseSongExportItem>[];
+    var allPlayed = true;
+    for (var i = 0; i < 4; i++) {
+      final songId = rankData.songIds[i];
+      final levelIndex = rankData.levelIndexes[i];
+      final achievement = _getAchievement(songId, levelIndex);
+      if (achievement.isEmpty) allPlayed = false;
+      final song = _getSongById(songId);
+      final minDamage = achievement.isNotEmpty && song != null
+          ? _calcMinDamage(song, levelIndex, achievement, rankData)
+          : null;
+      songs.add(RankCourseSongExportItem.fromData(
+        index: i,
+        songId: songId,
+        levelIndex: levelIndex,
+        song: song,
+        achievementText: achievement,
+        minDamage: minDamage,
+      ));
+    }
+    final result = allPlayed ? _calcResult(rankData) : null;
+    final completion = RankCompletionStore.instance.status(widget.rankName);
+    final totalAchievement = result?['totalAchievement'] as double?;
+    final remainingHp = result?['remainingHp'] as int?;
+    final isDead = result?['isDead'] as bool?;
+    final quality = await ExportQualitySelector.show(
+      context,
+      estimatedPngSize: ImageEncodeUtil.estimatePngSize(
+        songCount: 8,
+        cardsPerRow: 1,
+      ),
+      exportingLabel: rankData.name,
+      enableBest50Background: true,
+      previewBuilder: (previewContext, previewQuality) =>
+          RankTableExportService.buildDetailExportWidget(
+        previewContext,
+        rankData: rankData,
+        completion: completion,
+        songs: songs,
+        totalAchievement: totalAchievement,
+        remainingHp: remainingHp,
+        isDead: isDead,
+        theme: previewQuality.theme,
+        background: previewQuality.background,
+      ),
+    );
+    if (quality == null || !mounted) return;
+    BackgroundExport.run(
+      label: rankData.name,
+      task: (exportContext) => RankTableExportService.convertDetailToImage(
+        exportContext,
+        rankData: rankData,
+        completion: completion,
+        songs: songs,
+        totalAchievement: totalAchievement,
+        remainingHp: remainingHp,
+        isDead: isDead,
+        theme: quality.theme,
+        background: quality.background,
+        jpegQuality: quality.jpegQuality,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final rankData = RankListService().getRankData(widget.rankName);
@@ -202,6 +271,14 @@ class _RankDetailPageState extends State<RankDetailPage> {
 
     return BackgroundPageScaffold(
       title: widget.rankName,
+      actions: [
+        if (!_isLoading && rankData != null)
+          IconButton(
+            tooltip: context.l10n.flowExport,
+            icon: const Icon(Icons.ios_share, size: 20),
+            onPressed: () => _exportDetail(rankData),
+          ),
+      ],
       contentPadding:
           EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: _isLoading

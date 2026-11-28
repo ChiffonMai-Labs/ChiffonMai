@@ -12,6 +12,10 @@ import 'package:my_first_flutter_app/manager/DivingFish/MaimaiMusicDataManager.d
 import 'package:my_first_flutter_app/page/Collection/CollectionInfoPage.dart';
 import 'package:my_first_flutter_app/page/song_info/SongInfoPage.dart';
 import 'package:my_first_flutter_app/service/KaleidXScope/KaleidXScopeGateService.dart';
+import 'package:my_first_flutter_app/service/KaleidXScope/KaleidXScopeExportService.dart';
+import 'package:my_first_flutter_app/service/System/BackgroundExportService.dart';
+import 'package:my_first_flutter_app/utils/ExportQualitySelector.dart';
+import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:my_first_flutter_app/utils/CoverUtil.dart';
@@ -1090,6 +1094,99 @@ class _KaleidXScopeGatePageState extends State<KaleidXScopeGatePage> {
     }
     return BackgroundPageScaffold(
       title: _config.title,
+      actions: [
+        if (!_isLoading && _gateData != null)
+          IconButton(
+            tooltip: context.l10n.flowExport,
+            icon: const Icon(Icons.ios_share, size: 20),
+            onPressed: () async {
+              final gate = _gateData!;
+              final config = _config;
+              final doorTitle = gate.doorName ??
+                  gate.displayName ??
+                  config.doorName ??
+                  context.featureText(widget.title);
+              final prerequisite = gate.prerequisite ??
+                  (config.prerequisite == null
+                      ? null
+                      : '${config.prerequisiteIsArea ? context.l10n.featureDone : ''}${context.featureText(config.prerequisite!)}');
+              final keyRequirement = gate.keyRequirement ??
+                  (config.keyRequirement == null
+                      ? null
+                      : context.featureText(config.keyRequirement!));
+              final track1 = gate.track1Desc ??
+                  (config.track1 == null
+                      ? null
+                      : context.featureText(config.track1!));
+              final track2 = gate.track2Desc ??
+                  (config.track2 == null
+                      ? null
+                      : context.featureText(config.track2!));
+              final track3 = gate.track3Desc ??
+                  (config.track3 == null
+                      ? null
+                      : context.featureText(config.track3!));
+              final pool = List<int>.from(_poolIds);
+              final songs = Map<int, Song>.from(_songMap);
+              final marked = Set<String>.from(_markedIds);
+              final accent = _accent;
+              final markable = config.markKey != null;
+              final quality = await ExportQualitySelector.show(
+                context,
+                estimatedPngSize: ImageEncodeUtil.estimatePngSize(
+                  songCount: pool.take(24).length + 6,
+                ),
+                exportingLabel: doorTitle,
+                enableBest50Background: true,
+                previewBuilder: (previewContext, previewQuality) =>
+                    KaleidXScopeExportService.buildGateExportWidget(
+                  previewContext,
+                  gate: gate,
+                  doorTitle: doorTitle,
+                  gateColorKey: widget.color,
+                  accentColor: accent,
+                  assetPath: config.asset,
+                  prerequisite: prerequisite,
+                  keyRequirement: keyRequirement,
+                  track1: track1,
+                  track2: track2,
+                  track3: track3,
+                  songMap: songs,
+                  poolIds: pool,
+                  markedIds: marked,
+                  markable: markable,
+                  theme: previewQuality.theme,
+                  background: previewQuality.background,
+                ),
+              );
+              if (quality == null || !mounted) return;
+              BackgroundExport.run(
+                label: doorTitle,
+                task: (exportContext) =>
+                    KaleidXScopeExportService.convertGateToImage(
+                  exportContext,
+                  gate: gate,
+                  doorTitle: doorTitle,
+                  gateColorKey: widget.color,
+                  accentColor: accent,
+                  assetPath: config.asset,
+                  prerequisite: prerequisite,
+                  keyRequirement: keyRequirement,
+                  track1: track1,
+                  track2: track2,
+                  track3: track3,
+                  songMap: songs,
+                  poolIds: pool,
+                  markedIds: marked,
+                  markable: markable,
+                  theme: quality.theme,
+                  background: quality.background,
+                  jpegQuality: quality.jpegQuality,
+                ),
+              );
+            },
+          ),
+      ],
       bottom: const KaleidXScopeSourceNotice(),
       contentPadding:
           EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),

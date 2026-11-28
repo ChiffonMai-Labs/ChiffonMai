@@ -4,6 +4,10 @@ import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 import '../../service/KaleidXScope/KaleidXScopeGateService.dart';
+import '../../service/KaleidXScope/KaleidXScopeExportService.dart';
+import '../../service/System/BackgroundExportService.dart';
+import '../../utils/ExportQualitySelector.dart';
+import '../../utils/ImageEncodeUtil.dart';
 import 'KaleidXScopeGatePage.dart';
 
 class KaleidXScopeSelectPage extends StatefulWidget {
@@ -106,6 +110,48 @@ class _KaleidXScopeSelectPageState extends State<KaleidXScopeSelectPage> {
     return BackgroundPageScaffold(
       title: 'KALEIDXSCOPE',
       actions: [
+                IconButton(
+                  tooltip: context.l10n.flowExport,
+                  icon: const Icon(Icons.ios_share, size: 20),
+                  onPressed: () async {
+                    final snapshot = [
+                      for (final item in _scopeData)
+                        (
+                          color: item['type'] ?? '',
+                          title: item['title'] ?? '',
+                          asset: item['image'],
+                        ),
+                    ];
+                    final quality = await ExportQualitySelector.show(
+                      context,
+                      estimatedPngSize: ImageEncodeUtil.estimatePngSize(
+                        songCount: snapshot.length * 2,
+                        cardsPerRow: 2,
+                      ),
+                      exportingLabel: 'KALEIDXSCOPE',
+                      enableBest50Background: true,
+                      previewBuilder: (previewContext, previewQuality) =>
+                          KaleidXScopeExportService.buildOverviewExportWidget(
+                        previewContext,
+                        gates: snapshot,
+                        theme: previewQuality.theme,
+                        background: previewQuality.background,
+                      ),
+                    );
+                    if (quality == null || !mounted) return;
+                    BackgroundExport.run(
+                      label: 'KALEIDXSCOPE',
+                      task: (exportContext) =>
+                          KaleidXScopeExportService.convertOverviewToImage(
+                        exportContext,
+                        gates: snapshot,
+                        theme: quality.theme,
+                        background: quality.background,
+                        jpegQuality: quality.jpegQuality,
+                      ),
+                    );
+                  },
+                ),
                 IconButton(
                     onPressed: _loadGates,
                     icon: const Icon(Icons.refresh),

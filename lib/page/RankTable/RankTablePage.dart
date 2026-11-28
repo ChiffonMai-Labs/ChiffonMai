@@ -8,6 +8,10 @@ import 'package:my_first_flutter_app/utils/CoverUtil.dart';
 import 'package:my_first_flutter_app/page/RankTable/RankTableDetailPage.dart';
 import 'package:my_first_flutter_app/widgets/BackgroundPageScaffold.dart';
 import '../../service/RankTable/RankCompletionStore.dart';
+import '../../service/RankTable/RankTableExportService.dart';
+import '../../service/System/BackgroundExportService.dart';
+import '../../utils/ExportQualitySelector.dart';
+import '../../utils/ImageEncodeUtil.dart';
 import '../../widgets/AppUi.dart';
 import '../../widgets/RankCompletionButton.dart';
 import '../../widgets/SmoothLinearProgressIndicator.dart';
@@ -58,12 +62,65 @@ class _RankListPageState extends State<RankListPage> {
     ];
   }
 
+  Future<void> _exportOverview() async {
+    final label = context.l10n.featureRankTable;
+    final groups = [
+      for (final (groupLabel, ranks) in _groups())
+        (context.featureText(groupLabel), List<String>.from(ranks)),
+    ];
+    final allRanks = [for (final (_, r) in groups) ...r];
+    final completions = {
+      for (final r in allRanks) r: _completion.status(r),
+    };
+    final rankDataMap = {
+      for (final r in allRanks) r: _service.getRankData(r),
+    };
+    final quality = await ExportQualitySelector.show(
+      context,
+      estimatedPngSize: ImageEncodeUtil.estimatePngSize(
+        songCount: allRanks.length,
+        cardsPerRow: 3,
+      ),
+      exportingLabel: label,
+      enableBest50Background: true,
+      previewBuilder: (previewContext, previewQuality) =>
+          RankTableExportService.buildOverviewExportWidget(
+        previewContext,
+        groups: groups,
+        completions: completions,
+        rankDataMap: rankDataMap,
+        theme: previewQuality.theme,
+        background: previewQuality.background,
+      ),
+    );
+    if (quality == null || !mounted) return;
+    BackgroundExport.run(
+      label: label,
+      task: (exportContext) => RankTableExportService.convertOverviewToImage(
+        exportContext,
+        groups: groups,
+        completions: completions,
+        rankDataMap: rankDataMap,
+        theme: quality.theme,
+        background: quality.background,
+        jpegQuality: quality.jpegQuality,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final groups = _groups();
     final (_, ranks) = groups[_group];
     return BackgroundPageScaffold(
       title: context.l10n.featureRankTable,
+      actions: [
+        IconButton(
+          tooltip: context.l10n.flowExport,
+          icon: const Icon(Icons.ios_share, size: 20),
+          onPressed: _exportOverview,
+        ),
+      ],
       contentPadding:
           EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: SingleChildScrollView(

@@ -2,8 +2,12 @@ import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'package:my_first_flutter_app/service/Recommend/DailyRecommendService.dart';
+import 'package:my_first_flutter_app/service/Recommend/RecommendExportService.dart';
+import 'package:my_first_flutter_app/service/System/BackgroundExportService.dart';
 import 'package:my_first_flutter_app/entity/DivingFish/Song.dart';
 import 'package:my_first_flutter_app/utils/CoverUtil.dart';
+import 'package:my_first_flutter_app/utils/ExportQualitySelector.dart';
+import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import '../song_info/SongInfoPage.dart';
 import '../../widgets/EmptyState.dart';
@@ -207,6 +211,48 @@ class _DailyRecommendPageState extends State<DailyRecommendPage> {
     return BackgroundPageScaffold(
       title: context.l10n.featureDailyRecommendations,
       actions: [
+        if (!_isLoading && _songs.isNotEmpty)
+          IconButton(
+            tooltip: context.l10n.flowExport,
+            icon: const Icon(Icons.ios_share, size: 20),
+            onPressed: () async {
+              final label = context.l10n.featureDailyRecommendations;
+              final songs = [for (final item in _songs) item.song];
+              final dateLabel = _todayDate.isEmpty
+                  ? _getTodayDisplay()
+                  : _todayDate;
+              final quality = await ExportQualitySelector.show(
+                context,
+                estimatedPngSize: ImageEncodeUtil.estimatePngSize(
+                  songCount: songs.length + 2,
+                  cardsPerRow: 1,
+                ),
+                exportingLabel: label,
+                enableBest50Background: true,
+                previewBuilder: (previewContext, previewQuality) =>
+                    RecommendExportService.buildDailyExportWidget(
+                  previewContext,
+                  songs: songs,
+                  dateLabel: dateLabel,
+                  theme: previewQuality.theme,
+                  background: previewQuality.background,
+                ),
+              );
+              if (quality == null || !mounted) return;
+              BackgroundExport.run(
+                label: label,
+                task: (exportContext) =>
+                    RecommendExportService.convertDailyToImage(
+                  exportContext,
+                  songs: songs,
+                  dateLabel: dateLabel,
+                  theme: quality.theme,
+                  background: quality.background,
+                  jpegQuality: quality.jpegQuality,
+                ),
+              );
+            },
+          ),
         IconButton(
           icon: const Icon(Icons.refresh_rounded),
           tooltip: context.l10n.flowAnotherBatch,

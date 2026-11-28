@@ -5,7 +5,11 @@ import 'package:flutter/material.dart';
 import '../../service/GainRecommend/GainFeedbackStore.dart';
 import '../../service/GainRecommend/GainRecommendCore.dart';
 import '../../service/GainRecommend/GainRecommendService.dart';
+import '../../service/Recommend/RecommendExportService.dart';
+import '../../service/System/BackgroundExportService.dart';
 import '../../service/Attendance/NextPlayQueueStore.dart';
+import '../../utils/ExportQualitySelector.dart';
+import '../../utils/ImageEncodeUtil.dart';
 import '../../manager/DivingFish/MaimaiMusicDataManager.dart';
 import '../../utils/AppTheme.dart';
 import '../../utils/ChartDifficulty.dart';
@@ -338,6 +342,54 @@ class _GainRecommendPageState extends State<GainRecommendPage> {
     return BackgroundPageScaffold(
       title: context.l10n.featureRatingGainRecommendations,
       actions: [
+        if (!_loading && _snapshot != null && _page != null)
+          IconButton(
+            tooltip: context.l10n.flowExport,
+            icon: const Icon(Icons.ios_share, size: 20),
+            onPressed: () async {
+              final label = context.l10n.featureRatingGainRecommendations;
+              final snapshot = _snapshot!;
+              final page = _page!;
+              final batch = _batch;
+              final routeLabel = _route == null
+                  ? context.l10n.flowMixed
+                  : _routeLabel(context, _route!);
+              final quality = await ExportQualitySelector.show(
+                context,
+                estimatedPngSize: ImageEncodeUtil.estimatePngSize(
+                  songCount: page.items.length + 4,
+                  cardsPerRow: 1,
+                ),
+                exportingLabel: label,
+                enableBest50Background: true,
+                previewBuilder: (previewContext, previewQuality) =>
+                    RecommendExportService.buildGainExportWidget(
+                  previewContext,
+                  snapshot: snapshot,
+                  page: page,
+                  batch: batch,
+                  routeLabel: routeLabel,
+                  theme: previewQuality.theme,
+                  background: previewQuality.background,
+                ),
+              );
+              if (quality == null || !mounted) return;
+              BackgroundExport.run(
+                label: label,
+                task: (exportContext) =>
+                    RecommendExportService.convertGainToImage(
+                  exportContext,
+                  snapshot: snapshot,
+                  page: page,
+                  batch: batch,
+                  routeLabel: routeLabel,
+                  theme: quality.theme,
+                  background: quality.background,
+                  jpegQuality: quality.jpegQuality,
+                ),
+              );
+            },
+          ),
         IconButton(
           tooltip: context.l10n.flowManageFeedback,
           icon: const Icon(Icons.rule_rounded),

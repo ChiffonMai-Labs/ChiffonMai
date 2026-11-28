@@ -5,8 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:my_first_flutter_app/manager/DivingFish/ProberException.dart';
 import 'package:my_first_flutter_app/service/Score/FriendCompareService.dart';
+import 'package:my_first_flutter_app/service/Score/FriendCompareExportService.dart';
+import 'package:my_first_flutter_app/service/System/BackgroundExportService.dart';
 import 'package:my_first_flutter_app/entity/Score/FriendComparisonResult.dart';
 import 'package:my_first_flutter_app/utils/CoverUtil.dart';
+import 'package:my_first_flutter_app/utils/ExportQualitySelector.dart';
+import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
 import '../../service/GainRecommend/ScoreInsights.dart';
 import '../Best50/CooperativeBest50Page.dart';
 import 'package:my_first_flutter_app/utils/ColorUtil.dart';
@@ -205,12 +209,69 @@ class _FriendComparePageState extends State<FriendComparePage> {
     }
   }
 
+  Future<void> _exportResult(ComparisonResult result) async {
+    final l10n = context.l10n;
+    final myLabel = _isCrossSource
+        ? l10n.flowMeP0(context.featureText(_mySource.shortDisplayName))
+        : l10n.flowMe;
+    final friendLabel = _isCrossSource
+        ? '${result.friendNickname} · ${context.featureText(_friendSource.shortDisplayName)}'
+        : result.friendNickname;
+    final filtered = result.commonCharts.where((c) {
+      if (_filterLevelIndex != null && c.levelIndex != _filterLevelIndex) {
+        return false;
+      }
+      return _matchesResult(c, _filterResult);
+    }).toList();
+    final quality = await ExportQualitySelector.show(
+      context,
+      estimatedPngSize: ImageEncodeUtil.estimatePngSize(
+        songCount: filtered.length.clamp(6, 24) + 6,
+        cardsPerRow: 1,
+      ),
+      exportingLabel: l10n.featureFriendComparison,
+      enableBest50Background: true,
+      previewBuilder: (previewContext, previewQuality) =>
+          FriendCompareExportService.buildExportWidget(
+        previewContext,
+        result: result,
+        charts: filtered,
+        myLabel: myLabel,
+        friendLabel: friendLabel,
+        theme: previewQuality.theme,
+        background: previewQuality.background,
+      ),
+    );
+    if (quality == null || !mounted) return;
+    BackgroundExport.run(
+      label: l10n.featureFriendComparison,
+      task: (exportContext) => FriendCompareExportService.convertToImage(
+        exportContext,
+        result: result,
+        charts: filtered,
+        myLabel: myLabel,
+        friendLabel: friendLabel,
+        theme: quality.theme,
+        background: quality.background,
+        jpegQuality: quality.jpegQuality,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final result = _result;
     return BackgroundPageScaffold(
       title: context.l10n.featureFriendComparison,
+      actions: [
+        if (result != null)
+          IconButton(
+            tooltip: context.l10n.flowExport,
+            icon: const Icon(Icons.ios_share, size: 20),
+            onPressed: () => _exportResult(result),
+          ),
+      ],
       resizeToAvoidBottomInset: false,
       child: SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:my_first_flutter_app/l10n/FeatureLocalizations.dart';
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
@@ -134,6 +135,34 @@ class _ExportSuccessDialogState extends State<_ExportSuccessDialog> {
     if (mounted) Navigator.of(context).pop();
   }
 
+  /// 三按钮共存时检测「打开文件夹」和「查看图片」能否在半宽内保持单行；否则改 1 列竖排。
+  int _threeButtonColumns(
+    BuildContext context, {
+    required String openFolderLabel,
+    required String viewImageLabel,
+  }) {
+    final dialogWidth =
+        math.min(MediaQuery.sizeOf(context).width - 48, 420.0);
+    final cellWidth = (dialogWidth - 40 - 8) / 2;
+    final labelStyle = DefaultTextStyle.of(context)
+        .style
+        .merge(AppTheme.font(fontSize: 14, fontWeight: FontWeight.w700));
+    final textScaler = MediaQuery.textScalerOf(context);
+    final direction = Directionality.of(context);
+    for (final label in [openFolderLabel, viewImageLabel]) {
+      final painter = TextPainter(
+        text: TextSpan(text: label, style: labelStyle),
+        textDirection: direction,
+        textScaler: textScaler,
+        maxLines: 1,
+      )..layout();
+      final fitsHalfRow = painter.width + 56 <= cellWidth;
+      painter.dispose();
+      if (!fitsHalfRow) return 1;
+    }
+    return 2;
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -141,12 +170,20 @@ class _ExportSuccessDialogState extends State<_ExportSuccessDialog> {
     final canOpenFolder = ExportPathUtil.supportsOpeningFolder &&
         widget.fallbackPath == null &&
         !widget.filePath.startsWith('content://');
+    final hasThreeButtons = widget.showViewImage && canOpenFolder;
     final warnColor = AppColors.warningOrange(Theme.of(context).brightness);
     final warnStyle =
         TextStyle(fontSize: 12, height: 1.4, color: scheme.onSurface);
     return AppDialog(
       title: widget.title,
       tone: AppDialogTone.success,
+      actionColumns: hasThreeButtons
+          ? _threeButtonColumns(
+              context,
+              openFolderLabel: context.l10n.flowOpenExportFolder,
+              viewImageLabel: context.l10n.flowViewImage,
+            )
+          : null,
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -205,35 +242,73 @@ class _ExportSuccessDialogState extends State<_ExportSuccessDialog> {
         ],
       ),
       actions: [
-        if (widget.showViewImage) ...[
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(context.l10n.featureClose),
+        if (hasThreeButtons) ...[
+          FilledButton.icon(
+            onPressed: _openingFolder ? null : _openFolder,
+            icon: const Icon(Icons.folder_open_outlined, size: 16),
+            label: Text(
+              context.l10n.flowOpenExportFolder,
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
           FilledButton.icon(
             onPressed: _viewImage,
             icon: const Icon(Icons.image_outlined, size: 16),
-            label: Text(context.l10n.flowViewImage),
-          ),
-        ] else ...[
-          if (!canOpenFolder)
-            FilledButton.tonalIcon(
-              onPressed: _copyPath,
-              icon: Icon(_copied ? Icons.check : Icons.copy, size: 16),
-              label: Text(
-                  _copied ? context.l10n.flowCopied : context.l10n.flowCopyPath),
+            label: Text(
+              context.l10n.flowViewImage,
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
             ),
+          ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(),
             child: Text(context.l10n.featureClose),
           ),
+        ] else ...[
+          if (widget.showViewImage) ...[
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(context.l10n.featureClose),
+            ),
+            FilledButton.icon(
+              onPressed: _viewImage,
+              icon: const Icon(Icons.image_outlined, size: 16),
+              label: Text(
+                context.l10n.flowViewImage,
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ] else ...[
+            if (!canOpenFolder)
+              FilledButton.tonalIcon(
+                onPressed: _copyPath,
+                icon: Icon(_copied ? Icons.check : Icons.copy, size: 16),
+                label: Text(_copied
+                    ? context.l10n.flowCopied
+                    : context.l10n.flowCopyPath),
+              ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(context.l10n.featureClose),
+            ),
+          ],
+          if (canOpenFolder)
+            FilledButton.icon(
+              onPressed: _openingFolder ? null : _openFolder,
+              icon: const Icon(Icons.folder_open_outlined, size: 16),
+              label: Text(
+                context.l10n.flowOpenExportFolder,
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
         ],
-        if (canOpenFolder)
-          FilledButton.icon(
-            onPressed: _openingFolder ? null : _openFolder,
-            icon: const Icon(Icons.folder_open_outlined, size: 16),
-            label: Text(context.l10n.flowOpenExportFolder),
-          ),
       ],
     );
   }
