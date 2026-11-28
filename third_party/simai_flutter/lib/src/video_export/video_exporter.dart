@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 
 import '../ui/simai_game.dart';
 import '../ui/simai_player.dart';
+import '../ui/utils/custom_file_probe.dart';
 import 'video_export_models.dart';
 import 'video_export_platform.dart';
 import 'video_export_timeline.dart';
@@ -291,6 +292,14 @@ class SimaiVideoExporter with WidgetsBindingObserver {
       final suggestedDisplayName =
           options.displayName ??
           '${metadata.title}_${metadata.difficulty.label}_${DateTime.now().millisecondsSinceEpoch}.mp4';
+      final rawCustomHitPath = snapshotController.customHitSoundPath?.trim();
+      final resolvedCustomHitPath =
+          (includesHits &&
+              rawCustomHitPath != null &&
+              rawCustomHitPath.isNotEmpty &&
+              customFileExists(rawCustomHitPath))
+          ? rawCustomHitPath
+          : null;
       session = await _platform.start(
         width: outputWidth,
         height: outputHeight,
@@ -299,6 +308,7 @@ class SimaiVideoExporter with WidgetsBindingObserver {
         outputPath: options.outputPath,
         audioAsset: snapshotController.audioAsset,
         audioFilePath: snapshotController.audioFilePath,
+        hitSoundFilePath: resolvedCustomHitPath,
         audioMode: nativeAudioMode.name,
         pvVideoPath: hasPvVideo ? pvVideoPath : null,
         pvRect: pvRect,
@@ -336,6 +346,8 @@ class SimaiVideoExporter with WidgetsBindingObserver {
         hitEventTimesUs: hitEvents,
         includeMusic: includesMusic,
         includeHitSounds: includesHits,
+        hitSoundDurationSeconds: (session.hitSoundDurationUs / 1000000.0)
+            .clamp(0.05, 5.0),
         fps: fps,
       );
       final estimatedFileSizeBytes = estimateSimaiVideoFileSizeBytes(
@@ -619,6 +631,8 @@ SimaiPlayerController createSimaiVideoExportControllerSnapshot(
     ..topRightDisplayMode = source.topRightDisplayMode
     ..noteStyle = source.noteStyle
     ..holdStyle = source.holdStyle
+    ..customNoteSkin = source.customNoteSkin
+    ..customHitSoundPath = source.customHitSoundPath
     ..showCornerInfo = source.showCornerInfo
     ..showDetailedPerformanceInfo = source.showDetailedPerformanceInfo;
   return snapshot;

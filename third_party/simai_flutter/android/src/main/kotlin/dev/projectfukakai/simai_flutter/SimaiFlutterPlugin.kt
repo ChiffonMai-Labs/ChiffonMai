@@ -139,6 +139,7 @@ class SimaiFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             "assets/answer.wav",
             "simai_flutter",
         )
+        val hitSoundFilePath = call.argument<String>("hitSoundFilePath")?.takeIf { it.isNotBlank() }
         val pvVideoPath = call.argument<String>("pvVideoPath")?.takeIf { it.isNotBlank() }
         val pvRect = call.argument<List<Number>>("pvRect")?.map { it.toInt() }?.toIntArray()
         val saveToGallery = call.argument<Boolean>("saveToGallery") ?: false
@@ -155,6 +156,7 @@ class SimaiFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             audioAssetKey = audioAssetKey,
             audioFilePath = call.argument("audioFilePath"),
             hitAssetKey = hitAssetKey,
+            hitSoundFilePath = hitSoundFilePath,
             audioMode = call.requireString("audioMode"),
             pvVideoPath = pvVideoPath,
             pvRect = pvRect,
@@ -174,6 +176,7 @@ class SimaiFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 "bufferAddresses" to session.frameBuffers.map(::nativeBufferAddress),
                 "bufferLength" to session.frameByteCount,
                 "audioDurationUs" to session.audioDurationUs,
+                "hitSoundDurationUs" to session.hitSoundDurationUs,
                 "outputPath" to session.outputFile.absolutePath,
             ),
         )

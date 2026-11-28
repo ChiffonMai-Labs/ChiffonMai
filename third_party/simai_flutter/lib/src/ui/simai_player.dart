@@ -93,6 +93,8 @@ class SimaiPlayerController extends ChangeNotifier {
   SimaiCenterDisplayMode _topRightDisplayMode = SimaiCenterDisplayMode.combo;
   SimaiNoteStyle _noteStyle = SimaiNoteStyle.arcade;
   SimaiNoteStyle _holdStyle = SimaiNoteStyle.arcade;
+  SimaiCustomNoteSkin _customNoteSkin = SimaiCustomNoteSkin.empty;
+  String? _customHitSoundPath;
   bool _showCornerInfo = true;
   bool _showDetailedPerformanceInfo = false;
 
@@ -177,6 +179,8 @@ class SimaiPlayerController extends ChangeNotifier {
   SimaiCenterDisplayMode get topRightDisplayMode => _topRightDisplayMode;
   SimaiNoteStyle get noteStyle => _noteStyle;
   SimaiNoteStyle get holdStyle => _holdStyle;
+  SimaiCustomNoteSkin get customNoteSkin => _customNoteSkin;
+  String? get customHitSoundPath => _customHitSoundPath;
   bool get showCornerInfo => _showCornerInfo;
   bool get showDetailedPerformanceInfo => _showDetailedPerformanceInfo;
 
@@ -447,6 +451,23 @@ class SimaiPlayerController extends ChangeNotifier {
     notifyListeners();
   }
 
+  set customNoteSkin(SimaiCustomNoteSkin value) {
+    if (_customNoteSkin == value) return;
+    _customNoteSkin = value;
+    _applyToGame();
+    notifyListeners();
+  }
+
+  set customHitSoundPath(String? value) {
+    final normalized = (value != null && value.trim().isNotEmpty)
+        ? value.trim()
+        : null;
+    if (_customHitSoundPath == normalized) return;
+    _customHitSoundPath = normalized;
+    _applyToGame();
+    notifyListeners();
+  }
+
   set showCornerInfo(bool value) {
     if (_showCornerInfo == value) return;
     _showCornerInfo = value;
@@ -671,6 +692,9 @@ class SimaiPlayerController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> waitForNoteAssetsReady() =>
+      _game?.waitForNoteAssetsReady() ?? Future<void>.value();
+
   void _applyToGame({bool resyncAudio = false}) {
     final game = _game;
     if (game == null) return;
@@ -705,11 +729,17 @@ class SimaiPlayerController extends ChangeNotifier {
     game.showAchievementRate = _showAchievementRate;
     game.centerDisplayMode = _centerDisplayMode;
     game.topRightDisplayMode = _topRightDisplayMode;
+    final bool assetRebuildPending =
+        game.noteStyle != _noteStyle || game.customNoteSkin != _customNoteSkin;
     game.setNoteStyle(_noteStyle);
     game.setHoldStyle(_holdStyle);
+    game.setCustomNoteSkin(_customNoteSkin);
+    game.setCustomHitSoundPath(_customHitSoundPath);
     game.showCornerInfo = _showCornerInfo;
     game.showDetailedPerformanceInfo = _showDetailedPerformanceInfo;
-    game.invalidateNotes();
+    if (!assetRebuildPending) {
+      game.invalidateNotes();
+    }
     if (resyncAudio) {
       game.seek(game.chartTime, syncAudio: true);
     }
@@ -839,6 +869,8 @@ class _SimaiPlayerState extends State<SimaiPlayer> {
       topRightDisplayMode: controller.topRightDisplayMode,
       noteStyle: controller.noteStyle,
       holdStyle: controller.holdStyle,
+      customNoteSkin: controller.customNoteSkin,
+      customHitSoundPath: controller.customHitSoundPath,
       showCornerInfo: controller.showCornerInfo,
       showDetailedPerformanceInfo: controller.showDetailedPerformanceInfo,
       hasVideoBackground: widget.backgroundVideo != null,
@@ -1449,6 +1481,12 @@ class _SimaiSourceOverlayState extends State<_SimaiSourceOverlay> {
   }
 }
 
+typedef SimaiCustomSettingBuilder = Widget Function(
+  BuildContext context,
+  SimaiPlayerController controller,
+  VoidCallback onChanged,
+);
+
 typedef SimaiSwitchBuilder = Widget Function(
   BuildContext context,
   bool value,
@@ -1478,6 +1516,8 @@ class SimaiPlayerPage extends StatefulWidget {
   final ValueChanged<SimaiVideoExportResult>? onVideoExported;
   final Widget? beforeTimeline;
   final Widget? extraDisplaySettings;
+  final SimaiCustomSettingBuilder? customNoteSkinSettingBuilder;
+  final SimaiCustomSettingBuilder? customHitSoundSettingBuilder;
   final TextStyle? displayFont;
   final SimaiTextStyleResolver? textStyleResolver;
   final Future<void> Function()? prepareFonts;
@@ -1507,6 +1547,8 @@ class SimaiPlayerPage extends StatefulWidget {
     this.onVideoExported,
     this.beforeTimeline,
     this.extraDisplaySettings,
+    this.customNoteSkinSettingBuilder,
+    this.customHitSoundSettingBuilder,
     this.displayFont,
     this.textStyleResolver,
     this.prepareFonts,
@@ -1682,6 +1724,8 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
             pvPreviewBuilder: widget.pvPreviewBuilder,
             initialUsePvBackground: widget.initialExportUsePvBackground,
             initialPvVideoPath: widget.initialExportPvVideoPath,
+            customNoteSkinSettingBuilder: widget.customNoteSkinSettingBuilder,
+            customHitSoundSettingBuilder: widget.customHitSoundSettingBuilder,
             task:
                 SimaiVideoExporter.instance.activeTask ??
                 SimaiVideoExporter.instance.lastCompletedTask,
@@ -1962,6 +2006,14 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
                           ],
                           onChanged: (v) => controller.holdStyle = v,
                         ),
+                        if (widget.customNoteSkinSettingBuilder != null) ...[
+                          const SizedBox(height: 12),
+                          widget.customNoteSkinSettingBuilder!(
+                            context,
+                            controller,
+                            () {},
+                          ),
+                        ],
                         const SizedBox(height: 16),
                         _buildSegmentedSetting<SimaiBackgroundMode>(
                           context,
@@ -2374,6 +2426,12 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
                           value: controller.hitSoundEnabled,
                           onChanged: (v) => controller.hitSoundEnabled = v,
                         ),
+                        if (widget.customHitSoundSettingBuilder != null)
+                          widget.customHitSoundSettingBuilder!(
+                            context,
+                            controller,
+                            () {},
+                          ),
                         _buildSliderSetting(
                           context,
                           label: '音乐音量',
@@ -2491,6 +2549,7 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
 
   /// 构建“随机判定明细 + 重新随机判定”区域，仅在含随机判定的模拟模式下展示。
   Widget _buildAutoPlayRandomPanel(BuildContext context) {
+    final controller = widget.controller;
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     return Padding(

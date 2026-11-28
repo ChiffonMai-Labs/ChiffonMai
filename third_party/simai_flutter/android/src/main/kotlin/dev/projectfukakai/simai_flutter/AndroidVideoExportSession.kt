@@ -25,6 +25,7 @@ internal class AndroidVideoExportSession(
     private val audioAssetKey: String?,
     private val audioFilePath: String?,
     private val hitAssetKey: String,
+    private val hitSoundFilePath: String? = null,
     private val audioMode: String,
     private val pvVideoPath: String? = null,
     private val pvRect: IntArray? = null,
@@ -43,11 +44,14 @@ internal class AndroidVideoExportSession(
     } ?: defaultOutputFile()
     var audioDurationUs: Long = 0
         private set
+    var hitSoundDurationUs: Long = 100_000L
+        private set
 
     private val workingDirectory = File(context.cacheDir, "simai_video_${id}")
     private val videoOnlyFile = File(workingDirectory, "video.mp4")
     private val finalMuxedFile = File(workingDirectory, "final.mp4")
     private var materializedAudioFile: File? = null
+    private var materializedHitSoundFile: File? = null
     private var encoder: HardwareVideoEncoder? = null
     // 固定单线程驱动 EGL 与硬编生命周期，避免 Flutter 后台任务队列在系统中断（如下拉通知栏）后切换工作线程触发 EGL_BAD_ACCESS。
     private val encoderExecutor: ExecutorService = Executors.newSingleThreadExecutor { runnable ->
@@ -87,6 +91,16 @@ internal class AndroidVideoExportSession(
                 ?: error("The selected audio mode requires a music source.")
             require(audio.isFile) { "Music source does not exist: ${audio.absolutePath}" }
             audioDurationUs = probeAudioDurationUs(audio)
+            if (audioMode == "musicAndHitSounds") {
+                val resolvedHitFile = hitSoundFilePath
+                    ?.let(::File)
+                    ?.takeIf { it.isFile }
+                    ?: copyAsset(hitAssetKey, "answer.wav")
+                materializedHitSoundFile = resolvedHitFile
+                hitSoundDurationUs = runCatching { probeAudioDurationUs(resolvedHitFile) }
+                    .getOrDefault(100_000L)
+                    .coerceIn(50_000L, 5_000_000L)
+            }
         }
         if (pvVideoPath != null) {
             require(pvRect != null && pvRect.size == 4 && pvRect[2] > 0 && pvRect[3] > 0) {
@@ -138,7 +152,7 @@ internal class AndroidVideoExportSession(
                 videoOnlyFile
             } else {
                 val hitFile = if (audioMode == "musicAndHitSounds") {
-                    copyAsset(hitAssetKey, "answer.wav")
+                    materializedHitSoundFile ?: copyAsset(hitAssetKey, "answer.wav")
                 } else {
                     null
                 }

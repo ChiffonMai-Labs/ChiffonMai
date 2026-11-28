@@ -384,9 +384,17 @@ void _drawSlideArrowsSpritePass(
     final bool useBreakDualArrow =
         effectiveColor == SimaiColors.slideBreak &&
         game.noteAssets.hasAsset('slide_arrow_break');
-    final String arrowKey =
-        useBreakDualArrow ? 'slide_arrow_break' : 'slide_arrow';
-    final Color? arrowTint = useBreakDualArrow ? null : effectiveColor;
+    final bool useEachCustomArrow =
+        effectiveColor == SimaiColors.slideEach &&
+        game.noteAssets.isCustomTexture('slide_arrow_each');
+    final String arrowKey = useBreakDualArrow
+        ? 'slide_arrow_break'
+        : (useEachCustomArrow ? 'slide_arrow_each' : 'slide_arrow');
+    final Color? arrowTint = (useBreakDualArrow ||
+            useEachCustomArrow ||
+            game.noteAssets.isCustomTexture(arrowKey))
+        ? null
+        : effectiveColor;
     Path? fallbackArrowPath;
     if (!hasArrowSprite) {
       game.noteAssets.flush(canvas);
@@ -451,7 +459,12 @@ void _drawSlideStarsSpritePass(
     final Color headColor = _resolveSlideHeadColor(game, note, isEach);
     final int alpha = _resolveSlideHeadAlpha(game, noteTime, state);
     if (alpha > 0) {
-      if (game.noteStyle == SimaiNoteStyle.bar) {
+      final bool hasCustomStarHead =
+          game.noteAssets.isCustomTexture('star_normal') ||
+          game.noteAssets.isCustomTexture('star_each') ||
+          game.noteAssets.isCustomTexture('star_break') ||
+          game.noteAssets.isCustomTexture('star_tap_normal');
+      if (game.noteStyle == SimaiNoteStyle.bar && !hasCustomStarHead) {
         final String barHeadKey = _resolveBarSlideHeadAssetKey(headColor);
         final double size =
             NoteAssetManager.cellExtent * game.noteScale * state.drawScale;
@@ -555,16 +568,16 @@ void _drawSlideStarsSpritePass(
 
       final sampleCount = precalcData.fanStarCenterX?.length ?? 0;
       if (sampleCount == 0) continue;
-      final sampleIndex = _sampleIndex(p, sampleCount);
 
       final Offset posCenter =
           Offset(
-                precalcData.fanStarCenterX![sampleIndex],
-                precalcData.fanStarCenterY![sampleIndex],
+                _sampleLinear(precalcData.fanStarCenterX!, p),
+                _sampleLinear(precalcData.fanStarCenterY!, p),
               ) *
               drawScale +
           game.chartCenter;
-      final double angleCenter = precalcData.fanStarCenterAngles![sampleIndex];
+      final double angleCenter =
+          _sampleAngleLinear(precalcData.fanStarCenterAngles!, p);
       _drawStarWithCache(
         canvas,
         game: game,
@@ -578,12 +591,13 @@ void _drawSlideStarsSpritePass(
 
       final Offset posLeft =
           Offset(
-                precalcData.fanStarLeftX![sampleIndex],
-                precalcData.fanStarLeftY![sampleIndex],
+                _sampleLinear(precalcData.fanStarLeftX!, p),
+                _sampleLinear(precalcData.fanStarLeftY!, p),
               ) *
               drawScale +
           game.chartCenter;
-      final double angleLeft = precalcData.fanStarLeftAngles![sampleIndex];
+      final double angleLeft =
+          _sampleAngleLinear(precalcData.fanStarLeftAngles!, p);
       _drawStarWithCache(
         canvas,
         game: game,
@@ -597,12 +611,13 @@ void _drawSlideStarsSpritePass(
 
       final Offset posRight =
           Offset(
-                precalcData.fanStarRightX![sampleIndex],
-                precalcData.fanStarRightY![sampleIndex],
+                _sampleLinear(precalcData.fanStarRightX!, p),
+                _sampleLinear(precalcData.fanStarRightY!, p),
               ) *
               drawScale +
           game.chartCenter;
-      final double angleRight = precalcData.fanStarRightAngles![sampleIndex];
+      final double angleRight =
+          _sampleAngleLinear(precalcData.fanStarRightAngles!, p);
       _drawStarWithCache(
         canvas,
         game: game,
@@ -622,12 +637,14 @@ void _drawSlideStarsSpritePass(
 
       final starX = precalcData.starX;
       if (starX == null || starX.isEmpty) continue;
-      final sampleIndex = _sampleIndex(p, starX.length);
       final Offset pos =
-          Offset(starX[sampleIndex], precalcData.starY![sampleIndex]) *
+          Offset(
+                _sampleLinear(starX, p),
+                _sampleLinear(precalcData.starY!, p),
+              ) *
               drawScale +
           game.chartCenter;
-      final double angle = precalcData.starAngles![sampleIndex];
+      final double angle = _sampleAngleLinear(precalcData.starAngles!, p);
 
       _drawStarWithCache(
         canvas,

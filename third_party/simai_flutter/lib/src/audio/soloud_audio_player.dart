@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_soloud/flutter_soloud.dart';
 
+import '../ui/utils/custom_file_probe.dart';
+
 enum SoLoudAudioState {
   idle,
   loading,
@@ -675,5 +677,33 @@ class SoLoudAudioPlayer {
 
   void _ensureUsable() {
     if (_disposed) throw StateError('SoLoudAudioPlayer is already disposed.');
+  }
+}
+
+/// 使用全局 SoLoud 音源共享池试听一次正解音（优先播放自定义音频文件，失败时回退内置正解音）。
+Future<void> previewSimaiHitSound({
+  String? customFilePath,
+  double volume = 1.0,
+}) async {
+  final soloud = SoLoud.instance;
+  await ensureSoLoudInitialized(soloud);
+  const defaultAsset = 'packages/simai_flutter/assets/answer.wav';
+  final path = customFilePath?.trim();
+  AudioSource source;
+  if (!kIsWeb && path != null && path.isNotEmpty && customFileExists(path)) {
+    try {
+      source = await SoLoudSourcePool.acquireFile(path, soloud);
+    } catch (_) {
+      source = await SoLoudSourcePool.acquireAsset(defaultAsset, soloud);
+    }
+  } else {
+    source = await SoLoudSourcePool.acquireAsset(defaultAsset, soloud);
+  }
+  try {
+    soloud.play(source, volume: volume.clamp(0.0, 3.0).toDouble());
+  } finally {
+    Future<void>.delayed(const Duration(seconds: 3), () {
+      unawaited(SoLoudSourcePool.release(source, soloud));
+    });
   }
 }

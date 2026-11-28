@@ -1,12 +1,12 @@
 /// 谱面预览、游玩与视频导出时的打击特效样式：
 /// - [ring]：柔光环（轻量单层柔光圆环，连打时视野简洁）
-/// - [arcadeBurst]：机台光爆（参考机台与 AstroDX：六边形光爆，绝赞带双层冲击波、八向星芒与星屑）
+/// - [arcadeBurst]：星芒光效（六边形击打光效，绝赞附带双层光环、八向星芒与星屑）
 enum SimaiHitEffectStyle {
   ring('柔光环', '柔光环', '轻量单层柔光圆环，连打时视野简洁'),
   arcadeBurst(
-    '机台光爆',
-    '光爆',
-    '参考机台与 AstroDX：六边形光爆，绝赞带双层冲击波、八向星芒与星屑',
+    '星芒光效',
+    '星芒',
+    '六边形击打光效，绝赞附带双层光环、八向星芒与星屑',
   );
 
   const SimaiHitEffectStyle(this.label, this.shortLabel, this.description);

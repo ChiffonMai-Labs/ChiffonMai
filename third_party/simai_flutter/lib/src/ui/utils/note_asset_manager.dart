@@ -6,11 +6,13 @@ import 'package:flame/cache.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
+import '../custom_note_skin.dart';
 import '../note_geometry.dart';
 import '../note_style.dart';
 import '../rendering/astro_simple_star_painter.dart';
 import '../simai_colors.dart';
 import '../simai_visual_tokens.dart';
+import 'custom_image_loader.dart';
 import 'note_utils.dart';
 
 class NoteBatchFrameMetrics {
@@ -136,16 +138,16 @@ class NoteAssetManager {
   /// 打击特效预烘焙时的基准光环半径（留足外扩高斯柔光安全边距，避免跨格渗色）。
   static const double hitGlowBakedRadius = 26.0;
 
-  /// 机台光爆六边形冲击波预烘焙基准半径。
+  /// 机台光效六边形冲击波预烘焙基准半径。
   static const double hitHexRingBakedRadius = 26.0;
 
-  /// 机台光爆八向星芒预烘焙基准半径。
+  /// 机台光效八向星芒预烘焙基准半径。
   static const double hitStarburstBakedRadius = 30.0;
 
-  /// 机台光爆四角星屑粒子预烘焙基准半径。
+  /// 机台光效四角星屑粒子预烘焙基准半径。
   static const double hitSparkleBakedRadius = 22.0;
 
-  /// 机台光爆核心爆闪预烘焙基准半径。
+  /// 机台光效核心爆闪预烘焙基准半径。
   static const double hitCoreFlashBakedRadius = 24.0;
 
   /// 滑星箭头在图集内的烘焙倍率（2× 烘焙可提升任意角度旋转时的边缘锐度）。
@@ -181,6 +183,7 @@ class NoteAssetManager {
     'hit_starburst': 22,
     'hit_sparkle': 23,
     'hit_core_flash': 24,
+    'slide_arrow_each': 25,
   };
 
   /// 根据目标光环半径换算 `'hit_glow'` 精灵绘制尺寸。
@@ -224,6 +227,8 @@ class NoteAssetManager {
   String? _atlasCacheKey;
   int? _lastPixelCell;
   SimaiNoteStyle? _lastNoteStyle;
+  SimaiCustomNoteSkin _lastCustomSkin = SimaiCustomNoteSkin.empty;
+  Set<String> _customActiveKeys = const <String>{};
   int _atlasGeneration = 0;
   int _frameSpriteCount = 0;
   int _frameFlushCount = 0;
@@ -231,6 +236,8 @@ class NoteAssetManager {
   bool _disposed = false;
 
   bool hasAsset(String key) => _atlas != null && _regions.containsKey(key);
+
+  bool isCustomTexture(String key) => _customActiveKeys.contains(key);
 
   @visibleForTesting
   ui.Image? get debugAtlas => _atlas;
@@ -402,90 +409,187 @@ class NoteAssetManager {
   Future<void> rebuild(
     double noteScale, {
     SimaiNoteStyle noteStyle = SimaiNoteStyle.arcade,
+    SimaiCustomNoteSkin customSkin = SimaiCustomNoteSkin.empty,
+    VoidCallback? onBeforeAtlasSwap,
   }) async {
     if (_disposed) return;
     final safeScale = noteScale.isFinite && noteScale > 0 ? noteScale : 1.0;
     final pixelCell = (_cellExtent * safeScale * _assetPixelRatio).ceil();
-    // 尺寸与样式缓存守卫：单格像素尺寸和音符样式均未变化且图集有效时直接返回，避免重复离屏 3× GPU 纹理栅格化。
+    // 尺寸与样式缓存守卫：单格像素尺寸、音符样式和自定义纹理均未变化且图集有效时直接返回。
     if (pixelCell == _lastPixelCell &&
         noteStyle == _lastNoteStyle &&
+        customSkin == _lastCustomSkin &&
         _atlas != null &&
         !_disposed) {
       return;
     }
+
+    final Map<String, ui.Image> decodedCustomImages = <String, ui.Image>{};
+    if (customSkin.isNotEmpty && !kIsWeb) {
+      for (final entry in customSkin.texturePaths.entries) {
+        if (!_atlasSlots.containsKey(entry.key)) continue;
+        try {
+          final decoded = await decodeCustomNoteImageFile(entry.value);
+          if (decoded != null) {
+            if (_disposed) {
+              decoded.dispose();
+              break;
+            }
+            decodedCustomImages[entry.key] = decoded;
+          }
+        } catch (e) {
+          debugPrint('[NoteAssetManager] 加载自定义纹理 ${entry.key} 失败: $e');
+        }
+      }
+    }
+
+    if (_disposed) {
+      for (final img in decodedCustomImages.values) {
+        img.dispose();
+      }
+      return;
+    }
+
     final rows = (_atlasSlots.length / _atlasColumns).ceil();
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder)..scale(_assetPixelRatio, _assetPixelRatio);
     final logicalCell = pixelCell / _assetPixelRatio;
 
-    for (final entry in _atlasSlots.entries) {
-      final slot = entry.value;
-      final row = slot ~/ _atlasColumns;
-      final column = slot % _atlasColumns;
-      final center = Offset(
-        (column + 0.5) * logicalCell,
-        (row + 0.5) * logicalCell,
-      );
-      final cellRect = Rect.fromCenter(
-        center: center,
-        width: logicalCell,
-        height: logicalCell,
-      );
-      // 逐格裁切，防止预烘焙阴影或高斯柔光跨格污染相邻精灵。
-      canvas.save();
-      canvas.clipRect(cellRect);
-      _drawAtlasEntry(canvas, entry.key, center, safeScale, noteStyle);
-      canvas.restore();
-    }
-
-    final picture = recorder.endRecording();
-    ui.Image image;
     try {
-      image = await picture.toImage(
-        pixelCell * _atlasColumns,
-        pixelCell * rows,
-      );
-    } finally {
-      picture.dispose();
-    }
-
-    if (_disposed) {
-      image.dispose();
-      return;
-    }
-
-    final newKey = 'simai-note-atlas-${++_atlasGeneration}';
-    images.add(newKey, image);
-    final oldKey = _atlasCacheKey;
-    _atlasCacheKey = newKey;
-    _atlas = image;
-    _lastPixelCell = pixelCell;
-    _lastNoteStyle = noteStyle;
-    for (final slot in _batchSlots) {
-      slot.clear();
-    }
-    _batchSlots.clear();
-    _regions
-      ..clear()
-      ..addEntries(
-        _atlasSlots.entries.map((entry) {
-          final slot = entry.value;
-          final row = slot ~/ _atlasColumns;
-          final column = slot % _atlasColumns;
-          return MapEntry(
+      for (final entry in _atlasSlots.entries) {
+        final slot = entry.value;
+        final row = slot ~/ _atlasColumns;
+        final column = slot % _atlasColumns;
+        final center = Offset(
+          (column + 0.5) * logicalCell,
+          (row + 0.5) * logicalCell,
+        );
+        final cellRect = Rect.fromCenter(
+          center: center,
+          width: logicalCell,
+          height: logicalCell,
+        );
+        // 逐格裁切，防止预烘焙阴影或高斯柔光跨格污染相邻精灵。
+        canvas.save();
+        canvas.clipRect(cellRect);
+        final customImage = decodedCustomImages[entry.key];
+        if (customImage != null) {
+          _drawCustomAtlasImage(
+            canvas,
             entry.key,
-            Rect.fromLTWH(
-              column * pixelCell.toDouble(),
-              row * pixelCell.toDouble(),
-              pixelCell.toDouble(),
-              pixelCell.toDouble(),
-            ),
+            customImage,
+            center,
+            safeScale,
+            logicalCell,
           );
-        }),
-      );
-    if (oldKey != null) {
-      images.clear(oldKey);
+        } else {
+          _drawAtlasEntry(canvas, entry.key, center, safeScale, noteStyle);
+        }
+        canvas.restore();
+      }
+
+      final picture = recorder.endRecording();
+      ui.Image image;
+      try {
+        image = await picture.toImage(
+          pixelCell * _atlasColumns,
+          pixelCell * rows,
+        );
+      } finally {
+        picture.dispose();
+      }
+
+      if (_disposed) {
+        image.dispose();
+        return;
+      }
+
+      // 先让依赖旧图集的暂停态 Snapshot 失效，避免清掉 oldKey 后仍持有悬空图像引用。
+      onBeforeAtlasSwap?.call();
+
+      final newKey = 'simai-note-atlas-${++_atlasGeneration}';
+      images.add(newKey, image);
+      final oldKey = _atlasCacheKey;
+      _atlasCacheKey = newKey;
+      _atlas = image;
+      _lastPixelCell = pixelCell;
+      _lastNoteStyle = noteStyle;
+      _lastCustomSkin = customSkin;
+      _customActiveKeys = Set<String>.unmodifiable(decodedCustomImages.keys);
+      for (final slot in _batchSlots) {
+        slot.clear();
+      }
+      _batchSlots.clear();
+      _regions
+        ..clear()
+        ..addEntries(
+          _atlasSlots.entries.map((entry) {
+            final slot = entry.value;
+            final row = slot ~/ _atlasColumns;
+            final column = slot % _atlasColumns;
+            return MapEntry(
+              entry.key,
+              Rect.fromLTWH(
+                column * pixelCell.toDouble(),
+                row * pixelCell.toDouble(),
+                pixelCell.toDouble(),
+                pixelCell.toDouble(),
+              ),
+            );
+          }),
+        );
+      if (oldKey != null) {
+        images.clear(oldKey);
+      }
+    } finally {
+      for (final img in decodedCustomImages.values) {
+        img.dispose();
+      }
     }
+  }
+
+  void _drawCustomAtlasImage(
+    Canvas canvas,
+    String key,
+    ui.Image image,
+    Offset center,
+    double noteScale,
+    double logicalCell,
+  ) {
+    final double targetExtent = switch (key) {
+      'slide_arrow' || 'slide_arrow_each' || 'slide_arrow_break' =>
+        90.0 * noteScale,
+      'touch_center' => touchCenterBakedRadius * 2.0 * noteScale,
+      'touch_normal' ||
+      'touch_each' ||
+      'touch_break' ||
+      'touch_multi' => 82.0 * noteScale,
+      _ => NoteGeometry.tapStarHoldRadius * 2.15 * noteScale,
+    }.clamp(1.0, logicalCell - 4.0);
+
+    final srcSize = Size(image.width.toDouble(), image.height.toDouble());
+    final fitted = applyBoxFit(
+      BoxFit.contain,
+      srcSize,
+      Size.square(targetExtent),
+    );
+    final srcRect = Alignment.center.inscribe(
+      fitted.source,
+      Offset.zero & srcSize,
+    );
+    final dstRect = Rect.fromCenter(
+      center: center,
+      width: fitted.destination.width,
+      height: fitted.destination.height,
+    );
+    canvas.drawImageRect(
+      image,
+      srcRect,
+      dstRect,
+      Paint()
+        ..filterQuality = FilterQuality.high
+        ..isAntiAlias = true,
+    );
   }
 
   void dispose() {
@@ -493,6 +597,8 @@ class NoteAssetManager {
     _disposed = true;
     _lastPixelCell = null;
     _lastNoteStyle = null;
+    _lastCustomSkin = SimaiCustomNoteSkin.empty;
+    _customActiveKeys = const <String>{};
     for (final slot in _batchSlots) {
       slot.clear();
     }

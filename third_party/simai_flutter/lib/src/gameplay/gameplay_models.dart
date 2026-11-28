@@ -195,7 +195,7 @@ class SimaiGameplaySettings {
     this.chartScale = 0.86,
     this.backgroundOpacity = 0.35,
     this.mirrorMode = SimaiMirrorMode.none,
-    this.backgroundMode = SimaiBackgroundMode.judgeZone,
+    this.backgroundMode = SimaiBackgroundMode.judgeLine,
     this.judgementDisplayMode = SimaiJudgementDisplayMode.twoB,
     this.centerDisplayMode = SimaiGameplayCenterDisplayMode.achievementAdd,
     this.topRightDisplayMode = SimaiGameplayCenterDisplayMode.none,

@@ -50,6 +50,7 @@ class _UnsupportedVideoExportPlatform
     required String? outputPath,
     required String? audioAsset,
     required String? audioFilePath,
+    String? hitSoundFilePath,
     required String audioMode,
     String? pvVideoPath,
     List<int>? pvRect,

@@ -6,6 +6,7 @@ import '../gameplay/gameplay_models.dart';
 import '../simai_file.dart';
 import '../ui/auto_play_mode.dart';
 import '../ui/center_display_mode.dart';
+import '../ui/custom_note_skin.dart';
 import '../ui/hit_effect_style.dart';
 import '../ui/note_style.dart';
 import '../ui/simai_player.dart';
@@ -26,7 +27,8 @@ enum SimaiChartDifficulty {
   advanced,
   expert,
   master,
-  reMaster;
+  reMaster,
+  utage;
 
   int get simaiIndex => switch (this) {
     SimaiChartDifficulty.basic => 2,
@@ -34,6 +36,7 @@ enum SimaiChartDifficulty {
     SimaiChartDifficulty.expert => 4,
     SimaiChartDifficulty.master => 5,
     SimaiChartDifficulty.reMaster => 6,
+    SimaiChartDifficulty.utage => 7,
   };
 
   String get label => switch (this) {
@@ -42,6 +45,7 @@ enum SimaiChartDifficulty {
     SimaiChartDifficulty.expert => 'EXPERT',
     SimaiChartDifficulty.master => 'MASTER',
     SimaiChartDifficulty.reMaster => 'Re:MASTER',
+    SimaiChartDifficulty.utage => 'UTAGE',
   };
 
   Color get cardColor => switch (this) {
@@ -50,6 +54,7 @@ enum SimaiChartDifficulty {
     SimaiChartDifficulty.expert => const Color(0xFFE84C4F),
     SimaiChartDifficulty.master => const Color(0xFF8F55C7),
     SimaiChartDifficulty.reMaster => const Color(0xFFD7B4F3),
+    SimaiChartDifficulty.utage => const Color(0xFFEA4C89),
   };
 
   Color get foregroundColor => switch (this) {
@@ -157,19 +162,37 @@ class SimaiVideoMetadata {
     SimaiFile file, {
     required ImageProvider coverImageProvider,
     required SimaiChartDifficulty difficulty,
+    String? inoteKey,
+    String? fallbackTitle,
+    String? fallbackArtist,
+    String? fallbackLevel,
   }) {
-    final title = file.getValue('title')?.trim();
-    final artist = file.getValue('artist')?.trim();
-    final level = file.getValue('lv_${difficulty.simaiIndex}')?.trim();
+    final rawTitle = file.getValue('title')?.trim();
+    final title = (rawTitle != null && rawTitle.isNotEmpty)
+        ? rawTitle
+        : fallbackTitle?.trim();
+    final rawArtist = file.getValue('artist')?.trim();
+    final artist = (rawArtist != null && rawArtist.isNotEmpty)
+        ? rawArtist
+        : fallbackArtist?.trim();
+    final rawInoteLevel = inoteKey != null && inoteKey.trim().isNotEmpty
+        ? file.getValue('lv_${inoteKey.trim()}')?.trim()
+        : null;
+    final rawDiffLevel = file.getValue('lv_${difficulty.simaiIndex}')?.trim();
+    final level = (rawInoteLevel != null && rawInoteLevel.isNotEmpty)
+        ? rawInoteLevel
+        : (rawDiffLevel != null && rawDiffLevel.isNotEmpty)
+        ? rawDiffLevel
+        : fallbackLevel?.trim();
     if (title == null || title.isEmpty) {
       throw const FormatException('Missing required Simai metadata: title');
     }
-    if (artist == null || artist.isEmpty) {
+    if (artist == null) {
       throw const FormatException('Missing required Simai metadata: artist');
     }
     if (level == null || level.isEmpty) {
       throw FormatException(
-        'Missing required Simai metadata: lv_${difficulty.simaiIndex}',
+        'Missing required Simai metadata: lv_${inoteKey ?? difficulty.simaiIndex}',
       );
     }
     return SimaiVideoMetadata(
@@ -293,6 +316,8 @@ class SimaiVideoExportSettings {
   final SimaiCenterDisplayMode topRightDisplayMode;
   final SimaiNoteStyle noteStyle;
   final SimaiNoteStyle holdStyle;
+  final SimaiCustomNoteSkin customNoteSkin;
+  final String? customHitSoundPath;
   final bool showAchievementRate;
   final bool highlightExNotes;
   final bool showCornerInfo;
@@ -326,6 +351,8 @@ class SimaiVideoExportSettings {
     this.topRightDisplayMode = SimaiCenterDisplayMode.combo,
     this.noteStyle = SimaiNoteStyle.arcade,
     this.holdStyle = SimaiNoteStyle.arcade,
+    this.customNoteSkin = SimaiCustomNoteSkin.empty,
+    this.customHitSoundPath,
     this.showAchievementRate = true,
     this.highlightExNotes = true,
     this.showCornerInfo = true,
@@ -367,6 +394,8 @@ class SimaiVideoExportSettings {
       topRightDisplayMode: controller.topRightDisplayMode,
       noteStyle: controller.noteStyle,
       holdStyle: controller.holdStyle,
+      customNoteSkin: controller.customNoteSkin,
+      customHitSoundPath: controller.customHitSoundPath,
       showAchievementRate: controller.showAchievementRate,
       highlightExNotes: controller.highlightExNotes,
       showCornerInfo: controller.showCornerInfo,
@@ -399,6 +428,8 @@ class SimaiVideoExportSettings {
       ..topRightDisplayMode = topRightDisplayMode
       ..noteStyle = noteStyle
       ..holdStyle = holdStyle
+      ..customNoteSkin = customNoteSkin
+      ..customHitSoundPath = customHitSoundPath
       ..showAchievementRate = showAchievementRate
       ..highlightExNotes = highlightExNotes
       ..showCornerInfo = showCornerInfo

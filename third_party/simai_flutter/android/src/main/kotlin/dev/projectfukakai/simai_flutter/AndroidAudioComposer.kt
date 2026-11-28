@@ -26,6 +26,7 @@ internal class AndroidAudioComposer(
     private val isCancelled: () -> Boolean,
 ) {
     private val decodedPcmFile = File(workingDirectory, "music.pcm")
+    private val decodedHitSoundPcmFile = File(workingDirectory, "hitsound.pcm")
     private val encodedAudioFile = File(workingDirectory, "audio.m4a")
 
     fun compose(
@@ -37,8 +38,8 @@ internal class AndroidAudioComposer(
         hitEventTimesUs: List<Long>,
     ) {
         checkCancelled()
-        val decoded = decodeMusicToPcm()
-        val hitSound = hitSoundFile?.let(WavPcm16::read)
+        val decoded = decodeAudioFileToPcm(musicFile, decodedPcmFile)
+        val hitSound = hitSoundFile?.let(::decodeHitSoundTo48kMono)
         encodeMixedAac(
             decoded = decoded,
             hitSound = hitSound,
@@ -53,20 +54,46 @@ internal class AndroidAudioComposer(
         muxTracks(videoFile, encodedAudioFile, outputFile)
     }
 
-    private fun decodeMusicToPcm(): DecodedPcm {
+    private fun decodeHitSoundTo48kMono(file: File): HitSoundPcm {
+        WavPcm16.tryReadMono48k(file, MAX_HIT_SOUND_FRAMES)?.let { return it }
+        val decoded = decodeAudioFileToPcm(file, decodedHitSoundPcmFile)
+        val sampler = PcmFileSampler(decoded)
+        try {
+            val targetFrames = ceil(decoded.frameCount * OUTPUT_SAMPLE_RATE.toDouble() / decoded.sampleRate)
+                .toLong()
+                .coerceIn(1L, MAX_HIT_SOUND_FRAMES)
+                .toInt()
+            val samples = FloatArray(targetFrames)
+            val rateRatio = decoded.sampleRate.toDouble() / OUTPUT_SAMPLE_RATE.toDouble()
+            for (i in 0 until targetFrames) {
+                val srcFrame = i * rateRatio
+                val mixed = if (decoded.channels == 1) {
+                    sampler.sample(srcFrame, 0)
+                } else {
+                    (sampler.sample(srcFrame, 0) + sampler.sample(srcFrame, 1)) * 0.5f
+                }
+                samples[i] = mixed
+            }
+            return HitSoundPcm(samples, targetFrames.toLong())
+        } finally {
+            sampler.close()
+        }
+    }
+
+    private fun decodeAudioFileToPcm(sourceFile: File, targetPcmFile: File): DecodedPcm {
         val extractor = MediaExtractor()
         var decoder: MediaCodec? = null
         try {
-            extractor.setDataSource(musicFile.absolutePath)
+            extractor.setDataSource(sourceFile.absolutePath)
             val trackIndex = (0 until extractor.trackCount).firstOrNull { index ->
                 extractor.getTrackFormat(index)
                     .getString(MediaFormat.KEY_MIME)
                     ?.startsWith("audio/") == true
-            } ?: error("No audio track was found in ${musicFile.name}.")
+            } ?: error("No audio track was found in ${sourceFile.name}.")
             extractor.selectTrack(trackIndex)
             val inputFormat = extractor.getTrackFormat(trackIndex)
             val mime = inputFormat.getString(MediaFormat.KEY_MIME)
-                ?: error("Music track has no MIME type.")
+                ?: error("Audio track has no MIME type in ${sourceFile.name}.")
             if (android.os.Build.VERSION.SDK_INT >= 24) {
                 inputFormat.setInteger(MediaFormat.KEY_PCM_ENCODING, AudioFormat.ENCODING_PCM_16BIT)
             }
@@ -83,7 +110,7 @@ internal class AndroidAudioComposer(
             var bytesWritten = 0L
             val info = MediaCodec.BufferInfo()
 
-            FileOutputStream(decodedPcmFile).buffered(64 * 1024).use { output ->
+            FileOutputStream(targetPcmFile).buffered(64 * 1024).use { output ->
                 while (!outputDone) {
                     checkCancelled()
                     if (!inputDone) {
@@ -156,7 +183,7 @@ internal class AndroidAudioComposer(
                 }
             }
             return DecodedPcm(
-                file = decodedPcmFile,
+                file = targetPcmFile,
                 sampleRate = sampleRate,
                 channels = channels,
                 frameCount = bytesWritten / (channels * 2),
@@ -170,7 +197,7 @@ internal class AndroidAudioComposer(
 
     private fun encodeMixedAac(
         decoded: DecodedPcm,
-        hitSound: WavPcm16?,
+        hitSound: HitSoundPcm?,
         durationUs: Long,
         timelineStartUs: Long,
         musicOffsetUs: Long,
@@ -358,8 +385,11 @@ internal class AndroidAudioComposer(
     companion object {
         private const val OUTPUT_SAMPLE_RATE = 48_000
         private const val OUTPUT_CHANNELS = 2
+        private const val MAX_HIT_SOUND_FRAMES = 5L * OUTPUT_SAMPLE_RATE
     }
 }
+
+private class HitSoundPcm(val samples: FloatArray, val frameCount: Long)
 
 private data class DecodedPcm(
     val file: File,
@@ -370,7 +400,7 @@ private data class DecodedPcm(
 
 private class PcmMixer(
     decoded: DecodedPcm,
-    private val hitSound: WavPcm16?,
+    private val hitSound: HitSoundPcm?,
     private val musicStartSeconds: Double,
     private val musicVolume: Float,
     private val hitSoundVolume: Float,
@@ -405,7 +435,7 @@ private class PcmMixer(
                 val gain = (hitSoundVolume.toDouble() / sqrt(overlap.toDouble())).toFloat()
                 for (outputFrame in from until to) {
                     val hitFrame = (outputFrame - start).toInt()
-                    val value = hit.samples[hitFrame] / 32768f * gain
+                    val value = hit.samples[hitFrame] * gain
                     val local = (outputFrame - outputStartFrame).toInt() * 2
                     samples[local] += value
                     samples[local + 1] += value
@@ -467,45 +497,45 @@ private class PcmFileSampler(decoded: DecodedPcm) {
     }
 }
 
-private data class WavPcm16(val samples: ShortArray, val frameCount: Long) {
-    companion object {
-        fun read(file: File): WavPcm16 {
-            val bytes = file.readBytes()
-            require(bytes.size >= 44 && String(bytes, 0, 4) == "RIFF" && String(bytes, 8, 4) == "WAVE") {
-                "Unsupported hit sound WAV file."
-            }
-            var offset = 12
-            var channels = 0
-            var sampleRate = 0
-            var bitDepth = 0
-            var dataOffset = -1
-            var dataSize = 0
-            val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
-            while (offset + 8 <= bytes.size) {
-                val id = String(bytes, offset, 4)
-                val size = buffer.getInt(offset + 4)
-                if (id == "fmt ") {
-                    val format = buffer.getShort(offset + 8).toInt()
-                    channels = buffer.getShort(offset + 10).toInt()
-                    sampleRate = buffer.getInt(offset + 12)
-                    bitDepth = buffer.getShort(offset + 22).toInt()
-                    require(format == 1) { "Hit sound must use PCM WAV." }
-                } else if (id == "data") {
-                    dataOffset = offset + 8
-                    dataSize = min(size, bytes.size - dataOffset)
-                    break
-                }
-                offset += 8 + size + (size and 1)
-            }
-            require(channels == 1 && sampleRate == 48_000 && bitDepth == 16 && dataOffset >= 0) {
-                "Hit sound must be mono 48kHz PCM16 WAV."
-            }
-            val samples = ShortArray(dataSize / 2)
-            ByteBuffer.wrap(bytes, dataOffset, dataSize).order(ByteOrder.LITTLE_ENDIAN)
-                .asShortBuffer().get(samples)
-            return WavPcm16(samples, samples.size.toLong())
+private object WavPcm16 {
+    fun tryReadMono48k(file: File, maxFrames: Long): HitSoundPcm? = runCatching {
+        val bytes = file.readBytes()
+        if (bytes.size < 44 || String(bytes, 0, 4) != "RIFF" || String(bytes, 8, 4) != "WAVE") {
+            return@runCatching null
         }
-    }
+        var offset = 12
+        var format = 0
+        var channels = 0
+        var sampleRate = 0
+        var bitDepth = 0
+        var dataOffset = -1
+        var dataSize = 0
+        val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+        while (offset + 8 <= bytes.size) {
+            val id = String(bytes, offset, 4)
+            val size = buffer.getInt(offset + 4)
+            if (id == "fmt ") {
+                format = buffer.getShort(offset + 8).toInt()
+                channels = buffer.getShort(offset + 10).toInt()
+                sampleRate = buffer.getInt(offset + 12)
+                bitDepth = buffer.getShort(offset + 22).toInt()
+            } else if (id == "data") {
+                dataOffset = offset + 8
+                dataSize = min(size, bytes.size - dataOffset)
+                break
+            }
+            offset += 8 + size + (size and 1)
+        }
+        if (format != 1 || channels != 1 || sampleRate != 48_000 || bitDepth != 16 || dataOffset < 0) {
+            return@runCatching null
+        }
+        val rawSamples = ShortArray(dataSize / 2)
+        ByteBuffer.wrap(bytes, dataOffset, dataSize).order(ByteOrder.LITTLE_ENDIAN)
+            .asShortBuffer().get(rawSamples)
+        val cappedCount = min(rawSamples.size.toLong(), maxFrames).toInt()
+        val samples = FloatArray(cappedCount) { i -> rawSamples[i] / 32768f }
+        HitSoundPcm(samples, cappedCount.toLong())
+    }.getOrNull()
 }
 
 private fun MediaFormat.integerOrNull(key: String): Int? =

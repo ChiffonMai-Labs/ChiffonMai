@@ -17,6 +17,7 @@ import 'components/chart_counter_overlay_component.dart';
 import 'components/achievement_rate_component.dart';
 import 'components/playback_judgement_component.dart';
 import 'rendering/notes_batch_renderer.dart';
+import 'utils/custom_file_probe.dart';
 import 'utils/note_asset_manager.dart';
 import 'rendering/precalc_data.dart';
 import 'rendering/precalc_worker.dart';
@@ -83,6 +84,8 @@ class SimaiGame extends FlameGame with KeyboardEvents {
   SimaiCenterDisplayMode topRightDisplayMode;
   SimaiNoteStyle noteStyle;
   SimaiNoteStyle holdStyle;
+  SimaiCustomNoteSkin customNoteSkin;
+  String? customHitSoundPath;
   bool showCornerInfo;
   bool showFps;
   bool showDetailedPerformanceInfo;
@@ -185,6 +188,7 @@ class SimaiGame extends FlameGame with KeyboardEvents {
   int _lastSfxCheckTimeMs = 0;
   SoLoud get _soloud => SoLoud.instance;
   AudioSource? _sfxSource;
+  int _sfxLoadGeneration = 0;
   final Queue<SoundHandle> _sfxVoices = Queue<SoundHandle>();
   final Queue<int> _recentDaHitTimesUs = Queue<int>();
   static const int _maxSfxVoices = 24;
@@ -234,6 +238,8 @@ class SimaiGame extends FlameGame with KeyboardEvents {
     this.topRightDisplayMode = SimaiCenterDisplayMode.combo,
     this.noteStyle = SimaiNoteStyle.arcade,
     SimaiNoteStyle? holdStyle,
+    this.customNoteSkin = SimaiCustomNoteSkin.empty,
+    this.customHitSoundPath,
     this.showCornerInfo = true,
     this.showFps = true,
     this.showDetailedPerformanceInfo = false,
@@ -396,20 +402,46 @@ class SimaiGame extends FlameGame with KeyboardEvents {
     final int rebuildGeneration = ++_assetRebuildGeneration;
     final targetScale = noteScale;
     final targetStyle = noteStyle;
+    final targetCustomSkin = customNoteSkin;
     final previousTask = _assetRebuildTask;
     // 同步登记完整 Future，避免调用方在 microtask 尚未运行前 await 到旧任务或 null。
     final task = () async {
       if (previousTask != null) {
-        await previousTask;
+        try {
+          await previousTask;
+        } catch (_) {}
       }
       if (_isRemoved || rebuildGeneration != _assetRebuildGeneration) return;
-      await noteAssets.rebuild(targetScale, noteStyle: targetStyle);
+      await noteAssets.rebuild(
+        targetScale,
+        noteStyle: targetStyle,
+        customSkin: targetCustomSkin,
+        onBeforeAtlasSwap: () {
+          if (_notesReady) {
+            _notesComponent.invalidate();
+          }
+        },
+      );
       if (_isRemoved || rebuildGeneration != _assetRebuildGeneration) return;
-      invalidateNotes();
+      invalidateNotes(resetWindow: true);
+      if (!isPlaying && !headlessExport) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_isRemoved || rebuildGeneration != _assetRebuildGeneration) {
+            return;
+          }
+          if (_notesReady) {
+            _notesComponent.invalidate();
+          }
+          _requestPausedFrameIfAttached();
+        });
+      }
     }();
     _assetRebuildTask = task;
     return task;
   }
+
+  Future<void> waitForNoteAssetsReady() =>
+      _assetRebuildTask ?? Future<void>.value();
 
   void setNoteStyle(SimaiNoteStyle style) {
     if (noteStyle == style) return;
@@ -422,6 +454,32 @@ class SimaiGame extends FlameGame with KeyboardEvents {
     if (holdStyle == normalized) return;
     holdStyle = normalized;
     invalidateNotes();
+  }
+
+  void setCustomNoteSkin(SimaiCustomNoteSkin skin) {
+    if (customNoteSkin == skin) return;
+    customNoteSkin = skin;
+    unawaited(_scheduleNoteAssetsRebuild());
+  }
+
+  Future<void> setCustomNoteSkinAsync(SimaiCustomNoteSkin skin) async {
+    if (customNoteSkin == skin) {
+      await _assetRebuildTask;
+      return;
+    }
+    customNoteSkin = skin;
+    await _scheduleNoteAssetsRebuild();
+  }
+
+  void setCustomHitSoundPath(String? path) {
+    final normalized = (path != null && path.trim().isNotEmpty)
+        ? path.trim()
+        : null;
+    if (customHitSoundPath == normalized) return;
+    customHitSoundPath = normalized;
+    if (!headlessExport && !_isRemoved) {
+      unawaited(_reloadHitSoundSource());
+    }
   }
 
   /// 当前模拟游玩判定时间线（按需构建并缓存，供判定表示、击打特效与达成率共用）。
@@ -540,27 +598,7 @@ class SimaiGame extends FlameGame with KeyboardEvents {
         });
       }
 
-      try {
-        await ensureSoLoudInitialized(_soloud);
-        const assetPath = 'packages/simai_flutter/assets/answer.wav';
-        try {
-          // 通过引用计数共享池复用 answer.wav，避免双 SimaiGame 冲突或退出时误销毁。
-          final source = await SoLoudSourcePool.acquireAsset(
-            assetPath,
-            _soloud,
-          );
-          if (_isRemoved) {
-            unawaited(SoLoudSourcePool.release(source, _soloud));
-          } else {
-            _sfxSource = source;
-            debugPrint('SFX: SoLoud acquired $assetPath');
-          }
-        } catch (e) {
-          debugPrint('SFX: SoLoud failed to acquire $assetPath: $e');
-        }
-      } catch (e) {
-        debugPrint('SFX: SoLoud init failed: $e');
-      }
+      await _reloadHitSoundSource();
       _rebuildSfxEventTimes();
 
       if (_hasAudio && audioPlayer != null) {
@@ -1103,8 +1141,13 @@ class SimaiGame extends FlameGame with KeyboardEvents {
 
   void _requestPausedFrame({double stepTime = 1 / 30}) {
     if (headlessExport) return;
-    if (!isPlaying && paused) {
-      stepEngine(stepTime: stepTime);
+    if (!isPlaying) {
+      if (paused) {
+        stepEngine(stepTime: stepTime);
+      }
+      if (isAttached) {
+        renderBox.markNeedsPaint();
+      }
     }
   }
 
@@ -1853,6 +1896,43 @@ class SimaiGame extends FlameGame with KeyboardEvents {
       }
     }
     _sfxVoices.clear();
+  }
+
+  Future<void> _reloadHitSoundSource() async {
+    final int generation = ++_sfxLoadGeneration;
+    final customPath = customHitSoundPath?.trim();
+    const assetPath = 'packages/simai_flutter/assets/answer.wav';
+    try {
+      await ensureSoLoudInitialized(_soloud);
+      AudioSource? acquired;
+      if (!kIsWeb &&
+          customPath != null &&
+          customPath.isNotEmpty &&
+          customFileExists(customPath)) {
+        try {
+          acquired = await SoLoudSourcePool.acquireFile(customPath, _soloud);
+        } catch (e) {
+          debugPrint('SFX: SoLoud failed to acquire custom $customPath: $e');
+        }
+      }
+      acquired ??= await SoLoudSourcePool.acquireAsset(assetPath, _soloud);
+      if (_isRemoved || generation != _sfxLoadGeneration) {
+        unawaited(SoLoudSourcePool.release(acquired, _soloud));
+        return;
+      }
+      final previous = _sfxSource;
+      if (!identical(previous, acquired)) {
+        _stopSfxVoices();
+        _sfxSource = acquired;
+        if (previous != null) {
+          unawaited(SoLoudSourcePool.release(previous, _soloud));
+        }
+      } else {
+        unawaited(SoLoudSourcePool.release(acquired, _soloud));
+      }
+    } catch (e) {
+      debugPrint('SFX: SoLoud load failed: $e');
+    }
   }
 
   void _rebuildSfxEventTimes() {

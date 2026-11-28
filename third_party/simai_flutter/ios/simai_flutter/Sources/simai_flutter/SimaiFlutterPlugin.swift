@@ -94,7 +94,10 @@ public final class SimaiFlutterPlugin: NSObject, FlutterPlugin {
 
     let audioAsset = arguments["audioAsset"] as? String
     let audioAssetPath = audioAsset.flatMap { assetPath($0, package: nil) }
-    let hitPath = assetPath("assets/answer.wav", package: "simai_flutter")
+    let customHitPath = (arguments["hitSoundFilePath"] as? String)
+      .flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .flatMap { !$0.isEmpty && FileManager.default.fileExists(atPath: $0) ? $0 : nil }
+    let hitPath = customHitPath ?? assetPath("assets/answer.wav", package: "simai_flutter")
     let pvVideoPath = (arguments["pvVideoPath"] as? String).flatMap { $0.isEmpty ? nil : $0 }
     let pvRect = (arguments["pvRect"] as? [NSNumber])?.map(\.intValue)
     let saveToGallery = (arguments["saveToGallery"] as? Bool) ?? false
@@ -126,6 +129,7 @@ public final class SimaiFlutterPlugin: NSObject, FlutterPlugin {
       },
       "bufferLength": session.frameByteCount,
       "audioDurationUs": session.audioDurationUs,
+      "hitSoundDurationUs": session.hitSoundDurationUs,
       "outputPath": session.outputURL.path,
     ])
   }
@@ -415,6 +419,7 @@ private final class IOSVideoExportSession {
   let hitSoundURL: URL?
   let audioMode: String
   let audioDurationUs: Int64
+  let hitSoundDurationUs: Int64
   let saveToGallery: Bool
 
   private let workingDirectory: URL
@@ -482,9 +487,14 @@ private final class IOSVideoExportSession {
     } else {
       resolvedAudioDurationUs = 0
     }
+    var resolvedHitSoundDurationUs: Int64 = 100_000
     if audioMode == "musicAndHitSounds" {
       guard let resolvedHitSoundURL, FileManager.default.fileExists(atPath: resolvedHitSoundURL.path) else {
         throw IOSExportError(code: "missing_hit_sound", message: "The bundled hit sound is unavailable.")
+      }
+      let hitSec = AVURLAsset(url: resolvedHitSoundURL).duration.seconds
+      if hitSec.isFinite && hitSec > 0 {
+        resolvedHitSoundDurationUs = min(max(50_000, Int64(hitSec * 1_000_000)), 5_000_000)
       }
     }
 
@@ -530,6 +540,7 @@ private final class IOSVideoExportSession {
     self.hitSoundURL = resolvedHitSoundURL
     self.audioMode = audioMode
     self.audioDurationUs = resolvedAudioDurationUs
+    self.hitSoundDurationUs = resolvedHitSoundDurationUs
     self.saveToGallery = saveToGallery
     self.workingDirectory = resolvedWorkingDirectory
     self.videoOnlyURL = resolvedVideoOnlyURL
@@ -1268,7 +1279,10 @@ private final class IOSAudioMuxer {
     guard let source = asset.tracks(withMediaType: .audio).first else {
       throw IOSExportError(code: "audio", message: "The bundled hit sound has no audio track.")
     }
-    let hitDurationUs = Int64(asset.duration.seconds * 1_000_000)
+    let rawSec = asset.duration.seconds
+    let hitDurationUs: Int64 = (rawSec.isFinite && rawSec > 0)
+      ? min(max(1, Int64(rawSec * 1_000_000)), 5_000_000)
+      : 100_000
     let starts = hitEventTimesUs.map { $0 - timelineStartUs }.sorted()
     var availableAt = Array(repeating: Int64.min, count: 6)
     var tracks: [AVMutableCompositionTrack] = []

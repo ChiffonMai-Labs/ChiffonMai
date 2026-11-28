@@ -82,7 +82,7 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
 
   /// 记住的谱面代码字体；读取完成前先用默认字体 Inconsolata。
   ChartCodeFont _codeFont = ChartCodeFont.inconsolata;
-  bool _highlightCode = false;
+  bool _highlightCode = true;
   bool _codeOptionsLoaded = false;
   String? _highlightedCode;
   Brightness? _highlightBrightness;
@@ -163,14 +163,10 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: AppDialogOption(
-                  title: font == ChartCodeFont.standard
-                      ? ctx.l10n.chartCodeFontDefault
-                      : 'Inconsolata',
+                  title: font.displayName,
                   // 选项标题用对应字体预览效果。
                   titleWidget: Text(
-                    font == ChartCodeFont.standard
-                        ? ctx.l10n.chartCodeFontDefault
-                        : 'Inconsolata',
+                    font.displayName,
                     style: font.apply(const TextStyle(
                         fontSize: 14.5, fontWeight: FontWeight.w600)),
                   ),

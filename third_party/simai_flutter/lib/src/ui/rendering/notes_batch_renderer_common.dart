@@ -159,7 +159,33 @@ void _drawApproachArc(
   }
 }
 
-int _sampleIndex(double progress, int sampleCount) {
-  if (sampleCount <= 1) return 0;
-  return (progress * (sampleCount - 1)).round().clamp(0, sampleCount - 1);
+double _sampleLinear(List<double> values, double progress) {
+  final int count = values.length;
+  if (count == 0) return 0.0;
+  if (count == 1) return values[0];
+  final double clamped = progress.clamp(0.0, 1.0).toDouble();
+  final double scaled = clamped * (count - 1);
+  final int i0 = scaled.floor();
+  if (i0 >= count - 1) return values[count - 1];
+  final double t = scaled - i0;
+  return values[i0] + (values[i0 + 1] - values[i0]) * t;
+}
+
+double _sampleAngleLinear(List<double> angles, double progress) {
+  final int count = angles.length;
+  if (count == 0) return 0.0;
+  if (count == 1) return angles[0];
+  final double clamped = progress.clamp(0.0, 1.0).toDouble();
+  final double scaled = clamped * (count - 1);
+  final int i0 = scaled.floor();
+  if (i0 >= count - 1) return angles[count - 1];
+  final double t = scaled - i0;
+  final double a0 = angles[i0];
+  double delta = angles[i0 + 1] - a0;
+  if (delta > pi) {
+    delta -= 2 * pi;
+  } else if (delta < -pi) {
+    delta += 2 * pi;
+  }
+  return a0 + delta * t;
 }

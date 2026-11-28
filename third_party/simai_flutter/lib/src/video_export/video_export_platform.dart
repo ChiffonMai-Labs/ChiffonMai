@@ -21,6 +21,7 @@ abstract class SimaiNativeVideoExportPlatform {
     required String? outputPath,
     required String? audioAsset,
     required String? audioFilePath,
+    String? hitSoundFilePath,
     required String audioMode,
     String? pvVideoPath,
     List<int>? pvRect,
@@ -75,6 +76,7 @@ class SimaiNativeVideoSession {
   final List<int> bufferAddresses;
   final int bufferLength;
   final int audioDurationUs;
+  final int hitSoundDurationUs;
   final String outputPath;
 
   const SimaiNativeVideoSession({
@@ -82,6 +84,7 @@ class SimaiNativeVideoSession {
     required this.bufferAddresses,
     required this.bufferLength,
     required this.audioDurationUs,
+    this.hitSoundDurationUs = 100000,
     required this.outputPath,
   });
 }

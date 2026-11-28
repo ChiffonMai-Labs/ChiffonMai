@@ -74,29 +74,29 @@ class SimaiJudgementFeedbackRenderer {
         SimaiJudgementVisualKind.breakCritical: _JudgementPalette(
           gradientColors: <Color>[
             Color(0xFFFFFFFF),
-            Color(0xFFFFD8F0),
-            Color(0xFFFFEC6E),
-            Color(0xFFB8F6FF),
-            Color(0xFFFFB420),
+            Color(0xFFFFBDF0),
+            Color(0xFFFFF275),
+            Color(0xFF8CF5FF),
+            Color(0xFFFF9E1F),
           ],
-          gradientStops: <double>[0.0, 0.28, 0.52, 0.76, 1.0],
-          outerStrokeColor: Color(0xF25C1A00),
+          gradientStops: <double>[0.0, 0.25, 0.50, 0.75, 1.0],
+          outerStrokeColor: Color(0xF5681200),
           innerStrokeColor: Color(0xFFFFFFFF),
-          glowColor: Color(0x99FFE066),
+          glowColor: Color(0xCCFF9E2C),
           bannerColors: <Color>[Color(0xFFFFDC52), Color(0xFFFF8818)],
           bannerEdgeColor: Color(0xEEFFF8D0),
         ),
         SimaiJudgementVisualKind.breakCriticalPerfect: _JudgementPalette(
           gradientColors: <Color>[
-            Color(0xFFFFFFFF),
-            Color(0xFFFFF38A),
-            Color(0xFFFFC52E),
-            Color(0xFFFF8818),
+            Color(0xFFFFFDF5),
+            Color(0xFFFFE84D),
+            Color(0xFFFF9A18),
+            Color(0xFFFF4D1A),
           ],
-          gradientStops: <double>[0.0, 0.32, 0.68, 1.0],
-          outerStrokeColor: Color(0xF25C1A00),
+          gradientStops: <double>[0.0, 0.30, 0.68, 1.0],
+          outerStrokeColor: Color(0xF5681200),
           innerStrokeColor: Color(0xFFFFFFFF),
-          glowColor: Color(0x99FFE066),
+          glowColor: Color(0xCCFF9E2C),
           bannerColors: <Color>[Color(0xFFFFDC52), Color(0xFFFF8818)],
           bannerEdgeColor: Color(0xEEFFF8D0),
         ),
@@ -486,12 +486,16 @@ class SimaiJudgementFeedbackRenderer {
     final double targetRotation = clockwise
         ? centerAngle + pi / 2
         : centerAngle - pi / 2;
+    final bool isBreakCriticalArc = _hasBreakCriticalVisual(lines);
+    final double effectiveScale = isBreakCriticalArc
+        ? animation.scale * 1.07
+        : animation.scale;
 
     _bitmapPaint.color = Color.fromARGB(alpha, 255, 255, 255);
     canvas.save();
     canvas.translate(position.dx, position.dy);
-    if ((animation.scale - 1.0).abs() > 1e-4) {
-      canvas.scale(animation.scale, animation.scale);
+    if ((effectiveScale - 1.0).abs() > 1e-4) {
+      canvas.scale(effectiveScale, effectiveScale);
     }
     canvas.rotate(targetRotation);
     canvas.drawImageRect(
@@ -501,6 +505,17 @@ class SimaiJudgementFeedbackRenderer {
       _bitmapPaint,
     );
     canvas.restore();
+  }
+
+  static bool _hasBreakCriticalVisual(List<SimaiJudgementLine> lines) {
+    for (var i = 0; i < lines.length; i++) {
+      final kind = lines[i].kind;
+      if (kind == SimaiJudgementVisualKind.breakCritical ||
+          kind == SimaiJudgementVisualKind.breakCriticalPerfect) {
+        return true;
+      }
+    }
+    return false;
   }
 
   _BakedFeedbackBitmap? _obtainArcCompositeBitmap({
@@ -554,6 +569,7 @@ class SimaiJudgementFeedbackRenderer {
     final allRotations = <double>[];
 
     try {
+      final bool isBreakCriticalArc = _hasBreakCriticalVisual(lines);
       final bakeCenterAngle = clockwise ? -pi / 2 : pi / 2;
       final anchorOrigin = Offset(0.0, clockwise ? -baseRadius : baseRadius);
       final lineFontSizes = <double>[
@@ -565,11 +581,14 @@ class SimaiJudgementFeedbackRenderer {
       final double halfSeparation = lines.length > 1
           ? (lineFontSizes[0] + lineFontSizes[1]) * 0.275
           : 0.0;
-      final double margin = fontSize * 0.65 + 8.0;
+      final double margin =
+          fontSize * (isBreakCriticalArc ? 0.95 : 0.65) +
+          (isBreakCriticalArc ? 12.0 : 8.0);
       double minX = double.infinity;
       double minY = double.infinity;
       double maxX = double.negativeInfinity;
       double maxY = double.negativeInfinity;
+      double maxGlyphAngleOffset = 0.0;
 
       for (var lineIdx = 0; lineIdx < lines.length; lineIdx++) {
         final line = lines[lineIdx];
@@ -677,6 +696,10 @@ class SimaiJudgementFeedbackRenderer {
           final glyph = glyphs[i];
           final probe = lineProbes[i];
           final placement = placements[i];
+          final double angleDiff = (placement.angle - bakeCenterAngle).abs();
+          if (angleDiff > maxGlyphAngleOffset) {
+            maxGlyphAngleOffset = angleDiff;
+          }
           final relCenter =
               Offset(cos(placement.angle), sin(placement.angle)) * lineRadius -
               anchorOrigin;
@@ -708,6 +731,58 @@ class SimaiJudgementFeedbackRenderer {
 
       if (glyphFill.isEmpty) return null;
 
+      void expandBoundsFor(Offset point, double pad) {
+        if (point.dx - pad < minX) minX = point.dx - pad;
+        if (point.dy - pad < minY) minY = point.dy - pad;
+        if (point.dx + pad > maxX) maxX = point.dx + pad;
+        if (point.dy + pad > maxY) maxY = point.dy + pad;
+      }
+
+      final double ornamentRadius = max(fontSize * 2.0, baseRadius);
+      final double starPadAngle = (fontSize * 0.78) / ornamentRadius;
+      final double endStarAngleOffset = maxGlyphAngleOffset + starPadAngle;
+      final double arcFlareHalfAngle = endStarAngleOffset +
+          (fontSize * 0.55) / ornamentRadius;
+      final double outerCrestRadius = ornamentRadius +
+          (lines.length > 1 ? halfSeparation + fontSize * 0.74 : fontSize * 0.78);
+      final double apexStarRadius = fontSize * 0.42;
+      final double sideStarRadius = fontSize * 0.46;
+      final double sideMiniRadius = fontSize * 0.28;
+      final Offset apexStarCenter =
+          Offset(cos(bakeCenterAngle), sin(bakeCenterAngle)) * outerCrestRadius -
+          anchorOrigin;
+      final double leftEndAngle = bakeCenterAngle - endStarAngleOffset;
+      final double rightEndAngle = bakeCenterAngle + endStarAngleOffset;
+      final Offset leftStarCenter =
+          Offset(cos(leftEndAngle), sin(leftEndAngle)) * ornamentRadius -
+          anchorOrigin;
+      final Offset rightStarCenter =
+          Offset(cos(rightEndAngle), sin(rightEndAngle)) * ornamentRadius -
+          anchorOrigin;
+      final Offset leftMiniCenter =
+          Offset(
+                cos(leftEndAngle - (fontSize * 0.34) / ornamentRadius),
+                sin(leftEndAngle - (fontSize * 0.34) / ornamentRadius),
+              ) *
+              (ornamentRadius + fontSize * 0.36) -
+          anchorOrigin;
+      final Offset rightMiniCenter =
+          Offset(
+                cos(rightEndAngle + (fontSize * 0.34) / ornamentRadius),
+                sin(rightEndAngle + (fontSize * 0.34) / ornamentRadius),
+              ) *
+              (ornamentRadius + fontSize * 0.36) -
+          anchorOrigin;
+
+      if (isBreakCriticalArc) {
+        final double pad = fontSize * 0.75 + 8.0;
+        expandBoundsFor(apexStarCenter, pad);
+        expandBoundsFor(leftStarCenter, pad);
+        expandBoundsFor(rightStarCenter, pad);
+        expandBoundsFor(leftMiniCenter, pad);
+        expandBoundsFor(rightMiniCenter, pad);
+      }
+
       final double logicalW = max(1.0, maxX - minX);
       final double logicalH = max(1.0, maxY - minY);
       final int pxW = max(1, (logicalW * _bitmapPixelRatio).ceil());
@@ -717,6 +792,30 @@ class SimaiJudgementFeedbackRenderer {
       final canvas = Canvas(recorder)
         ..scale(_bitmapPixelRatio, _bitmapPixelRatio)
         ..translate(-minX, -minY);
+
+      if (isBreakCriticalArc) {
+        _paintBreakCriticalArcOrnament(
+          canvas,
+          arcOrigin: -anchorOrigin,
+          arcRadius: ornamentRadius,
+          centerAngle: bakeCenterAngle,
+          halfAngle: arcFlareHalfAngle,
+          bandThickness: lines.length > 1
+              ? (halfSeparation * 2.0 + fontSize * 0.92)
+              : fontSize * 1.18,
+          apexStarCenter: apexStarCenter,
+          apexStarRadius: apexStarRadius,
+          leftStarCenter: leftStarCenter,
+          rightStarCenter: rightStarCenter,
+          sideStarRadius: sideStarRadius,
+          leftMiniCenter: leftMiniCenter,
+          rightMiniCenter: rightMiniCenter,
+          sideMiniRadius: sideMiniRadius,
+          leftRotation: leftEndAngle + pi / 2,
+          rightRotation: rightEndAngle + pi / 2,
+          apexRotation: bakeCenterAngle + pi / 2,
+        );
+      }
 
       for (var i = 0; i < glyphFill.length; i++) {
         final fillPainter = glyphFill[i];
@@ -1395,5 +1494,173 @@ class SimaiJudgementFeedbackRenderer {
       text: TextSpan(text: text, style: style),
       textDirection: TextDirection.ltr,
     )..layout();
+  }
+
+  /// 为非滑条绝赞（Tap / Hold / Slide 星头）的 CRITICAL PERFECT 烘焙专属炽金光带与星芒徽章，
+  /// 使 2600 绝赞与普通 CRITICAL PERFECT 在高速谱面中一眼可辨（Break Slide 维持原有箭头横幅）。
+  static void _paintBreakCriticalArcOrnament(
+    Canvas canvas, {
+    required Offset arcOrigin,
+    required double arcRadius,
+    required double centerAngle,
+    required double halfAngle,
+    required double bandThickness,
+    required Offset apexStarCenter,
+    required double apexStarRadius,
+    required Offset leftStarCenter,
+    required Offset rightStarCenter,
+    required double sideStarRadius,
+    required Offset leftMiniCenter,
+    required Offset rightMiniCenter,
+    required double sideMiniRadius,
+    required double leftRotation,
+    required double rightRotation,
+    required double apexRotation,
+  }) {
+    final double sweepStart = centerAngle - halfAngle;
+    final double sweepAngle = halfAngle * 2.0;
+    final double gradCenter = centerAngle < 0 ? centerAngle + 2 * pi : centerAngle;
+    final double gradStart = gradCenter - halfAngle;
+    final double gradEnd = gradCenter + halfAngle;
+    final Rect arcRect = Rect.fromCircle(center: arcOrigin, radius: arcRadius);
+
+    // 1. 弧形炽金-赤橙双层背光焰带（两端自然羽化消隐）
+    final outerAuraPaint = Paint()
+      ..isAntiAlias = true
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = bandThickness
+      ..maskFilter = ui.MaskFilter.blur(
+        ui.BlurStyle.normal,
+        max(2.2, bandThickness * 0.20),
+      )
+      ..shader = ui.Gradient.sweep(
+        arcOrigin,
+        const <Color>[
+          Color(0x00FF6A00),
+          Color(0x66FF5E1A),
+          Color(0x9EFFAE24),
+          Color(0x66FF5E1A),
+          Color(0x00FF6A00),
+        ],
+        const <double>[0.0, 0.22, 0.50, 0.78, 1.0],
+        TileMode.clamp,
+        gradStart,
+        gradEnd,
+      );
+    canvas.drawArc(arcRect, sweepStart, sweepAngle, false, outerAuraPaint);
+
+    final coreRibbonPaint = Paint()
+      ..isAntiAlias = true
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = max(2.2, bandThickness * 0.26)
+      ..shader = ui.Gradient.sweep(
+        arcOrigin,
+        const <Color>[
+          Color(0x00FFE466),
+          Color(0x88FFE978),
+          Color(0xCCFFFFFF),
+          Color(0x88FFE978),
+          Color(0x00FFE466),
+        ],
+        const <double>[0.0, 0.26, 0.50, 0.74, 1.0],
+        TileMode.clamp,
+        gradStart,
+        gradEnd,
+      );
+    canvas.drawArc(arcRect, sweepStart, sweepAngle, false, coreRibbonPaint);
+
+    // 2. 顶部皇冠四角星芒 + 左右侧翼冷暖棱镜星屑
+    _paintFourPointStar(
+      canvas,
+      center: apexStarCenter,
+      radius: apexStarRadius,
+      rotation: apexRotation,
+      glowColor: const Color(0xCCFF8C1A),
+      coreColor: const Color(0xFFFFFCE0),
+    );
+    _paintFourPointStar(
+      canvas,
+      center: leftStarCenter,
+      radius: sideStarRadius,
+      rotation: leftRotation,
+      glowColor: const Color(0xCCFF7A18),
+      coreColor: const Color(0xFFFFFFFF),
+    );
+    _paintFourPointStar(
+      canvas,
+      center: rightStarCenter,
+      radius: sideStarRadius,
+      rotation: rightRotation,
+      glowColor: const Color(0xCCFF7A18),
+      coreColor: const Color(0xFFFFFFFF),
+    );
+    _paintFourPointStar(
+      canvas,
+      center: leftMiniCenter,
+      radius: sideMiniRadius,
+      rotation: leftRotation + pi / 4,
+      glowColor: const Color(0xB85CE8FF),
+      coreColor: const Color(0xFFF0FCFF),
+    );
+    _paintFourPointStar(
+      canvas,
+      center: rightMiniCenter,
+      radius: sideMiniRadius,
+      rotation: rightRotation + pi / 4,
+      glowColor: const Color(0xB8FF7FD8),
+      coreColor: const Color(0xFFFFF0FA),
+    );
+  }
+
+  static void _paintFourPointStar(
+    Canvas canvas, {
+    required Offset center,
+    required double radius,
+    required double rotation,
+    required Color glowColor,
+    required Color coreColor,
+  }) {
+    if (radius <= 0.5) return;
+    final double inner = radius * 0.26;
+    final Path starPath = Path()
+      ..moveTo(0, -radius)
+      ..lineTo(inner, -inner)
+      ..lineTo(radius, 0)
+      ..lineTo(inner, inner)
+      ..lineTo(0, radius)
+      ..lineTo(-inner, inner)
+      ..lineTo(-radius, 0)
+      ..lineTo(-inner, -inner)
+      ..close();
+
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    canvas.rotate(rotation);
+
+    final glowPaint = Paint()
+      ..isAntiAlias = true
+      ..color = glowColor
+      ..maskFilter = ui.MaskFilter.blur(
+        ui.BlurStyle.normal,
+        max(1.2, radius * 0.35),
+      );
+    canvas.drawPath(starPath, glowPaint);
+
+    final strokePaint = Paint()
+      ..isAntiAlias = true
+      ..style = PaintingStyle.stroke
+      ..strokeJoin = StrokeJoin.round
+      ..strokeWidth = max(1.0, radius * 0.18)
+      ..color = const Color(0xCC6B1800);
+    canvas.drawPath(starPath, strokePaint);
+
+    final fillPaint = Paint()
+      ..isAntiAlias = true
+      ..style = PaintingStyle.fill
+      ..color = coreColor;
+    canvas.drawPath(starPath, fillPaint);
+    canvas.restore();
   }
 }

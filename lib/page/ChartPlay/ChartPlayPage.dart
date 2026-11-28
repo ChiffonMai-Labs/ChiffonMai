@@ -29,6 +29,7 @@ import '../../utils/AppTheme.dart';
 import '../../widgets/AppDialogs.dart';
 import '../../widgets/AppSwitch.dart';
 import '../../widgets/AppToast.dart';
+import '../../widgets/ChartPlayCustomizationSheets.dart';
 import '../../widgets/ChartPlayMetronome.dart';
 
 class ChartPlayPage extends StatefulWidget {
@@ -131,6 +132,10 @@ class _ChartPlayPageState extends State<ChartPlayPage>
   String get _trimmedSongId => widget.songId.trim();
 
   bool get _hasNumericSongId => RegExp(r'^\d+$').hasMatch(_trimmedSongId);
+
+  bool get _isUtageChart =>
+      widget.songType.toUpperCase() == 'UTAGE' ||
+      (_trimmedSongId.length == 6 && _hasNumericSongId);
 
   bool get _canLoadRemotePv => widget.loadPv && _hasNumericSongId;
 
@@ -343,6 +348,7 @@ class _ChartPlayPageState extends State<ChartPlayPage>
       musicVolume: controller.musicVolume,
       hitSoundVolume: controller.hitSoundVolume,
       mirrorMode: controller.mirrorMode,
+      backgroundMode: controller.backgroundMode,
       backgroundOpacity: controller.backgroundOpacity,
       noteStyle: controller.noteStyle,
       holdStyle: controller.holdStyle,
@@ -1270,7 +1276,11 @@ class _ChartPlayPageState extends State<ChartPlayPage>
           (_hasNumericSongId || hasExplicitLocalAudio);
 
       final difficulty = _difficultyForInote(resolvedInote);
-      final videoMetadata = _buildVideoMetadata(simaiFile, difficulty);
+      final videoMetadata = _buildVideoMetadata(
+        simaiFile,
+        difficulty,
+        inoteNum: resolvedInote,
+      );
       final videoOutputPath = await _buildVideoOutputPath();
       if (!mounted || _isLeaving) return;
 
@@ -1326,7 +1336,11 @@ class _ChartPlayPageState extends State<ChartPlayPage>
   }
 
   SimaiChartDifficulty? _difficultyForInote(String? inoteNum) {
+    if (_isUtageChart) {
+      return SimaiChartDifficulty.utage;
+    }
     switch (inoteNum) {
+      case '1':
       case '2':
         return SimaiChartDifficulty.basic;
       case '3':
@@ -1337,6 +1351,8 @@ class _ChartPlayPageState extends State<ChartPlayPage>
         return SimaiChartDifficulty.master;
       case '6':
         return SimaiChartDifficulty.reMaster;
+      case '7':
+        return SimaiChartDifficulty.utage;
       default:
         return null;
     }
@@ -1344,14 +1360,19 @@ class _ChartPlayPageState extends State<ChartPlayPage>
 
   SimaiVideoMetadata? _buildVideoMetadata(
     SimaiFile simaiFile,
-    SimaiChartDifficulty? difficulty,
-  ) {
+    SimaiChartDifficulty? difficulty, {
+    String? inoteNum,
+  }) {
     if (difficulty == null || _bgImageProvider == null) return null;
     try {
       return SimaiVideoMetadata.fromSimaiFile(
         simaiFile,
         coverImageProvider: _bgImageProvider!,
         difficulty: difficulty,
+        inoteKey: inoteNum,
+        fallbackTitle: widget.songTitle,
+        fallbackArtist: '',
+        fallbackLevel: difficulty == SimaiChartDifficulty.utage ? '?' : null,
       );
     } catch (e) {
       debugPrint("Video export metadata unavailable: $e");
@@ -1388,6 +1409,10 @@ class _ChartPlayPageState extends State<ChartPlayPage>
             displayFont: AppTheme.font(fontWeight: FontWeight.w700),
             textStyleResolver: _resolveChartTextStyle,
             prepareFonts: _prepareChartFonts,
+            customNoteSkinSettingBuilder: (_, c, onChanged) =>
+                ChartPlayCustomNoteSkinTile(controller: c, onChanged: onChanged),
+            customHitSoundSettingBuilder: (_, c, onChanged) =>
+                ChartPlayCustomHitSoundTile(controller: c, onChanged: onChanged),
             onVideoExported: _onVideoExported,
           ),
         ),
@@ -1824,6 +1849,16 @@ E
                   onChanged: onChanged,
                 ),
                 extraDisplaySettings: _buildMetronomeSpeedSetting(),
+                customNoteSkinSettingBuilder: (_, c, onChanged) =>
+                    ChartPlayCustomNoteSkinTile(
+                      controller: c,
+                      onChanged: onChanged,
+                    ),
+                customHitSoundSettingBuilder: (_, c, onChanged) =>
+                    ChartPlayCustomHitSoundTile(
+                      controller: c,
+                      onChanged: onChanged,
+                    ),
                 beforeTimeline: ValueListenableBuilder<double>(
                   valueListenable: _metronomeSpeedNotifier,
                   builder: (_, speed, __) => ChartPlayMetronome(

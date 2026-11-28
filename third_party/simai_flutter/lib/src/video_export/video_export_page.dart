@@ -17,6 +17,7 @@ import '../ui/note_style.dart';
 import '../ui/simai_game.dart';
 import '../ui/simai_player.dart';
 import '../ui/simai_player_controls.dart';
+import '../ui/utils/custom_file_probe.dart';
 import 'video_export_models.dart';
 import 'video_export_timeline.dart';
 import 'video_exporter.dart';
@@ -52,6 +53,8 @@ class SimaiVideoExportPage extends StatefulWidget {
   final TextStyle? displayFont;
   final SimaiTextStyleResolver? textStyleResolver;
   final Future<void> Function()? prepareFonts;
+  final SimaiCustomSettingBuilder? customNoteSkinSettingBuilder;
+  final SimaiCustomSettingBuilder? customHitSoundSettingBuilder;
 
   const SimaiVideoExportPage({
     super.key,
@@ -71,6 +74,8 @@ class SimaiVideoExportPage extends StatefulWidget {
     this.displayFont,
     this.textStyleResolver,
     this.prepareFonts,
+    this.customNoteSkinSettingBuilder,
+    this.customHitSoundSettingBuilder,
   });
 
   @override
@@ -102,7 +107,8 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
   bool _previewMusicReady = false;
   bool _previewAudioPlayActive = false;
   AudioSource? _previewHitSource;
-  bool _previewHitLoading = false;
+  String? _loadedPreviewHitPath;
+  int _previewHitLoadGeneration = 0;
   final List<SoundHandle> _previewHitVoices = <SoundHandle>[];
   List<int> _previewHitEventsUs = const <int>[];
   int _previewHitIndex = 0;
@@ -821,24 +827,49 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
   }
 
   Future<void> _preparePreviewHitSound() async {
-    if (_disposed || _previewHitSource != null || _previewHitLoading) return;
-    _previewHitLoading = true;
+    if (_disposed) return;
+    final desiredPath = _settingsController.customHitSoundPath?.trim();
+    final normalizedPath =
+        (desiredPath != null && desiredPath.isNotEmpty) ? desiredPath : null;
+    if (_previewHitSource != null && _loadedPreviewHitPath == normalizedPath) {
+      return;
+    }
+    final generation = ++_previewHitLoadGeneration;
+    _loadedPreviewHitPath = normalizedPath;
     try {
       await ensureSoLoudInitialized(SoLoud.instance);
-      if (_disposed) return;
+      if (_disposed || generation != _previewHitLoadGeneration) return;
       const assetPath = 'packages/simai_flutter/assets/answer.wav';
-      final src = kIsWeb
-          ? await SoLoud.instance.loadAsset(assetPath, mode: LoadMode.disk)
-          : await SoLoud.instance.loadAsset(assetPath);
-      if (_disposed) {
-        unawaited(SoLoud.instance.disposeSource(src));
+      AudioSource? src;
+      if (!kIsWeb &&
+          normalizedPath != null &&
+          customFileExists(normalizedPath)) {
+        try {
+          src = await SoLoudSourcePool.acquireFile(
+            normalizedPath,
+            SoLoud.instance,
+          );
+        } catch (e) {
+          debugPrint('[VideoExportPreview] 自定义正解音加载失败，回退默认: $e');
+        }
+      }
+      src ??= await SoLoudSourcePool.acquireAsset(assetPath, SoLoud.instance);
+      if (_disposed || generation != _previewHitLoadGeneration) {
+        unawaited(SoLoudSourcePool.release(src, SoLoud.instance));
         return;
       }
-      _previewHitSource = src;
+      final previous = _previewHitSource;
+      if (!identical(previous, src)) {
+        _stopPreviewHitVoices();
+        _previewHitSource = src;
+        if (previous != null) {
+          unawaited(SoLoudSourcePool.release(previous, SoLoud.instance));
+        }
+      } else {
+        unawaited(SoLoudSourcePool.release(src, SoLoud.instance));
+      }
     } catch (e) {
       debugPrint('[VideoExportPreview] 预览正解音加载失败: $e');
-    } finally {
-      _previewHitLoading = false;
     }
   }
 
@@ -974,10 +1005,8 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     }
     final src = _previewHitSource;
     _previewHitSource = null;
-    if (src != null && SoLoud.instance.isInitialized) {
-      try {
-        await SoLoud.instance.disposeSource(src);
-      } catch (_) {}
+    if (src != null) {
+      unawaited(SoLoudSourcePool.release(src, SoLoud.instance));
     }
   }
 
@@ -1813,6 +1842,14 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
             (controller) => controller.holdStyle = value,
           ),
         ),
+        if (widget.customNoteSkinSettingBuilder != null) ...[
+          const SizedBox(height: 12),
+          widget.customNoteSkinSettingBuilder!(
+            context,
+            controller,
+            () => _updateVisualSetting((_) {}),
+          ),
+        ],
         const SizedBox(height: 16),
         _buildSegmentedSetting<SimaiBackgroundMode>(
           theme,
@@ -2434,6 +2471,12 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
             (controller) => controller.hitSoundEnabled = value,
           ),
         ),
+        if (widget.customHitSoundSettingBuilder != null)
+          widget.customHitSoundSettingBuilder!(
+            context,
+            controller,
+            () => _updateAudioSetting((_) {}),
+          ),
         _buildSliderSetting(
           theme,
           label: '音乐音量',

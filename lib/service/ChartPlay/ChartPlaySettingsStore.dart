@@ -88,6 +88,7 @@ class ChartPlaySettings {
   final SimaiJudgementDisplayMode judgementDisplayMode;
   final SimaiNoteStyle noteStyle;
   final SimaiNoteStyle holdStyle;
+  final SimaiCustomNoteSkin customNoteSkin;
   final SimaiCenterDisplayMode centerDisplayMode;
   final SimaiCenterDisplayMode topRightDisplayMode;
   final bool showAchievementRate;
@@ -99,6 +100,7 @@ class ChartPlaySettings {
 
   // ---- 音频设置 ----
   final bool hitSoundEnabled;
+  final String? customHitSoundPath;
   final bool metronomeSoundEnabled;
   final double musicVolume;
   final double hitSoundVolume;
@@ -127,6 +129,7 @@ class ChartPlaySettings {
     this.judgementDisplayMode = SimaiJudgementDisplayMode.twoB,
     this.noteStyle = SimaiNoteStyle.arcade,
     this.holdStyle = SimaiNoteStyle.arcade,
+    this.customNoteSkin = SimaiCustomNoteSkin.empty,
     this.centerDisplayMode = SimaiCenterDisplayMode.achievementAdd,
     this.topRightDisplayMode = SimaiCenterDisplayMode.combo,
     this.showAchievementRate = true,
@@ -136,6 +139,7 @@ class ChartPlaySettings {
     this.metronomeEnabled = true,
     this.metronomeSpeed = 1.0,
     this.hitSoundEnabled = true,
+    this.customHitSoundPath,
     this.metronomeSoundEnabled = false,
     this.musicVolume = 0.5,
     this.hitSoundVolume = 2.0,
@@ -173,6 +177,7 @@ class ChartPlaySettings {
       judgementDisplayMode: c.judgementDisplayMode,
       noteStyle: c.noteStyle,
       holdStyle: SimaiNoteStyle.normalizeForHold(c.holdStyle),
+      customNoteSkin: c.customNoteSkin,
       centerDisplayMode: c.centerDisplayMode,
       topRightDisplayMode: c.topRightDisplayMode,
       showAchievementRate: c.showAchievementRate,
@@ -182,6 +187,7 @@ class ChartPlaySettings {
       metronomeEnabled: metronomeEnabled,
       metronomeSpeed: safeMetronomeSpeed,
       hitSoundEnabled: c.hitSoundEnabled,
+      customHitSoundPath: c.customHitSoundPath,
       metronomeSoundEnabled: metronomeSoundEnabled,
       musicVolume: c.musicVolume,
       hitSoundVolume: c.hitSoundVolume,
@@ -213,6 +219,7 @@ class ChartPlaySettings {
     c.judgementDisplayMode = judgementDisplayMode;
     c.noteStyle = noteStyle;
     c.holdStyle = SimaiNoteStyle.normalizeForHold(holdStyle);
+    c.customNoteSkin = customNoteSkin;
     c.centerDisplayMode = centerDisplayMode;
     c.topRightDisplayMode = topRightDisplayMode;
     c.showAchievementRate = showAchievementRate;
@@ -220,6 +227,7 @@ class ChartPlaySettings {
     c.showCornerInfo = showCornerInfo;
     c.showDetailedPerformanceInfo = showDetailedPerformanceInfo;
     c.hitSoundEnabled = hitSoundEnabled;
+    c.customHitSoundPath = customHitSoundPath;
     c.musicVolume = musicVolume;
     c.hitSoundVolume = hitSoundVolume;
     c.musicOffsetMs = musicOffsetMs;
@@ -246,6 +254,8 @@ class ChartPlaySettings {
         'judgementDisplayMode': judgementDisplayMode.name,
         'noteStyle': noteStyle.name,
         'holdStyle': SimaiNoteStyle.normalizeForHold(holdStyle).name,
+        if (customNoteSkin.isNotEmpty)
+          'customNoteSkin': customNoteSkin.toJson(),
         'centerDisplayMode': centerDisplayMode.name,
         'topRightDisplayMode': topRightDisplayMode.name,
         'showAchievementRate': showAchievementRate,
@@ -255,6 +265,8 @@ class ChartPlaySettings {
         'metronomeEnabled': metronomeEnabled,
         'metronomeSpeed': metronomeSpeed,
         'hitSoundEnabled': hitSoundEnabled,
+        if (customHitSoundPath != null && customHitSoundPath!.isNotEmpty)
+          'customHitSoundPath': customHitSoundPath,
         'metronomeSoundEnabled': metronomeSoundEnabled,
         'musicVolume': musicVolume,
         'hitSoundVolume': hitSoundVolume,
@@ -324,6 +336,7 @@ class ChartPlaySettings {
         json['holdStyle'],
         fallback: SimaiNoteStyle.normalizeForHold(parsedNoteStyle),
       ),
+      customNoteSkin: SimaiCustomNoteSkin.fromJson(json['customNoteSkin']),
       centerDisplayMode: SimaiCenterDisplayMode.fromNameOrLegacy(
         json['centerDisplayMode'],
         fallback: fallback.centerDisplayMode,
@@ -344,6 +357,7 @@ class ChartPlaySettings {
       metronomeSpeed: _clampDouble(
           json['metronomeSpeed'], 0.5, 3.0, fallback.metronomeSpeed),
       hitSoundEnabled: _bool(json['hitSoundEnabled'], fallback.hitSoundEnabled),
+      customHitSoundPath: _nonEmptyString(json['customHitSoundPath']),
       metronomeSoundEnabled:
           _bool(json['metronomeSoundEnabled'], fallback.metronomeSoundEnabled),
       musicVolume:
@@ -369,6 +383,12 @@ class ChartPlaySettings {
   }
 
   static bool _bool(Object? raw, bool fallback) => raw is bool ? raw : fallback;
+
+  static String? _nonEmptyString(Object? raw) {
+    if (raw is! String) return null;
+    final trimmed = raw.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
 
   static double _clampDouble(
       Object? raw, double min, double max, double fallback) {
@@ -598,6 +618,8 @@ class ChartVideoExportSettingsStore {
         'judgementDisplayMode': s.judgementDisplayMode.name,
         'noteStyle': s.noteStyle.name,
         'holdStyle': SimaiNoteStyle.normalizeForHold(s.holdStyle).name,
+        if (s.customNoteSkin.isNotEmpty)
+          'customNoteSkin': s.customNoteSkin.toJson(),
         'centerDisplayMode': s.centerDisplayMode.name,
         'topRightDisplayMode': s.topRightDisplayMode.name,
         'showAchievementRate': s.showAchievementRate,
@@ -605,6 +627,8 @@ class ChartVideoExportSettingsStore {
         'showCornerInfo': s.showCornerInfo,
         'showDetailedPerformanceInfo': s.showDetailedPerformanceInfo,
         'hitSoundEnabled': s.hitSoundEnabled,
+        if (s.customHitSoundPath != null && s.customHitSoundPath!.isNotEmpty)
+          'customHitSoundPath': s.customHitSoundPath,
         'musicVolume': s.musicVolume,
         'hitSoundVolume': s.hitSoundVolume,
         'musicOffsetMs': s.musicOffsetMs,
@@ -675,6 +699,7 @@ class ChartVideoExportSettingsStore {
         json['holdStyle'],
         fallback: SimaiNoteStyle.normalizeForHold(parsedNoteStyle),
       ),
+      customNoteSkin: SimaiCustomNoteSkin.fromJson(json['customNoteSkin']),
       centerDisplayMode: SimaiCenterDisplayMode.fromNameOrLegacy(
         json['centerDisplayMode'],
         fallback: fallback.centerDisplayMode,
@@ -694,6 +719,8 @@ class ChartVideoExportSettingsStore {
           fallback.showDetailedPerformanceInfo),
       hitSoundEnabled: ChartPlaySettings._bool(
           json['hitSoundEnabled'], fallback.hitSoundEnabled),
+      customHitSoundPath:
+          ChartPlaySettings._nonEmptyString(json['customHitSoundPath']),
       musicVolume: ChartPlaySettings._clampDouble(
           json['musicVolume'], 0.0, 1.0, fallback.musicVolume),
       hitSoundVolume: ChartPlaySettings._clampDouble(json['hitSoundVolume'],

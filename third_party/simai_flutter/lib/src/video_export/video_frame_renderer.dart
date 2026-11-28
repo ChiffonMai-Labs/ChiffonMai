@@ -107,6 +107,7 @@ class SimaiVideoFrameRenderer {
       ..topRightDisplayMode = source.topRightDisplayMode
       ..noteStyle = source.noteStyle
       ..holdStyle = source.holdStyle
+      ..customNoteSkin = source.customNoteSkin
       ..showCornerInfo = source.showCornerInfo
       ..showDetailedPerformanceInfo = source.showDetailedPerformanceInfo;
 
@@ -138,6 +139,8 @@ class SimaiVideoFrameRenderer {
     await _game.setNoteStyleAsync(source.noteStyle);
     if (_disposed) return;
     _game.setHoldStyle(source.holdStyle);
+    await _game.setCustomNoteSkinAsync(source.customNoteSkin);
+    if (_disposed) return;
     await _game.setMirrorModeAsync(source.mirrorMode);
     if (_disposed) return;
     _game.invalidateNotes(resetWindow: true);
@@ -209,6 +212,7 @@ class SimaiVideoFrameRenderer {
       topRightDisplayMode: controller.topRightDisplayMode,
       noteStyle: controller.noteStyle,
       holdStyle: controller.holdStyle,
+      customNoteSkin: controller.customNoteSkin,
       showCornerInfo: controller.showCornerInfo,
       showFps: controller.showDetailedPerformanceInfo,
       showDetailedPerformanceInfo: controller.showDetailedPerformanceInfo,

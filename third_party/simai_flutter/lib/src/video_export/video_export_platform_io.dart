@@ -66,6 +66,7 @@ class _MethodChannelVideoExportPlatform
     required String? outputPath,
     required String? audioAsset,
     required String? audioFilePath,
+    String? hitSoundFilePath,
     required String audioMode,
     String? pvVideoPath,
     List<int>? pvRect,
@@ -85,6 +86,7 @@ class _MethodChannelVideoExportPlatform
       'outputPath': outputPath,
       'audioAsset': audioAsset,
       'audioFilePath': audioFilePath,
+      'hitSoundFilePath': hitSoundFilePath,
       'audioMode': audioMode,
       'pvVideoPath': pvVideoPath,
       'pvRect': pvRect,
@@ -103,6 +105,7 @@ class _MethodChannelVideoExportPlatform
           .cast<int>(),
       bufferLength: result['bufferLength']! as int,
       audioDurationUs: result['audioDurationUs']! as int,
+      hitSoundDurationUs: result['hitSoundDurationUs'] as int? ?? 100000,
       outputPath: result['outputPath']! as String,
     );
   }
