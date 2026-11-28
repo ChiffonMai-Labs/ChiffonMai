@@ -1,5 +1,4 @@
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
-import '../../widgets/GuessCoverImage.dart';
 import '../../widgets/GuessGameStatusPanel.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:async';
@@ -17,9 +16,7 @@ import 'package:my_first_flutter_app/service/GuessChartGame/GuessChartByInfoServ
 import 'package:my_first_flutter_app/service/GuessChartGame/GuessChartCommonSettingsService.dart';
 import 'package:my_first_flutter_app/utils/CommonWidgetUtil.dart';
 import 'package:my_first_flutter_app/utils/CommonCacheUtil.dart';
-import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:my_first_flutter_app/utils/SongFilterUtil.dart';
-import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import '../../utils/ExternalLaunchUtil.dart';
 import 'package:my_first_flutter_app/utils/LuoXueSongUtil.dart';
 import 'package:my_first_flutter_app/utils/RefreshRateUtil.dart';
@@ -92,7 +89,15 @@ class GuessChartByChartPeekPage extends StatefulWidget {
     required double initialChartTime,
     String? audioFilePath,
     double flowSpeed = GuessChartCommonSettingsService.defaultPeekFlowSpeed,
+    double touchSpeed = GuessChartCommonSettingsService.defaultPeekTouchSpeed,
+    double slideDisplayTiming =
+        GuessChartCommonSettingsService.defaultPeekSlideDisplayTiming,
+    double playbackRate =
+        GuessChartCommonSettingsService.defaultPeekPlaybackRate,
     SimaiMirrorMode mirrorMode = SimaiMirrorMode.none,
+    SimaiNoteStyle noteStyle = SimaiNoteStyle.arcade,
+    SimaiNoteStyle holdStyle = SimaiNoteStyle.arcade,
+    SimaiBackgroundMode backgroundMode = SimaiBackgroundMode.judgeLine,
   }) {
     final controller = SimaiPlayerController(
       chart: chart,
@@ -102,7 +107,13 @@ class GuessChartByChartPeekPage extends StatefulWidget {
     controller.showCornerInfo = false;
     controller.showAchievementRate = false;
     controller.speed = flowSpeed;
+    controller.touchSpeed = touchSpeed;
+    controller.slideDisplayTiming = slideDisplayTiming;
+    controller.playbackRate = playbackRate;
     controller.mirrorMode = mirrorMode;
+    controller.noteStyle = noteStyle;
+    controller.holdStyle = SimaiNoteStyle.normalizeForHold(holdStyle);
+    controller.backgroundMode = backgroundMode;
     // 谱面片段始终开启“高亮保护套”，不受谱面播放页的持久化设置影响。
     controller.highlightExNotes = true;
     return controller;
@@ -145,7 +156,16 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
   int _peekDurationSeconds = 8; // 片段时长（从设置中加载）
   List<String> _peekDifficulties = ['4']; // 难度随机池（inote 编号，从设置中加载）
   double _peekFlowSpeed = GuessChartCommonSettingsService.defaultPeekFlowSpeed;
+  double _peekTouchSpeed =
+      GuessChartCommonSettingsService.defaultPeekTouchSpeed;
+  double _peekSlideDisplayTiming =
+      GuessChartCommonSettingsService.defaultPeekSlideDisplayTiming;
+  double _peekPlaybackRate =
+      GuessChartCommonSettingsService.defaultPeekPlaybackRate;
   SimaiMirrorMode _peekMirror = SimaiMirrorMode.none;
+  SimaiNoteStyle _peekNoteStyle = SimaiNoteStyle.arcade;
+  SimaiNoteStyle _peekHoldStyle = SimaiNoteStyle.arcade;
+  SimaiBackgroundMode _peekBackgroundMode = SimaiBackgroundMode.judgeLine;
   String? _resolvedDifficulty; // 本局实际播放的难度（inote 编号）
   String _unavailableReason = ''; // 谱面区不可用时的提示文案
   static const int _maxReplays = 3; // 复播次数上限
@@ -258,9 +278,27 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
               (d) => GuessChartByChartPeekPage.difficultyNames.containsKey(d))
           .toList();
       if (_peekDifficulties.isEmpty) _peekDifficulties = ['4'];
-      _peekFlowSpeed = (settings['peekFlowSpeed'] as num?)?.toDouble() ??
-          GuessChartCommonSettingsService.defaultPeekFlowSpeed;
+      _peekFlowSpeed = ChartPeekPlayback.normalizeSpeed(
+        settings['peekFlowSpeed'] as num?,
+        fallback: GuessChartCommonSettingsService.defaultPeekFlowSpeed,
+      );
+      _peekTouchSpeed = ChartPeekPlayback.normalizeSpeed(
+        settings['peekTouchSpeed'] as num?,
+        fallback: GuessChartCommonSettingsService.defaultPeekTouchSpeed,
+      );
+      _peekSlideDisplayTiming = ChartPeekPlayback.normalizeSlideTiming(
+        settings['peekSlideDisplayTiming'] as num?,
+      );
+      _peekPlaybackRate = ChartPeekPlayback.normalizePlaybackRate(
+        settings['peekPlaybackRate'] as num?,
+      );
       _peekMirror = ChartPeekPlayback.mirrorOf(settings['peekMirror'] as String?);
+      _peekNoteStyle =
+          ChartPeekPlayback.noteStyleOf(settings['peekNoteStyle'] as String?);
+      _peekHoldStyle =
+          ChartPeekPlayback.holdStyleOf(settings['peekHoldStyle'] as String?);
+      _peekBackgroundMode = ChartPeekPlayback.backgroundModeOf(
+          settings['peekBackgroundMode'] as String?);
     });
   }
 
@@ -529,7 +567,13 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
       // 无音频：走帧时钟，天然无声；且只保留谱面（关掉四角与中间信息）
       final controller = GuessChartByChartPeekPage.buildChartOnlyController(
         flowSpeed: _peekFlowSpeed,
+        touchSpeed: _peekTouchSpeed,
+        slideDisplayTiming: _peekSlideDisplayTiming,
+        playbackRate: _peekPlaybackRate,
         mirrorMode: _peekMirror,
+        noteStyle: _peekNoteStyle,
+        holdStyle: _peekHoldStyle,
+        backgroundMode: _peekBackgroundMode,
         chart: chart,
         initialChartTime: _clipStart,
       );
@@ -642,7 +686,13 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
     // 答案模式同样只保留谱面（关掉四角与中间信息）
     final controller = GuessChartByChartPeekPage.buildChartOnlyController(
       flowSpeed: _peekFlowSpeed,
+      touchSpeed: _peekTouchSpeed,
+      slideDisplayTiming: _peekSlideDisplayTiming,
+      playbackRate: _peekPlaybackRate,
       mirrorMode: _peekMirror,
+      noteStyle: _peekNoteStyle,
+      holdStyle: _peekHoldStyle,
+      backgroundMode: _peekBackgroundMode,
       chart: chart,
       audioFilePath: path,
       initialChartTime: 0,
@@ -880,89 +930,13 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
   }
 
   // 构建搜索结果项
-  Widget _buildSearchResultItem(Song song) {
-    final aliases = _songAliasManager.aliases[song.title] ?? [];
-    String aliasText = aliases.isNotEmpty ? aliases.join('、') : '';
-
-    return GestureDetector(
-      onTap: () {
-        _handleGuess(song);
-      },
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          border: Border(
-              bottom: BorderSide(
-                  color: AppColors.readableTableBorder(context))),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-                child: GuessCoverImage(songId: song.id, size: 60),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        song.type == 'SD' ? 'ST' : 'DX',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color:
-                              song.type == 'SD' ? Colors.blue : Colors.orange,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          song.basicInfo.title,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Text(
-                    song.basicInfo.artist,
-                    style: TextStyle(
-                        fontSize: 14,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (aliasText.isNotEmpty)
-                    Text(
-                      aliasText,
-                      style: TextStyle(
-                          fontSize: 14,
-                          color:
-                              AppColors.linkBlue(Theme.of(context).brightness)),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+  Widget _buildSearchResultItem(Song song, {bool showDivider = true}) {
+    final aliases = _songAliasManager.aliases[song.title] ?? const [];
+    return GuessSearchResultTile(
+      song: song,
+      aliases: aliases,
+      showDivider: showDivider,
+      onTap: () => _handleGuess(song),
     );
   }
 
@@ -1116,7 +1090,13 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
     int tempPeekDurationSeconds = _peekDurationSeconds;
     List<String> tempPeekDifficulties = List.from(_peekDifficulties);
     double tempPeekFlowSpeed = _peekFlowSpeed;
+    double tempPeekTouchSpeed = _peekTouchSpeed;
+    double tempPeekSlideDisplayTiming = _peekSlideDisplayTiming;
+    double tempPeekPlaybackRate = _peekPlaybackRate;
     SimaiMirrorMode tempPeekMirror = _peekMirror;
+    SimaiNoteStyle tempPeekNoteStyle = _peekNoteStyle;
+    SimaiNoteStyle tempPeekHoldStyle = _peekHoldStyle;
+    SimaiBackgroundMode tempPeekBackgroundMode = _peekBackgroundMode;
 
     // 「重置所有设置」用：默认值统一取自设置服务，页面不再手写字面量。
     void applySettingsDefaults() {
@@ -1132,9 +1112,22 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
       tempPeekDurationSeconds = defaults['peekDurationSeconds'] as int;
       tempPeekDifficulties =
           List<String>.from(defaults['peekDifficulties'] as List);
-      tempPeekFlowSpeed = (defaults['peekFlowSpeed'] as num).toDouble();
+      tempPeekFlowSpeed = ChartPeekPlayback.normalizeSpeed(
+          defaults['peekFlowSpeed'] as num?);
+      tempPeekTouchSpeed = ChartPeekPlayback.normalizeSpeed(
+          defaults['peekTouchSpeed'] as num?);
+      tempPeekSlideDisplayTiming = ChartPeekPlayback.normalizeSlideTiming(
+          defaults['peekSlideDisplayTiming'] as num?);
+      tempPeekPlaybackRate = ChartPeekPlayback.normalizePlaybackRate(
+          defaults['peekPlaybackRate'] as num?);
       tempPeekMirror =
           ChartPeekPlayback.mirrorOf(defaults['peekMirror'] as String?);
+      tempPeekNoteStyle =
+          ChartPeekPlayback.noteStyleOf(defaults['peekNoteStyle'] as String?);
+      tempPeekHoldStyle =
+          ChartPeekPlayback.holdStyleOf(defaults['peekHoldStyle'] as String?);
+      tempPeekBackgroundMode = ChartPeekPlayback.backgroundModeOf(
+          defaults['peekBackgroundMode'] as String?);
     }
 
     showDialog(
@@ -1206,11 +1199,29 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
                         ),
                         ChartPeekPlaybackSettings(
                           speed: tempPeekFlowSpeed,
+                          touchSpeed: tempPeekTouchSpeed,
+                          slideDisplayTiming: tempPeekSlideDisplayTiming,
+                          playbackRate: tempPeekPlaybackRate,
                           mirror: tempPeekMirror,
+                          noteStyle: tempPeekNoteStyle,
+                          holdStyle: tempPeekHoldStyle,
+                          backgroundMode: tempPeekBackgroundMode,
                           onSpeedChanged: (value) =>
                               setState(() => tempPeekFlowSpeed = value),
+                          onTouchSpeedChanged: (value) =>
+                              setState(() => tempPeekTouchSpeed = value),
+                          onSlideDisplayTimingChanged: (value) =>
+                              setState(() => tempPeekSlideDisplayTiming = value),
+                          onPlaybackRateChanged: (value) =>
+                              setState(() => tempPeekPlaybackRate = value),
                           onMirrorChanged: (value) =>
                               setState(() => tempPeekMirror = value),
+                          onNoteStyleChanged: (value) =>
+                              setState(() => tempPeekNoteStyle = value),
+                          onHoldStyleChanged: (value) =>
+                              setState(() => tempPeekHoldStyle = value),
+                          onBackgroundModeChanged: (value) =>
+                              setState(() => tempPeekBackgroundMode = value),
                         ),
                         ChartPeekDifficultyPool(
                           selected: tempPeekDifficulties,
@@ -1253,7 +1264,13 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
                   peekDurationSeconds: tempPeekDurationSeconds,
                   peekDifficulties: tempPeekDifficulties,
                   peekFlowSpeed: tempPeekFlowSpeed,
+                  peekTouchSpeed: tempPeekTouchSpeed,
+                  peekSlideDisplayTiming: tempPeekSlideDisplayTiming,
+                  peekPlaybackRate: tempPeekPlaybackRate,
                   peekMirror: tempPeekMirror.name,
+                  peekNoteStyle: tempPeekNoteStyle.name,
+                  peekHoldStyle: tempPeekHoldStyle.name,
+                  peekBackgroundMode: tempPeekBackgroundMode.name,
                 );
 
                 if (!navigator.mounted) return;
@@ -1326,7 +1343,10 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
               top: 8,
               right: 8,
               child: ChartPeekPlaybackTag(
-                  speed: controller.speed, mirror: controller.mirrorMode),
+                speed: controller.speed,
+                mirror: controller.mirrorMode,
+                playbackRate: controller.playbackRate,
+              ),
             ),
             // 片段结束后的半透明遮罩提示；答案模式下不遮挡（可点击复播按钮）
             if (_clipFinished && !_isGameOver)
@@ -1348,7 +1368,6 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
 
   @override
   Widget build(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
 
@@ -1486,139 +1505,21 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
                                 const SizedBox(height: 20),
 
                                 // 游戏结果显示
-                                if (_isGameOver)
-                                  GestureDetector(
+                                if (_isGameOver && _targetSong != null)
+                                  GuessAnswerCard(
+                                    song: _targetSong!,
+                                    isWon: _isWon,
+                                    margin: const EdgeInsets.only(top: 20),
                                     onTap: () {
-                                      if (_targetSong != null) {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => SongInfoPage(
-                                              songId: _targetSong!.id,
-                                            ),
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => SongInfoPage(
+                                            songId: _targetSong!.id,
                                           ),
-                                        );
-                                      }
+                                        ),
+                                      );
                                     },
-                                    child: Container(
-                                      margin: const EdgeInsets.only(top: 20),
-                                      padding: const EdgeInsets.all(16),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.guessAnswerCardBg(
-                                            brightness),
-                                        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            _isWon ? context.l10n.flowYouGotIt : context.l10n.flowThisGameSAnswer,
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
-                                              color: _isWon
-                                                  ? AppColors.successGreen(
-                                                      brightness)
-                                                  : AppColors.linkBlue(
-                                                      brightness),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          if (_targetSong != null)
-                                            Row(
-                                              children: [
-                                                Container(
-                                                  width: 60,
-                                                  height: 60,
-                                                  decoration: BoxDecoration(
-                                                    borderRadius:
-                                                        BorderRadius.circular(AppDesignTokens.radiusSmall),
-                                                  ),
-                                                  child: ClipRRect(
-                                                    borderRadius:
-                                                        BorderRadius.circular(AppDesignTokens.radiusSmall),
-                                                    child: GuessCoverImage(
-                                                        songId: _targetSong!.id,
-                                                        size: 60),
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 12),
-                                                Expanded(
-                                                  child: Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
-                                                    children: [
-                                                      Row(
-                                                        children: [
-                                                          Text(
-                                                            _targetSong!.type ==
-                                                                    'SD'
-                                                                ? 'ST'
-                                                                : _targetSong!
-                                                                    .type,
-                                                            style: TextStyle(
-                                                              fontSize: 14,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .bold,
-                                                              color: _targetSong!
-                                                                          .type ==
-                                                                      'SD'
-                                                                  ? Colors.blue
-                                                                  : Colors
-                                                                      .orange,
-                                                            ),
-                                                          ),
-                                                          SizedBox(width: 8),
-                                                          Expanded(
-                                                            child: Text(
-                                                              _targetSong!
-                                                                  .basicInfo
-                                                                  .title,
-                                                              style: TextStyle(
-                                                                  fontSize: 14,
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .bold),
-                                                              overflow:
-                                                                  TextOverflow
-                                                                      .ellipsis,
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                      Text(
-                                                        '${_targetSong!.basicInfo.artist} | ${_targetSong!.basicInfo.genre}',
-                                                        style: TextStyle(
-                                                            fontSize: 12,
-                                                            color: Theme.of(
-                                                                    context)
-                                                                .colorScheme
-                                                                .onSurfaceVariant),
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                      ),
-                                                      Text(
-                                                        '${_targetSong!.ds.length > 3 ? _targetSong!.ds[3].toString() : '-'} | ${_targetSong!.ds.length > 4 ? _targetSong!.ds[4].toString() : '-'} | ${StringUtil.formatVersion2WithFlag(_targetSong!.basicInfo.from, _targetSong!.isExtra)}',
-                                                        style: TextStyle(
-                                                            fontSize: 12,
-                                                            color: Theme.of(
-                                                                    context)
-                                                                .colorScheme
-                                                                .onSurfaceVariant),
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                        ],
-                                      ),
-                                    ),
                                   ),
 
                                 const SizedBox(height: 20),
@@ -1679,8 +1580,9 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
                     showResults: _showSearchResults,
                     searching: _isSearching,
                     resultCount: _searchResults.length,
-                    resultBuilder: (context, index) =>
-                        _buildSearchResultItem(_searchResults[index]),
+                    resultBuilder: (context, index) => _buildSearchResultItem(
+                        _searchResults[index],
+                        showDivider: index < _searchResults.length - 1),
                   ),
             ],
           );

@@ -1,6 +1,7 @@
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 
+import '../entity/DivingFish/Song.dart';
 import '../entity/GuessChartGame/GuessSong.dart';
 import '../utils/AppDesignTokens.dart';
 import '../utils/AppTheme.dart';
@@ -526,6 +527,9 @@ class GuessInputBar extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: AppSurfaces.card(context),
                   borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: scheme.outlineVariant.withValues(alpha: 0.6),
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: scheme.shadow.withValues(alpha: 0.18),
@@ -536,7 +540,7 @@ class GuessInputBar extends StatelessWidget {
                 ),
                 child: ListView.builder(
                   // 去掉 ListView 默认把状态栏安全区算进列表顶部的空白
-                  padding: EdgeInsets.zero,
+                  padding: const EdgeInsets.symmetric(vertical: 4),
                   shrinkWrap: true,
                   itemCount: resultCount,
                   itemBuilder: resultBuilder,
@@ -634,6 +638,360 @@ class GuessInputBar extends StatelessWidget {
                   ),
           ),
         ),
+      ],
+    );
+  }
+}
+
+/// 猜歌绿色本局答案卡片：统一用于单人与多人猜歌的题面揭晓区域。
+class GuessAnswerCard extends StatelessWidget {
+  final Song song;
+  final bool isWon;
+  final String? headerText;
+  final VoidCallback? onTap;
+  final Widget? footer;
+  final Widget? cover;
+  final EdgeInsetsGeometry margin;
+
+  const GuessAnswerCard({
+    super.key,
+    required this.song,
+    this.isWon = false,
+    this.headerText,
+    this.onTap,
+    this.footer,
+    this.cover,
+    this.margin = const EdgeInsets.only(top: 16),
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final brightness = Theme.of(context).brightness;
+    final scheme = Theme.of(context).colorScheme;
+    final accent = AppColors.successForeground(brightness);
+    final topColor = AppColors.guessAnswerCardBg(brightness);
+    final bottomColor =
+        Color.lerp(topColor, AppSurfaces.card(context), 0.35) ?? topColor;
+    final surfacePillBg = AppSurfaces.card(context)
+        .withValues(alpha: brightness == Brightness.dark ? 0.65 : 0.85);
+    final versionLabel =
+        StringUtil.formatVersion2WithFlag(song.basicInfo.from, song.isExtra);
+
+    return Container(
+      margin: margin,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [topColor, bottomColor],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: accent.withValues(alpha: brightness == Brightness.dark ? 0.42 : 0.35),
+          width: 1.2,
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(18),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: accent.withValues(
+                            alpha: brightness == Brightness.dark ? 0.18 : 0.12,
+                          ),
+                          borderRadius:
+                              BorderRadius.circular(AppDesignTokens.radiusPill),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isWon
+                                  ? Icons.emoji_events_rounded
+                                  : Icons.check_circle_rounded,
+                              size: 15,
+                              color: accent,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              headerText ??
+                                  (isWon
+                                      ? context.l10n.flowYouGotIt
+                                      : context.l10n.flowThisGameSAnswer),
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                                color: accent,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Spacer(),
+                      if (onTap != null)
+                        Icon(
+                          Icons.chevron_right_rounded,
+                          size: 18,
+                          color: accent.withValues(alpha: 0.85),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 66,
+                        height: 66,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: accent.withValues(alpha: 0.25),
+                          ),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(11),
+                          child: cover ?? GuessCoverImage(songId: song.id, size: 66),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                SongTypeBadge(
+                                  songId: song.id,
+                                  type: song.type,
+                                  fontSize: 10,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: MarqueeText(
+                                    text: song.basicInfo.title,
+                                    style: TextStyle(
+                                      fontSize: 15.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: scheme.onSurface,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              song.basicInfo.artist,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 5,
+                              runSpacing: 5,
+                              children: [
+                                if (song.ds.length > 3)
+                                  ChartDifficultyBadge(
+                                    levelIndex: 3,
+                                    songId: song.id,
+                                    label: 'MAS ${song.ds[3]}',
+                                    fontSize: 10,
+                                  ),
+                                if (song.ds.length > 4)
+                                  ChartDifficultyBadge(
+                                    levelIndex: 4,
+                                    songId: song.id,
+                                    label: 'Re:MAS ${song.ds[4]}',
+                                    fontSize: 10,
+                                  ),
+                                if (song.basicInfo.genre.isNotEmpty)
+                                  AppBadge(
+                                    text: song.basicInfo.genre,
+                                    background: surfacePillBg,
+                                    foreground: scheme.onSurfaceVariant,
+                                    fontSize: 10,
+                                  ),
+                                if (versionLabel.isNotEmpty)
+                                  AppBadge(
+                                    text: versionLabel,
+                                    background: surfacePillBg,
+                                    foreground: scheme.onSurfaceVariant,
+                                    fontSize: 10,
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (footer != null) ...[
+                    const SizedBox(height: 10),
+                    footer!,
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 猜歌搜索下拉列表的单曲卡：统一用于所有猜歌模式与多人房间的联想列表。
+class GuessSearchResultTile extends StatelessWidget {
+  final Song song;
+  final List<String> aliases;
+  final VoidCallback onTap;
+  final bool showDivider;
+  final Widget? cover;
+
+  const GuessSearchResultTile({
+    super.key,
+    required this.song,
+    this.aliases = const [],
+    required this.onTap,
+    this.showDivider = true,
+    this.cover,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final aliasText = aliases.join(' · ');
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: scheme.outlineVariant.withValues(alpha: 0.45),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(9.2),
+                      child: cover ?? GuessCoverImage(songId: song.id, size: 48),
+                    ),
+                  ),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            SongTypeBadge(
+                              songId: song.id,
+                              type: song.type,
+                              fontSize: 9.5,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                song.basicInfo.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 14.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: scheme.onSurface,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          song.basicInfo.artist,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                        if (aliasText.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.sell_outlined,
+                                size: 11.5,
+                                color: scheme.primary.withValues(alpha: 0.85),
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  aliasText,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w500,
+                                    color: scheme.primary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Icon(
+                    Icons.north_west_rounded,
+                    size: 16,
+                    color: scheme.onSurfaceVariant.withValues(alpha: 0.5),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (showDivider)
+          Divider(
+            height: 1,
+            thickness: 0.7,
+            indent: 70,
+            endIndent: 12,
+            color: scheme.outlineVariant.withValues(alpha: 0.45),
+          ),
       ],
     );
   }

@@ -55,7 +55,16 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
   List<String> _peekDifficulties = ['4']; // 谱面难度随机池 (chartPeek 模式)
   double _peekFlowSpeed =
       GuessChartCommonSettingsService.defaultPeekFlowSpeed; // 谱面流速 (chartPeek 模式)
+  double _peekTouchSpeed =
+      GuessChartCommonSettingsService.defaultPeekTouchSpeed;
+  double _peekSlideDisplayTiming =
+      GuessChartCommonSettingsService.defaultPeekSlideDisplayTiming;
+  double _peekPlaybackRate =
+      GuessChartCommonSettingsService.defaultPeekPlaybackRate;
   SimaiMirrorMode _peekMirror = SimaiMirrorMode.none; // 谱面镜像 (chartPeek 模式)
+  SimaiNoteStyle _peekNoteStyle = SimaiNoteStyle.arcade;
+  SimaiNoteStyle _peekHoldStyle = SimaiNoteStyle.arcade;
+  SimaiBackgroundMode _peekBackgroundMode = SimaiBackgroundMode.judgeLine;
 
   /// 房间可选的变速变调倍率（服务端只接受 0.5～1.5）。
   static const List<double> _audioRates = [.65, .75, .85, 1.15, 1.25, 1.35, 1.5];
@@ -124,10 +133,28 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
     if (pool != null && pool.isNotEmpty) {
       _peekDifficulties = List<String>.from(pool);
     }
-    _peekFlowSpeed =
-        (settings['peekFlowSpeed'] as num?)?.toDouble() ?? _peekFlowSpeed;
+    _peekFlowSpeed = ChartPeekPlayback.normalizeSpeed(
+      settings['peekFlowSpeed'] as num?,
+      fallback: _peekFlowSpeed,
+    );
+    _peekTouchSpeed = ChartPeekPlayback.normalizeSpeed(
+      settings['peekTouchSpeed'] as num?,
+      fallback: _peekTouchSpeed,
+    );
+    _peekSlideDisplayTiming = ChartPeekPlayback.normalizeSlideTiming(
+      settings['peekSlideDisplayTiming'] as num?,
+    );
+    _peekPlaybackRate = ChartPeekPlayback.normalizePlaybackRate(
+      settings['peekPlaybackRate'] as num?,
+    );
     _peekMirror =
         ChartPeekPlayback.mirrorOf(settings['peekMirror'] as String?);
+    _peekNoteStyle =
+        ChartPeekPlayback.noteStyleOf(settings['peekNoteStyle'] as String?);
+    _peekHoldStyle =
+        ChartPeekPlayback.holdStyleOf(settings['peekHoldStyle'] as String?);
+    _peekBackgroundMode = ChartPeekPlayback.backgroundModeOf(
+        settings['peekBackgroundMode'] as String?);
   }
 
   void _resetSettings() {
@@ -191,7 +218,13 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
         peekDurationSeconds: _peekDurationSeconds,
         peekDifficulties: _peekDifficulties,
         peekFlowSpeed: _peekFlowSpeed,
+        peekTouchSpeed: _peekTouchSpeed,
+        peekSlideDisplayTiming: _peekSlideDisplayTiming,
+        peekPlaybackRate: _peekPlaybackRate,
         peekMirror: _peekMirror.name,
+        peekNoteStyle: _peekNoteStyle.name,
+        peekHoldStyle: _peekHoldStyle.name,
+        peekBackgroundMode: _peekBackgroundMode.name,
       );
 
       if (!mounted) return;
@@ -364,9 +397,25 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
             (v) => _peekDurationSeconds = v),
         ChartPeekPlaybackSettings(
           speed: _peekFlowSpeed,
+          touchSpeed: _peekTouchSpeed,
+          slideDisplayTiming: _peekSlideDisplayTiming,
+          playbackRate: _peekPlaybackRate,
           mirror: _peekMirror,
+          noteStyle: _peekNoteStyle,
+          holdStyle: _peekHoldStyle,
+          backgroundMode: _peekBackgroundMode,
           onSpeedChanged: (value) => setState(() => _peekFlowSpeed = value),
+          onTouchSpeedChanged: (value) =>
+              setState(() => _peekTouchSpeed = value),
+          onSlideDisplayTimingChanged: (value) =>
+              setState(() => _peekSlideDisplayTiming = value),
+          onPlaybackRateChanged: (value) =>
+              setState(() => _peekPlaybackRate = value),
           onMirrorChanged: (value) => setState(() => _peekMirror = value),
+          onNoteStyleChanged: (value) => setState(() => _peekNoteStyle = value),
+          onHoldStyleChanged: (value) => setState(() => _peekHoldStyle = value),
+          onBackgroundModeChanged: (value) =>
+              setState(() => _peekBackgroundMode = value),
         ),
         // 池内每个难度各自的定数落在房间定数范围内即可入选
         ChartPeekDifficultyPool(

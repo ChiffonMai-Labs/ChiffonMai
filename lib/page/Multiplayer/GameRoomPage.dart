@@ -23,7 +23,6 @@ import 'package:my_first_flutter_app/manager/Song/SongAliasManager.dart';
 import 'package:my_first_flutter_app/page/GuessChartGame/GuessChartByChartPeekPage.dart';
 import 'package:my_first_flutter_app/service/GuessChartGame/GuessChartByInfoService.dart';
 import 'package:my_first_flutter_app/service/Library/SongSearchService.dart';
-import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/utils/CoverUtil.dart';
 import 'package:my_first_flutter_app/widgets/BackgroundPageScaffold.dart';
@@ -1195,16 +1194,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
           _buildAudioAnswerArea(),
 
           // 显示答案区域（绿色背景）
-          if (_targetSong != null)
-            Container(
-              margin: const EdgeInsets.only(top: 20),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.guessAnswerCardBg(brightness),
-                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-              ),
-              child: _buildAnswerDisplay(),
-            ),
+          if (_targetSong != null) _buildAnswerDisplay(),
 
           const SizedBox(height: 16),
           _buildScoreboard(),
@@ -1251,16 +1241,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
           _buildAudioAnswerArea(),
 
           // 显示答案区域（绿色背景）
-          if (_targetSong != null)
-            Container(
-              margin: const EdgeInsets.only(top: 20),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.guessAnswerCardBg(brightness),
-                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-              ),
-              child: _buildAnswerDisplay(),
-            ),
+          if (_targetSong != null) _buildAnswerDisplay(),
 
           const SizedBox(height: 16),
 
@@ -1518,90 +1499,14 @@ class _GameRoomPageState extends State<GameRoomPage> {
   }
 
 
-  Widget _buildSearchResultItem(Song song) {
-    final aliases = _songAliasManager.aliases[song.title] ?? [];
-    String aliasText = aliases.isNotEmpty ? aliases.join('、') : '';
-
-    return GestureDetector(
+  Widget _buildSearchResultItem(Song song, {bool showDivider = true}) {
+    final aliases = _songAliasManager.aliases[song.title] ?? const [];
+    return GuessSearchResultTile(
+      song: song,
+      aliases: aliases,
+      showDivider: showDivider,
+      cover: CoverUtil.buildCoverWidgetWithContext(context, song.id, 48),
       onTap: () => _handleGuess(song),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: Theme.of(context).colorScheme.outlineVariant,
-            ),
-          ),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-                child:
-                    CoverUtil.buildCoverWidgetWithContext(context, song.id, 60),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        song.type == 'SD' ? 'ST' : 'DX',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color:
-                              song.type == 'SD' ? Colors.blue : Colors.orange,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          song.basicInfo.title,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Text(
-                    song.basicInfo.artist,
-                    style: TextStyle(
-                        fontSize: 14,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (aliasText.isNotEmpty)
-                    Text(
-                      aliasText,
-                      style: TextStyle(
-                          fontSize: 14,
-                          color:
-                              AppColors.linkBlue(Theme.of(context).brightness)),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -1746,106 +1651,38 @@ class _GameRoomPageState extends State<GameRoomPage> {
 
   // 构建答案显示区域
   Widget _buildAnswerDisplay() {
-    if ((_currentRoom?.gameType ?? widget.room.gameType) == GameType.letters)
-      return _buildLettersHint();
+    final roomType = _currentRoom?.gameType ?? widget.room.gameType;
+    final brightness = Theme.of(context).brightness;
+    if (roomType == GameType.letters) {
+      final accent = AppColors.successForeground(brightness);
+      return Container(
+        margin: const EdgeInsets.only(top: 16),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.guessAnswerCardBg(brightness),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: accent.withValues(
+              alpha: brightness == Brightness.dark ? 0.42 : 0.35,
+            ),
+            width: 1.2,
+          ),
+        ),
+        child: _buildLettersHint(),
+      );
+    }
     if (_targetSong == null) return const SizedBox();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // 标题
-        Row(
-          children: [
-            Icon(Icons.check_circle,
-                size: 18, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(width: 6),
-            Text(
-              context.l10n.flowThisGameSAnswer,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-
-        // 曲绘和信息
-        Row(
-          children: [
-            // 曲绘
-            Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-                child: CoverUtil.buildCoverWidgetWithContext(
-                    context, _targetSong!.id, 60),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 第一行：类型 曲名
-                  Row(
-                    children: [
-                      Text(
-                        _targetSong!.type == 'SD' ? 'ST' : _targetSong!.type,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: _targetSong!.type == 'SD'
-                              ? Colors.blue
-                              : Colors.orange,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _targetSong!.basicInfo.title,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  // 第二行：曲师 | 流派
-                  Text(
-                    '${_targetSong!.basicInfo.artist} | ${_targetSong!.basicInfo.genre}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  // 第三行：masterDs | remasterDs | version
-                  Text(
-                    '${_targetSong!.ds.length > 3 ? _targetSong!.ds[3].toString() : '-'} | ${_targetSong!.ds.length > 4 ? _targetSong!.ds[4].toString() : '-'} | ${StringUtil.formatVersion2WithFlag(_targetSong!.basicInfo.from, _targetSong!.isExtra)}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        if ((_currentRoom?.gameType ?? widget.room.gameType) ==
-            GameType.chartPeek)
-          _buildChartPeekHint(
-              widget.room.roomId, _gameState!.currentRound, _targetSong!.id),
-      ],
+    return GuessAnswerCard(
+      song: _targetSong!,
+      isWon: false,
+      headerText: context.l10n.flowThisGameSAnswer,
+      margin: const EdgeInsets.only(top: 20),
+      cover: CoverUtil.buildCoverWidgetWithContext(context, _targetSong!.id, 66),
+      footer: roomType == GameType.chartPeek
+          ? _buildChartPeekHint(
+              widget.room.roomId, _gameState!.currentRound, _targetSong!.id)
+          : null,
     );
   }
 
@@ -2769,8 +2606,10 @@ class _GameRoomPageState extends State<GameRoomPage> {
                     top: 8,
                     right: 8,
                     child: ChartPeekPlaybackTag(
-                        speed: controller.speed,
-                        mirror: controller.mirrorMode),
+                      speed: controller.speed,
+                      mirror: controller.mirrorMode,
+                      playbackRate: controller.playbackRate,
+                    ),
                   ),
                 ],
               ),
@@ -2915,7 +2754,17 @@ class _GameRoomPageState extends State<GameRoomPage> {
       final controller = GuessChartByChartPeekPage.buildChartOnlyController(
         flowSpeed: _currentRoom?.peekFlowSpeed ??
             RoomEntity.defaultPeekFlowSpeed,
+        touchSpeed: _currentRoom?.peekTouchSpeed ??
+            RoomEntity.defaultPeekTouchSpeed,
+        slideDisplayTiming: _currentRoom?.peekSlideDisplayTiming ??
+            RoomEntity.defaultPeekSlideDisplayTiming,
+        playbackRate: _currentRoom?.peekPlaybackRate ??
+            RoomEntity.defaultPeekPlaybackRate,
         mirrorMode: ChartPeekPlayback.mirrorOf(_currentRoom?.peekMirror),
+        noteStyle: ChartPeekPlayback.noteStyleOf(_currentRoom?.peekNoteStyle),
+        holdStyle: ChartPeekPlayback.holdStyleOf(_currentRoom?.peekHoldStyle),
+        backgroundMode: ChartPeekPlayback.backgroundModeOf(
+            _currentRoom?.peekBackgroundMode),
         chart: chart,
         initialChartTime: window.start,
       );
@@ -3055,7 +2904,17 @@ class _GameRoomPageState extends State<GameRoomPage> {
     final controller = GuessChartByChartPeekPage.buildChartOnlyController(
       flowSpeed: _currentRoom?.peekFlowSpeed ??
           RoomEntity.defaultPeekFlowSpeed,
+      touchSpeed: _currentRoom?.peekTouchSpeed ??
+          RoomEntity.defaultPeekTouchSpeed,
+      slideDisplayTiming: _currentRoom?.peekSlideDisplayTiming ??
+          RoomEntity.defaultPeekSlideDisplayTiming,
+      playbackRate: _currentRoom?.peekPlaybackRate ??
+          RoomEntity.defaultPeekPlaybackRate,
       mirrorMode: ChartPeekPlayback.mirrorOf(_currentRoom?.peekMirror),
+      noteStyle: ChartPeekPlayback.noteStyleOf(_currentRoom?.peekNoteStyle),
+      holdStyle: ChartPeekPlayback.holdStyleOf(_currentRoom?.peekHoldStyle),
+      backgroundMode: ChartPeekPlayback.backgroundModeOf(
+          _currentRoom?.peekBackgroundMode),
       chart: chart,
       audioFilePath: path,
       initialChartTime: 0,
@@ -3804,8 +3663,9 @@ class _GameRoomPageState extends State<GameRoomPage> {
                 showResults: _showSearchResults,
                 searching: _isSearching,
                 resultCount: _searchResults.length,
-                resultBuilder: (context, index) =>
-                    _buildSearchResultItem(_searchResults[index]),
+                resultBuilder: (context, index) => _buildSearchResultItem(
+                    _searchResults[index],
+                    showDivider: index < _searchResults.length - 1),
               ),
             if (waiting)
               MultiplayerRoomReadyBar(

@@ -13,15 +13,12 @@ import 'package:my_first_flutter_app/service/Library/SongSearchService.dart';
 import 'package:my_first_flutter_app/service/GuessChartGame/GuessChartByCoverService.dart';
 import 'package:my_first_flutter_app/service/GuessChartGame/GuessChartCommonSettingsService.dart';
 import 'package:my_first_flutter_app/utils/CommonCacheUtil.dart';
-import 'package:my_first_flutter_app/utils/StringUtil.dart';
 import 'package:my_first_flutter_app/utils/SongFilterUtil.dart';
 import 'package:my_first_flutter_app/page/song_info/SongInfoPage.dart';
-import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import '../../utils/ExternalLaunchUtil.dart';
 import 'package:my_first_flutter_app/page/GuessChartGame/GuessChartLoadingView.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/GuessUi.dart';
-import '../../utils/AppDesignTokens.dart';
 import '../../utils/CoverUtil.dart';
 import '../../utils/GuessCoverCrop.dart';
 import '../../widgets/AppDialogs.dart';
@@ -427,93 +424,13 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
   }
 
   // 构建搜索结果项
-  Widget _buildSearchResultItem(Song song) {
-    // 曲绘将使用CoverPathUtil工具类加载
-    // 获取别名
-    final aliases = _songAliasManager.aliases[song.title] ?? [];
-    String aliasText = aliases.isNotEmpty ? aliases.join('、') : '';
-
-    return GestureDetector(
-      onTap: () {
-        _handleGuess(song);
-      },
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          border: Border(
-              bottom: BorderSide(
-                  color: AppColors.readableTableBorder(context))),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // 方形曲绘
-            Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-                child: GuessCoverImage(songId: song.id, size: 60),
-              ),
-            ),
-            const SizedBox(width: 12),
-            // 右侧信息
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 标题
-                  Row(
-                    children: [
-                      Text(
-                        song.type == 'SD' ? 'ST' : song.type,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color:
-                              song.type == 'SD' ? Colors.blue : Colors.orange,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          song.basicInfo.title,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  // 作者
-                  Text(
-                    song.basicInfo.artist,
-                    style: TextStyle(
-                        fontSize: 14,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  // 别名
-                  if (aliasText.isNotEmpty)
-                    Text(
-                      aliasText,
-                      style: TextStyle(fontSize: 14, color: Colors.blue),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+  Widget _buildSearchResultItem(Song song, {bool showDivider = true}) {
+    final aliases = _songAliasManager.aliases[song.title] ?? const [];
+    return GuessSearchResultTile(
+      song: song,
+      aliases: aliases,
+      showDivider: showDivider,
+      onTap: () => _handleGuess(song),
     );
   }
 
@@ -837,7 +754,6 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
 
   @override
   Widget build(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
     // 获取屏幕尺寸
     final screenWidth = MediaQuery.of(context).size.width;
 
@@ -976,150 +892,20 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
 
                                   // 游戏结果显示
                                   if (_isGameOver && _targetSong != null)
-                                    GestureDetector(
+                                    GuessAnswerCard(
+                                      song: _targetSong!,
+                                      isWon: _isWon,
+                                      margin: const EdgeInsets.only(top: 20),
                                       onTap: () {
-                                        if (_targetSong != null) {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (context) =>
-                                                  SongInfoPage(
-                                                songId: _targetSong!.id,
-                                              ),
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => SongInfoPage(
+                                              songId: _targetSong!.id,
                                             ),
-                                          );
-                                        }
+                                          ),
+                                        );
                                       },
-                                      child: Container(
-                                        margin: const EdgeInsets.only(top: 20),
-                                        padding: const EdgeInsets.all(16),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.guessAnswerCardBg(
-                                              brightness),
-                                          borderRadius:
-                                              BorderRadius.circular(AppDesignTokens.radiusSmall),
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              _isWon ? context.l10n.flowYouGotIt : context.l10n.flowThisGameSAnswer,
-                                              style: TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.bold,
-                                                color: _isWon
-                                                    ? AppColors.successGreen(
-                                                        brightness)
-                                                    : AppColors.linkBlue(
-                                                        brightness),
-                                              ),
-                                            ),
-                                            const SizedBox(height: 8),
-                                            if (_targetSong != null)
-                                              Row(
-                                                children: [
-                                                  // 曲绘
-                                                  Container(
-                                                    width: 60,
-                                                    height: 60,
-                                                    decoration: BoxDecoration(
-                                                      borderRadius:
-                                                          BorderRadius.circular(AppDesignTokens.radiusSmall),
-                                                    ),
-                                                    child: ClipRRect(
-                                                      borderRadius:
-                                                          BorderRadius.circular(AppDesignTokens.radiusSmall),
-                                                      child: GuessCoverImage(
-                                                          songId:
-                                                              _targetSong!.id,
-                                                          size: 60),
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 12),
-                                                  Expanded(
-                                                    child: Column(
-                                                      crossAxisAlignment:
-                                                          CrossAxisAlignment
-                                                              .start,
-                                                      children: [
-                                                        // 第一行：类型 曲名
-                                                        Row(
-                                                          children: [
-                                                            Text(
-                                                              _targetSong!.type ==
-                                                                      'SD'
-                                                                  ? 'ST'
-                                                                  : _targetSong!
-                                                                      .type,
-                                                              style: TextStyle(
-                                                                fontSize: 14,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .bold,
-                                                                color: _targetSong!
-                                                                            .type ==
-                                                                        'SD'
-                                                                    ? Colors
-                                                                        .blue
-                                                                    : Colors
-                                                                        .orange,
-                                                              ),
-                                                            ),
-                                                            SizedBox(width: 8),
-                                                            Expanded(
-                                                              child: Text(
-                                                                _targetSong!
-                                                                    .basicInfo
-                                                                    .title,
-                                                                style:
-                                                                    TextStyle(
-                                                                  fontSize: 14,
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .bold,
-                                                                ),
-                                                                overflow:
-                                                                    TextOverflow
-                                                                        .ellipsis,
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                        // 第二行：曲师 | 流派
-                                                        Text(
-                                                          '${_targetSong!.basicInfo.artist} | ${_targetSong!.basicInfo.genre}',
-                                                          style: TextStyle(
-                                                            fontSize: 12,
-                                                            color: Theme.of(
-                                                                    context)
-                                                                .colorScheme
-                                                                .onSurfaceVariant,
-                                                          ),
-                                                          overflow: TextOverflow
-                                                              .ellipsis,
-                                                        ),
-                                                        // 第三行：masterDs | remasterDs | version
-                                                        Text(
-                                                          '${_targetSong!.ds.length > 3 ? _targetSong!.ds[3].toString() : '-'} | ${_targetSong!.ds.length > 4 ? _targetSong!.ds[4].toString() : '-'} | ${StringUtil.formatVersion2WithFlag(_targetSong!.basicInfo.from, _targetSong!.isExtra)}',
-                                                          style: TextStyle(
-                                                            fontSize: 12,
-                                                            color: Theme.of(
-                                                                    context)
-                                                                .colorScheme
-                                                                .onSurfaceVariant,
-                                                          ),
-                                                          overflow: TextOverflow
-                                                              .ellipsis,
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                          ],
-                                        ),
-                                      ),
                                     ),
 
                                   const SizedBox(height: 20),
@@ -1191,8 +977,9 @@ class _GuessChartByCoverPageState extends State<GuessChartByCoverPage> {
                     showResults: _showSearchResults,
                     searching: _isSearching,
                     resultCount: _searchResults.length,
-                    resultBuilder: (context, index) =>
-                        _buildSearchResultItem(_searchResults[index]),
+                    resultBuilder: (context, index) => _buildSearchResultItem(
+                        _searchResults[index],
+                        showDivider: index < _searchResults.length - 1),
                   ),
               ],
             );

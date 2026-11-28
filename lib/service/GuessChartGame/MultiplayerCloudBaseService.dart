@@ -550,7 +550,13 @@ class MultiplayerCloudBaseService {
     int peekDurationSeconds = 8,
     List<String> peekDifficulties = const ['4'],
     double peekFlowSpeed = RoomEntity.defaultPeekFlowSpeed,
+    double peekTouchSpeed = RoomEntity.defaultPeekTouchSpeed,
+    double peekSlideDisplayTiming = RoomEntity.defaultPeekSlideDisplayTiming,
+    double peekPlaybackRate = RoomEntity.defaultPeekPlaybackRate,
     String peekMirror = RoomEntity.defaultPeekMirror,
+    String peekNoteStyle = RoomEntity.defaultPeekNoteStyle,
+    String peekHoldStyle = RoomEntity.defaultPeekHoldStyle,
+    String peekBackgroundMode = RoomEntity.defaultPeekBackgroundMode,
   }) async {
     try {
       debugPrint('[DEBUG][CloudService] 开始创建房间...');
@@ -616,7 +622,13 @@ class MultiplayerCloudBaseService {
         'peekDurationSeconds': peekDurationSeconds,
         'peekDifficulties': peekDifficulties,
         'peekFlowSpeed': peekFlowSpeed,
+        'peekTouchSpeed': peekTouchSpeed,
+        'peekSlideDisplayTiming': peekSlideDisplayTiming,
+        'peekPlaybackRate': peekPlaybackRate,
         'peekMirror': peekMirror,
+        'peekNoteStyle': peekNoteStyle,
+        'peekHoldStyle': peekHoldStyle,
+        'peekBackgroundMode': peekBackgroundMode,
       });
     } catch (e, stack) {
       _emitMappedError(e, stack, stage: '创建房间', fallbackCode: 'NET-MP-CREATE');

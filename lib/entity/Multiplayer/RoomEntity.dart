@@ -84,9 +84,15 @@ class RoomEntity {
   /// 谱面片段难度随机池（inote 编号 '2'..'6'），用于 chartPeek 模式
   final List<String> peekDifficulties;
 
-  /// 谱面片段流速（3~9）与镜像（SimaiMirrorMode.name），用于 chartPeek 模式
+  /// 谱面片段流速（1~SONIC）、TOUCH 流速、SLIDE 显示时机、播放倍速、样式与镜像，用于 chartPeek 模式
   final double peekFlowSpeed;
+  final double peekTouchSpeed;
+  final double peekSlideDisplayTiming;
+  final double peekPlaybackRate;
   final String peekMirror;
+  final String peekNoteStyle;
+  final String peekHoldStyle;
+  final String peekBackgroundMode;
 
   /// 模式专属设置的默认值（与构造参数默认值同一份，供 [withModeSettingsFallback] 判断）。
   static const int defaultFlashDurationMs = 300;
@@ -96,7 +102,13 @@ class RoomEntity {
   static const int defaultPeekDurationSeconds = 8;
   static const List<String> defaultPeekDifficulties = ['4'];
   static const double defaultPeekFlowSpeed = 8.0;
+  static const double defaultPeekTouchSpeed = 8.0;
+  static const double defaultPeekSlideDisplayTiming = 0.0;
+  static const double defaultPeekPlaybackRate = 1.0;
   static const String defaultPeekMirror = 'none';
+  static const String defaultPeekNoteStyle = 'arcade';
+  static const String defaultPeekHoldStyle = 'arcade';
+  static const String defaultPeekBackgroundMode = 'judgeLine';
 
   RoomEntity({
     required this.roomId,
@@ -127,7 +139,13 @@ class RoomEntity {
     this.peekDurationSeconds = defaultPeekDurationSeconds,
     this.peekDifficulties = defaultPeekDifficulties,
     this.peekFlowSpeed = defaultPeekFlowSpeed,
+    this.peekTouchSpeed = defaultPeekTouchSpeed,
+    this.peekSlideDisplayTiming = defaultPeekSlideDisplayTiming,
+    this.peekPlaybackRate = defaultPeekPlaybackRate,
     this.peekMirror = defaultPeekMirror,
+    this.peekNoteStyle = defaultPeekNoteStyle,
+    this.peekHoldStyle = defaultPeekHoldStyle,
+    this.peekBackgroundMode = defaultPeekBackgroundMode,
   })  : _roomCode = roomCode,
         lastActivityAt = lastActivityAt ?? createdAt;
 
@@ -163,8 +181,27 @@ class RoomEntity {
       peekFlowSpeed: peekFlowSpeed == defaultPeekFlowSpeed
           ? fallback.peekFlowSpeed
           : peekFlowSpeed,
+      peekTouchSpeed: peekTouchSpeed == defaultPeekTouchSpeed
+          ? fallback.peekTouchSpeed
+          : peekTouchSpeed,
+      peekSlideDisplayTiming:
+          peekSlideDisplayTiming == defaultPeekSlideDisplayTiming
+              ? fallback.peekSlideDisplayTiming
+              : peekSlideDisplayTiming,
+      peekPlaybackRate: peekPlaybackRate == defaultPeekPlaybackRate
+          ? fallback.peekPlaybackRate
+          : peekPlaybackRate,
       peekMirror:
           peekMirror == defaultPeekMirror ? fallback.peekMirror : peekMirror,
+      peekNoteStyle: peekNoteStyle == defaultPeekNoteStyle
+          ? fallback.peekNoteStyle
+          : peekNoteStyle,
+      peekHoldStyle: peekHoldStyle == defaultPeekHoldStyle
+          ? fallback.peekHoldStyle
+          : peekHoldStyle,
+      peekBackgroundMode: peekBackgroundMode == defaultPeekBackgroundMode
+          ? fallback.peekBackgroundMode
+          : peekBackgroundMode,
     );
   }
 
@@ -271,8 +308,27 @@ class RoomEntity {
       peekFlowSpeed: double.tryParse(
               '${json['peek_flow_speed'] ?? json['peekFlowSpeed']}') ??
           defaultPeekFlowSpeed,
+      peekTouchSpeed: double.tryParse(
+              '${json['peek_touch_speed'] ?? json['peekTouchSpeed']}') ??
+          defaultPeekTouchSpeed,
+      peekSlideDisplayTiming: double.tryParse(
+              '${json['peek_slide_display_timing'] ?? json['peekSlideDisplayTiming']}') ??
+          defaultPeekSlideDisplayTiming,
+      peekPlaybackRate: double.tryParse(
+              '${json['peek_playback_rate'] ?? json['peekPlaybackRate']}') ??
+          defaultPeekPlaybackRate,
       peekMirror: (json['peek_mirror'] ?? json['peekMirror'])?.toString() ??
           defaultPeekMirror,
+      peekNoteStyle:
+          (json['peek_note_style'] ?? json['peekNoteStyle'])?.toString() ??
+              defaultPeekNoteStyle,
+      peekHoldStyle:
+          (json['peek_hold_style'] ?? json['peekHoldStyle'])?.toString() ??
+              defaultPeekHoldStyle,
+      peekBackgroundMode:
+          (json['peek_background_mode'] ?? json['peekBackgroundMode'])
+                  ?.toString() ??
+              defaultPeekBackgroundMode,
     );
   }
 
@@ -306,7 +362,13 @@ class RoomEntity {
       'peek_duration_seconds': peekDurationSeconds,
       'peek_difficulties': peekDifficulties,
       'peek_flow_speed': peekFlowSpeed,
+      'peek_touch_speed': peekTouchSpeed,
+      'peek_slide_display_timing': peekSlideDisplayTiming,
+      'peek_playback_rate': peekPlaybackRate,
       'peek_mirror': peekMirror,
+      'peek_note_style': peekNoteStyle,
+      'peek_hold_style': peekHoldStyle,
+      'peek_background_mode': peekBackgroundMode,
     };
   }
 
@@ -340,7 +402,13 @@ class RoomEntity {
     int? peekDurationSeconds,
     List<String>? peekDifficulties,
     double? peekFlowSpeed,
+    double? peekTouchSpeed,
+    double? peekSlideDisplayTiming,
+    double? peekPlaybackRate,
     String? peekMirror,
+    String? peekNoteStyle,
+    String? peekHoldStyle,
+    String? peekBackgroundMode,
   }) {
     return RoomEntity(
       roomId: roomId ?? this.roomId,
@@ -372,7 +440,14 @@ class RoomEntity {
       peekDurationSeconds: peekDurationSeconds ?? this.peekDurationSeconds,
       peekDifficulties: peekDifficulties ?? this.peekDifficulties,
       peekFlowSpeed: peekFlowSpeed ?? this.peekFlowSpeed,
+      peekTouchSpeed: peekTouchSpeed ?? this.peekTouchSpeed,
+      peekSlideDisplayTiming:
+          peekSlideDisplayTiming ?? this.peekSlideDisplayTiming,
+      peekPlaybackRate: peekPlaybackRate ?? this.peekPlaybackRate,
       peekMirror: peekMirror ?? this.peekMirror,
+      peekNoteStyle: peekNoteStyle ?? this.peekNoteStyle,
+      peekHoldStyle: peekHoldStyle ?? this.peekHoldStyle,
+      peekBackgroundMode: peekBackgroundMode ?? this.peekBackgroundMode,
     );
   }
 

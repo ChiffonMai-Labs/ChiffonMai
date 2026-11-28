@@ -162,7 +162,11 @@ class _NextPlayAddFormState extends State<_NextPlayAddForm> {
                     }
                   }),
                   child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 160),
+                    duration: AppDesignTokens.motion(
+                      context,
+                      const Duration(milliseconds: 200),
+                    ),
+                    curve: AppDesignTokens.emphasizedCurve,
                     padding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                     decoration: BoxDecoration(
@@ -170,14 +174,31 @@ class _NextPlayAddFormState extends State<_NextPlayAddForm> {
                       borderRadius:
                           BorderRadius.circular(AppDesignTokens.radiusSmall),
                     ),
+                    foregroundDecoration: BoxDecoration(
+                      borderRadius:
+                          BorderRadius.circular(AppDesignTokens.radiusSmall),
+                      border: Border.all(
+                        color: selected
+                            ? foreground
+                            : foreground.withValues(alpha: 0),
+                        width: selected ? 2.0 : 0.5,
+                      ),
+                    ),
                     child: Row(
                       children: [
-                        Icon(
-                          selected
-                              ? Icons.check_box
-                              : Icons.check_box_outline_blank,
-                          size: 20,
-                          color: foreground,
+                        AnimatedSwitcher(
+                          duration: AppDesignTokens.motion(
+                            context,
+                            const Duration(milliseconds: 160),
+                          ),
+                          child: Icon(
+                            selected
+                                ? Icons.check_box
+                                : Icons.check_box_outline_blank,
+                            key: ValueKey(selected),
+                            size: 20,
+                            color: foreground,
+                          ),
                         ),
                         const SizedBox(width: 8),
                         Expanded(

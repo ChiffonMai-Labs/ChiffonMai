@@ -80,7 +80,14 @@ class _GuessGameSettingsPageState extends State<GuessGameSettingsPage> {
               peekDurationSeconds: s['peekDurationSeconds'],
               peekDifficulties: List<String>.from(s['peekDifficulties']),
               peekFlowSpeed: (s['peekFlowSpeed'] as num).toDouble(),
+              peekTouchSpeed: (s['peekTouchSpeed'] as num).toDouble(),
+              peekSlideDisplayTiming:
+                  (s['peekSlideDisplayTiming'] as num).toDouble(),
+              peekPlaybackRate: (s['peekPlaybackRate'] as num).toDouble(),
               peekMirror: s['peekMirror'] as String,
+              peekNoteStyle: s['peekNoteStyle'] as String,
+              peekHoldStyle: s['peekHoldStyle'] as String,
+              peekBackgroundMode: s['peekBackgroundMode'] as String,
               playDurationSeconds: s['playDurationSeconds'],
               audioRate: (s['audioRate'] as num).toDouble(),
             ))
@@ -215,12 +222,35 @@ class _GuessGameSettingsPageState extends State<GuessGameSettingsPage> {
                         _slider(context.l10n.flowExcerptLength, 'peekDurationSeconds', 3, 60, 57, context.l10n.flowS),
                         ChartPeekPlaybackSettings(
                           speed: (s['peekFlowSpeed'] as num).toDouble(),
+                          touchSpeed: (s['peekTouchSpeed'] as num).toDouble(),
+                          slideDisplayTiming:
+                              (s['peekSlideDisplayTiming'] as num).toDouble(),
+                          playbackRate:
+                              (s['peekPlaybackRate'] as num).toDouble(),
                           mirror: ChartPeekPlayback.mirrorOf(
                               s['peekMirror'] as String?),
+                          noteStyle: ChartPeekPlayback.noteStyleOf(
+                              s['peekNoteStyle'] as String?),
+                          holdStyle: ChartPeekPlayback.holdStyleOf(
+                              s['peekHoldStyle'] as String?),
+                          backgroundMode: ChartPeekPlayback.backgroundModeOf(
+                              s['peekBackgroundMode'] as String?),
                           onSpeedChanged: (value) =>
                               _change('peekFlowSpeed', value),
+                          onTouchSpeedChanged: (value) =>
+                              _change('peekTouchSpeed', value),
+                          onSlideDisplayTimingChanged: (value) =>
+                              _change('peekSlideDisplayTiming', value),
+                          onPlaybackRateChanged: (value) =>
+                              _change('peekPlaybackRate', value),
                           onMirrorChanged: (value) =>
                               _change('peekMirror', value.name),
+                          onNoteStyleChanged: (value) =>
+                              _change('peekNoteStyle', value.name),
+                          onHoldStyleChanged: (value) =>
+                              _change('peekHoldStyle', value.name),
+                          onBackgroundModeChanged: (value) =>
+                              _change('peekBackgroundMode', value.name),
                         ),
                         ChartPeekDifficultyPool(
                           selected: List<String>.from(s['peekDifficulties']),

@@ -338,7 +338,7 @@ class _GuessMultiSelectSheetState extends State<_GuessMultiSelectSheet> {
 class GuessChoicePill extends StatelessWidget {
   final String label;
   final bool selected;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final Color? selectedColor;
   final Color? selectedForeground;
 
@@ -356,43 +356,44 @@ class GuessChoicePill extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final duration =
         AppDesignTokens.motion(context, AppDesignTokens.fastMotion);
+    final enabled = onTap != null;
     final targetColor = selected
         ? (selectedForeground ?? scheme.onPrimary)
         : scheme.onSurface;
-    return RepaintBoundary(
-      child: PressScale(
-        child: Semantics(
-          button: true,
-          selected: selected,
-          label: label,
-          excludeSemantics: true,
-          child: GestureDetector(
-            onTap: onTap,
-            child: AnimatedContainer(
-              duration: duration,
-              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
-              decoration: BoxDecoration(
-                color: selected
-                    ? (selectedColor ?? scheme.primary)
-                    : AppSurfaces.inset(context),
-                borderRadius: BorderRadius.circular(AppDesignTokens.radiusPill),
-              ),
-              child: TweenAnimationBuilder<Color?>(
-                tween: ColorTween(end: targetColor),
-                duration: duration,
-                builder: (context, color, _) => Text(
-                  label,
-                  style: AppTheme.font(
-                    fontSize: 13,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    color: color ?? targetColor,
-                  ),
-                ),
+    final pill = Semantics(
+      button: true,
+      enabled: enabled,
+      selected: selected,
+      label: label,
+      excludeSemantics: true,
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: duration,
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+          decoration: BoxDecoration(
+            color: selected
+                ? (selectedColor ?? scheme.primary)
+                : AppSurfaces.inset(context),
+            borderRadius: BorderRadius.circular(AppDesignTokens.radiusPill),
+          ),
+          child: TweenAnimationBuilder<Color?>(
+            tween: ColorTween(end: targetColor),
+            duration: duration,
+            builder: (context, color, _) => Text(
+              label,
+              style: AppTheme.font(
+                fontSize: 13,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                color: color ?? targetColor,
               ),
             ),
           ),
         ),
       ),
+    );
+    return RepaintBoundary(
+      child: enabled ? PressScale(child: pill) : pill,
     );
   }
 }

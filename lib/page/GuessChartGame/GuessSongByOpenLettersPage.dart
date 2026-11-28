@@ -21,6 +21,7 @@ import '../../widgets/BackgroundPageScaffold.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../widgets/AppDialogs.dart';
 import '../../widgets/AppToast.dart';
+import '../../widgets/AppUi.dart';
 import '../../widgets/GuessUi.dart';
 import '../../widgets/GuessSettingsUi.dart';
 
@@ -439,92 +440,13 @@ class _GuessSongByOpenLettersPageState
   }
 
   // 构建搜索结果项
-  Widget _buildSearchResultItem(Song song) {
-    // 获取别名
-    final aliases = SongAliasManager.instance.aliases[song.title] ?? [];
-    String aliasText = aliases.isNotEmpty ? aliases.join('、') : '';
-
-    return GestureDetector(
-      onTap: () {
-        _selectSongFromSearch(song);
-      },
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          border: Border(
-              bottom: BorderSide(
-                  color: AppColors.readableTableBorder(context))),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // 方形曲绘
-            Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-                child: GuessCoverImage(songId: song.id, size: 60),
-              ),
-            ),
-            const SizedBox(width: 12),
-            // 右侧信息
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 标题
-                  Row(
-                    children: [
-                      Text(
-                        song.type == 'SD' ? 'ST' : song.type,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color:
-                              song.type == 'SD' ? Colors.blue : Colors.orange,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          song.basicInfo.title,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  // 作者
-                  Text(
-                    song.basicInfo.artist,
-                    style: TextStyle(
-                        fontSize: 14,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  // 别名
-                  if (aliasText.isNotEmpty)
-                    Text(
-                      aliasText,
-                      style: TextStyle(fontSize: 14, color: Colors.blue),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+  Widget _buildSearchResultItem(Song song, {bool showDivider = true}) {
+    final aliases = SongAliasManager.instance.aliases[song.title] ?? const [];
+    return GuessSearchResultTile(
+      song: song,
+      aliases: aliases,
+      showDivider: showDivider,
+      onTap: () => _selectSongFromSearch(song),
     );
   }
 
@@ -537,72 +459,96 @@ class _GuessSongByOpenLettersPageState
         height: 140,
       );
     }
+    final scheme = Theme.of(context).colorScheme;
+    final brightness = Theme.of(context).brightness;
+    final accent = AppColors.successForeground(brightness);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: _targetSongs.map((song) {
-        bool isGuessed = _guessedSongs.contains(song.id);
+        final isGuessed = _guessedSongs.contains(song.id);
+        final revealed = _isGameOver || isGuessed;
+        final bgColor = isGuessed
+            ? AppColors.guessAnswerCardBg(brightness)
+            : AppSurfaces.card(context);
+        final borderColor = isGuessed
+            ? accent.withValues(alpha: brightness == Brightness.dark ? 0.42 : 0.35)
+            : scheme.outlineVariant.withValues(alpha: 0.55);
 
-        return GestureDetector(
-          // 游戏结束后或猜中后可点击跳转到歌曲详情
-          onTap: (_isGameOver || isGuessed)
-              ? () => _navigateToSongInfo(song.id)
-              : null,
-          child: Container(
-            margin: const EdgeInsets.symmetric(vertical: 8),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: isGuessed
-                  ? AppColors.guessAnswerCardBg(Theme.of(context).brightness)
-                  : AppSurfaces.card(context),
-              borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Material(
+            color: bgColor,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+              side: BorderSide(color: borderColor, width: isGuessed ? 1.2 : 1),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 曲绘和曲名
-                Row(
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: revealed ? () => _navigateToSongInfo(song.id) : null,
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
                   children: [
-                    // 方形曲绘（投降后或猜中后显示）
-                    if (_isGameOver || isGuessed)
+                    if (revealed) ...[
                       Container(
-                        width: 60,
-                        height: 60,
+                        width: 58,
+                        height: 58,
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isGuessed
+                                ? accent.withValues(alpha: 0.28)
+                                : scheme.outlineVariant.withValues(alpha: 0.5),
+                          ),
                         ),
                         child: ClipRRect(
-                          borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
-                          child: GuessCoverImage(songId: song.id, size: 60),
+                          borderRadius: BorderRadius.circular(11),
+                          child: GuessCoverImage(songId: song.id, size: 58),
                         ),
                       ),
-                    if (_isGameOver || isGuessed) const SizedBox(width: 12),
-                    // 曲名掩码
+                      const SizedBox(width: 12),
+                    ],
                     Expanded(
-                      child: Text(
-                        _maskedTitles[song.id] ?? '',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight:
-                              isGuessed ? FontWeight.bold : FontWeight.normal,
-                          color: isGuessed
-                              ? AppColors.successGreen(
-                                  Theme.of(context).brightness)
-                              : Theme.of(context).colorScheme.onSurface,
-                        ),
-                        textAlign: _isGameOver || isGuessed
-                            ? TextAlign.left
-                            : TextAlign.center,
+                      child: Column(
+                        crossAxisAlignment: revealed
+                            ? CrossAxisAlignment.start
+                            : CrossAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (revealed) ...[
+                            SongTypeBadge(
+                              songId: song.id,
+                              type: song.type,
+                              fontSize: 9.5,
+                            ),
+                            const SizedBox(height: 5),
+                          ],
+                          Text(
+                            _maskedTitles[song.id] ?? '',
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: isGuessed
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                              color: isGuessed ? accent : scheme.onSurface,
+                            ),
+                            textAlign:
+                                revealed ? TextAlign.left : TextAlign.center,
+                          ),
+                        ],
                       ),
                     ),
-                    // 显示可点击指示
-                    if (_isGameOver || isGuessed)
-                      Icon(Icons.arrow_forward_ios,
-                          size: 16,
-                          color:
-                              Theme.of(context).colorScheme.onSurfaceVariant),
+                    if (revealed)
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        size: 20,
+                        color: isGuessed
+                            ? accent.withValues(alpha: 0.85)
+                            : scheme.onSurfaceVariant,
+                      ),
                   ],
                 ),
-              ],
+              ),
             ),
           ),
         );
@@ -1117,10 +1063,17 @@ class _GuessSongByOpenLettersPageState
                                           if (_showSearchResults &&
                                               _searchResults.isNotEmpty)
                                             Container(
+                                              clipBehavior: Clip.antiAlias,
                                               decoration: BoxDecoration(
                                                 borderRadius:
-                                                    BorderRadius.circular(AppDesignTokens.radiusSmall),
+                                                    BorderRadius.circular(18),
                                                 color: AppSurfaces.card(context),
+                                                border: Border.all(
+                                                  color: Theme.of(context)
+                                                      .colorScheme
+                                                      .outlineVariant
+                                                      .withValues(alpha: 0.6),
+                                                ),
                                                 boxShadow: [
                                                   AppColors.defaultShadow(
                                                       brightness)
@@ -1134,12 +1087,18 @@ class _GuessSongByOpenLettersPageState
                                                           0.3),
                                               child: ListView.builder(
                                                 // 去掉 ListView 默认把状态栏安全区算进列表顶部的空白
-                                                padding: EdgeInsets.zero,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        vertical: 4),
                                                 itemCount:
                                                     _searchResults.length,
                                                 itemBuilder: (context, index) {
                                                   return _buildSearchResultItem(
-                                                      _searchResults[index]);
+                                                    _searchResults[index],
+                                                    showDivider: index <
+                                                        _searchResults.length -
+                                                            1,
+                                                  );
                                                 },
                                               ),
                                             ),

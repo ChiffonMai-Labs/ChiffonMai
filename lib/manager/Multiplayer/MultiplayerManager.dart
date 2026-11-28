@@ -271,7 +271,13 @@ class MultiplayerManager {
     int peekDurationSeconds = 8,
     List<String> peekDifficulties = const ['4'],
     double peekFlowSpeed = RoomEntity.defaultPeekFlowSpeed,
+    double peekTouchSpeed = RoomEntity.defaultPeekTouchSpeed,
+    double peekSlideDisplayTiming = RoomEntity.defaultPeekSlideDisplayTiming,
+    double peekPlaybackRate = RoomEntity.defaultPeekPlaybackRate,
     String peekMirror = RoomEntity.defaultPeekMirror,
+    String peekNoteStyle = RoomEntity.defaultPeekNoteStyle,
+    String peekHoldStyle = RoomEntity.defaultPeekHoldStyle,
+    String peekBackgroundMode = RoomEntity.defaultPeekBackgroundMode,
   }) async {
     debugPrint('[DEBUG][Manager] 开始创建房间请求...');
     debugPrint(
@@ -340,7 +346,13 @@ class MultiplayerManager {
       peekDurationSeconds: peekDurationSeconds,
       peekDifficulties: peekDifficulties,
       peekFlowSpeed: peekFlowSpeed,
+      peekTouchSpeed: peekTouchSpeed,
+      peekSlideDisplayTiming: peekSlideDisplayTiming,
+      peekPlaybackRate: peekPlaybackRate,
       peekMirror: peekMirror,
+      peekNoteStyle: peekNoteStyle,
+      peekHoldStyle: peekHoldStyle,
+      peekBackgroundMode: peekBackgroundMode,
     );
 
     debugPrint('[DEBUG][Manager] 等待房间创建结果...');

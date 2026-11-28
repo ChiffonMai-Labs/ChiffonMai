@@ -30,17 +30,69 @@ class GuessChartCommonSettingsService {
     '4'
   ]; // 谱面片段猜歌的难度随机池（inote 编号），默认 EXPERT
   static const double defaultPeekFlowSpeed = 8.0; // 谱面片段猜歌的流速，默认 8（播放器默认值）
+  static const double defaultPeekTouchSpeed = 8.0; // 谱面片段猜歌的 TOUCH 流速，默认 8
+  static const double defaultPeekSlideDisplayTiming = 0.0; // SLIDE 显示时机，默认 0.0
+  static const double defaultPeekPlaybackRate = 1.0; // 谱面片段播放倍速，默认 1.0
   static const String defaultPeekMirror = 'none'; // 谱面片段猜歌的镜像（SimaiMirrorMode.name）
+  static const String defaultPeekNoteStyle = 'arcade'; // TAP/SLIDE 头部样式
+  static const String defaultPeekHoldStyle = 'arcade'; // HOLD 样式
+  static const String defaultPeekBackgroundMode = 'judgeLine'; // 判定线样式
   static const int defaultPlayDurationSeconds = 5; // 歌曲片段猜歌的播放时长，默认5秒
   static const double defaultAudioRate = 1.25;
   static const double minAudioRate = 0.1;
   static const double maxAudioRate = 5.0;
+  static const double minPeekFlowSpeed = 1.0;
+  static const double maxPeekFlowSpeed = 10.25;
+  static const double minPeekSlideDisplayTiming = -1.0;
+  static const double maxPeekSlideDisplayTiming = 1.0;
+  static const double minPeekPlaybackRate = 0.1;
+  static const double maxPeekPlaybackRate = 3.0;
   static const String _audioRateKey = CacheKeyConstant.guessChartAudioRate;
 
   static double normalizeAudioRate(num? value) =>
       value == null || !value.isFinite
           ? defaultAudioRate
           : value.toDouble().clamp(minAudioRate, maxAudioRate);
+
+  static double normalizePeekSpeed(num? value, {double fallback = 8.0}) {
+    final raw = value != null && value.isFinite ? value.toDouble() : fallback;
+    final clamped = raw.clamp(minPeekFlowSpeed, maxPeekFlowSpeed).toDouble();
+    return ((clamped * 4.0).round() / 4.0).toDouble();
+  }
+
+  static double normalizePeekSlideDisplayTiming(num? value) {
+    final raw = value != null && value.isFinite
+        ? value.toDouble()
+        : defaultPeekSlideDisplayTiming;
+    final clamped =
+        raw.clamp(minPeekSlideDisplayTiming, maxPeekSlideDisplayTiming).toDouble();
+    final rounded = (clamped * 10.0).round() / 10.0;
+    return rounded.abs() < 1e-6 ? 0.0 : rounded;
+  }
+
+  static double normalizePeekPlaybackRate(num? value) {
+    final raw = value != null && value.isFinite
+        ? value.toDouble()
+        : defaultPeekPlaybackRate;
+    final clamped =
+        raw.clamp(minPeekPlaybackRate, maxPeekPlaybackRate).toDouble();
+    return ((clamped * 20.0).round() / 20.0).toDouble();
+  }
+
+  static String normalizePeekNoteStyle(String? value) =>
+      const {'arcade', 'simple', 'bar', 'classic'}.contains(value)
+          ? value!
+          : defaultPeekNoteStyle;
+
+  static String normalizePeekHoldStyle(String? value) =>
+      const {'arcade', 'simple', 'classic'}.contains(value)
+          ? value!
+          : defaultPeekHoldStyle;
+
+  static String normalizePeekBackgroundMode(String? value) =>
+      const {'none', 'dots', 'judgeLine', 'judgeZone'}.contains(value)
+          ? value!
+          : defaultPeekBackgroundMode;
 
   /// 合法的难度编号（inote）。与页面 `GuessChartByChartPeekPage._difficultyNames`
   /// 保持同一套取值：**没有 '1'**（BASIC 是 '2'）。
@@ -66,7 +118,13 @@ class GuessChartCommonSettingsService {
     int? peekDurationSeconds,
     List<String>? peekDifficulties,
     double? peekFlowSpeed,
+    double? peekTouchSpeed,
+    double? peekSlideDisplayTiming,
+    double? peekPlaybackRate,
     String? peekMirror,
+    String? peekNoteStyle,
+    String? peekHoldStyle,
+    String? peekBackgroundMode,
     int? playDurationSeconds,
     double? audioRate,
   }) async {
@@ -110,10 +168,35 @@ class GuessChartCommonSettingsService {
       values[CacheKeyConstant.guessChartPeekDifficulties] = peekDifficulties;
     }
     if (peekFlowSpeed != null) {
-      values[CacheKeyConstant.guessChartPeekFlowSpeed] = peekFlowSpeed;
+      values[CacheKeyConstant.guessChartPeekFlowSpeed] =
+          normalizePeekSpeed(peekFlowSpeed, fallback: defaultPeekFlowSpeed);
+    }
+    if (peekTouchSpeed != null) {
+      values[CacheKeyConstant.guessChartPeekTouchSpeed] =
+          normalizePeekSpeed(peekTouchSpeed, fallback: defaultPeekTouchSpeed);
+    }
+    if (peekSlideDisplayTiming != null) {
+      values[CacheKeyConstant.guessChartPeekSlideDisplayTiming] =
+          normalizePeekSlideDisplayTiming(peekSlideDisplayTiming);
+    }
+    if (peekPlaybackRate != null) {
+      values[CacheKeyConstant.guessChartPeekPlaybackRate] =
+          normalizePeekPlaybackRate(peekPlaybackRate);
     }
     if (peekMirror != null) {
       values[CacheKeyConstant.guessChartPeekMirror] = peekMirror;
+    }
+    if (peekNoteStyle != null) {
+      values[CacheKeyConstant.guessChartPeekNoteStyle] =
+          normalizePeekNoteStyle(peekNoteStyle);
+    }
+    if (peekHoldStyle != null) {
+      values[CacheKeyConstant.guessChartPeekHoldStyle] =
+          normalizePeekHoldStyle(peekHoldStyle);
+    }
+    if (peekBackgroundMode != null) {
+      values[CacheKeyConstant.guessChartPeekBackgroundMode] =
+          normalizePeekBackgroundMode(peekBackgroundMode);
     }
     if (playDurationSeconds != null) {
       values[CacheKeyConstant.guessChartPlayDuration] = playDurationSeconds;
@@ -195,13 +278,32 @@ class GuessChartCommonSettingsService {
         CacheKeyConstant.guessChartPeekDifficulties,
         defaultPeekDifficulties,
       ),
-      'peekFlowSpeed':
-          (values[CacheKeyConstant.guessChartPeekFlowSpeed] as num?)
-                  ?.toDouble() ??
-              defaultPeekFlowSpeed,
+      'peekFlowSpeed': normalizePeekSpeed(
+        values[CacheKeyConstant.guessChartPeekFlowSpeed] as num?,
+        fallback: defaultPeekFlowSpeed,
+      ),
+      'peekTouchSpeed': normalizePeekSpeed(
+        values[CacheKeyConstant.guessChartPeekTouchSpeed] as num?,
+        fallback: defaultPeekTouchSpeed,
+      ),
+      'peekSlideDisplayTiming': normalizePeekSlideDisplayTiming(
+        values[CacheKeyConstant.guessChartPeekSlideDisplayTiming] as num?,
+      ),
+      'peekPlaybackRate': normalizePeekPlaybackRate(
+        values[CacheKeyConstant.guessChartPeekPlaybackRate] as num?,
+      ),
       'peekMirror': valueOr(
         CacheKeyConstant.guessChartPeekMirror,
         defaultPeekMirror,
+      ),
+      'peekNoteStyle': normalizePeekNoteStyle(
+        values[CacheKeyConstant.guessChartPeekNoteStyle] as String?,
+      ),
+      'peekHoldStyle': normalizePeekHoldStyle(
+        values[CacheKeyConstant.guessChartPeekHoldStyle] as String?,
+      ),
+      'peekBackgroundMode': normalizePeekBackgroundMode(
+        values[CacheKeyConstant.guessChartPeekBackgroundMode] as String?,
       ),
       'playDurationSeconds': valueOr(
         CacheKeyConstant.guessChartPlayDuration,
@@ -228,7 +330,13 @@ class GuessChartCommonSettingsService {
     CacheKeyConstant.guessChartPeekDuration,
     CacheKeyConstant.guessChartPeekDifficulties,
     CacheKeyConstant.guessChartPeekFlowSpeed,
+    CacheKeyConstant.guessChartPeekTouchSpeed,
+    CacheKeyConstant.guessChartPeekSlideDisplayTiming,
+    CacheKeyConstant.guessChartPeekPlaybackRate,
     CacheKeyConstant.guessChartPeekMirror,
+    CacheKeyConstant.guessChartPeekNoteStyle,
+    CacheKeyConstant.guessChartPeekHoldStyle,
+    CacheKeyConstant.guessChartPeekBackgroundMode,
     CacheKeyConstant.guessChartPlayDuration,
   };
 
@@ -251,7 +359,13 @@ class GuessChartCommonSettingsService {
       peekDurationSeconds: defaultPeekDurationSeconds,
       peekDifficulties: defaultPeekDifficulties,
       peekFlowSpeed: defaultPeekFlowSpeed,
+      peekTouchSpeed: defaultPeekTouchSpeed,
+      peekSlideDisplayTiming: defaultPeekSlideDisplayTiming,
+      peekPlaybackRate: defaultPeekPlaybackRate,
       peekMirror: defaultPeekMirror,
+      peekNoteStyle: defaultPeekNoteStyle,
+      peekHoldStyle: defaultPeekHoldStyle,
+      peekBackgroundMode: defaultPeekBackgroundMode,
       playDurationSeconds: defaultPlayDurationSeconds,
       audioRate: defaultAudioRate,
     );
@@ -284,7 +398,13 @@ class GuessChartCommonSettingsService {
         'peekDurationSeconds': defaultPeekDurationSeconds,
         'peekDifficulties': List<String>.from(defaultPeekDifficulties),
         'peekFlowSpeed': defaultPeekFlowSpeed,
+        'peekTouchSpeed': defaultPeekTouchSpeed,
+        'peekSlideDisplayTiming': defaultPeekSlideDisplayTiming,
+        'peekPlaybackRate': defaultPeekPlaybackRate,
         'peekMirror': defaultPeekMirror,
+        'peekNoteStyle': defaultPeekNoteStyle,
+        'peekHoldStyle': defaultPeekHoldStyle,
+        'peekBackgroundMode': defaultPeekBackgroundMode,
         'playDurationSeconds': defaultPlayDurationSeconds,
       };
 
