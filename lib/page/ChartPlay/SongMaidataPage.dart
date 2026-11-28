@@ -80,8 +80,8 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
     _loadMaidata();
   }
 
-  /// 记住的谱面代码字体；读取完成前先用默认字体。
-  ChartCodeFont _codeFont = ChartCodeFont.standard;
+  /// 记住的谱面代码字体；读取完成前先用默认字体 Inconsolata。
+  ChartCodeFont _codeFont = ChartCodeFont.inconsolata;
   bool _highlightCode = false;
   bool _codeOptionsLoaded = false;
   String? _highlightedCode;
