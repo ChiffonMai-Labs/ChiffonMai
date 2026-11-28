@@ -39,10 +39,7 @@ extension _SongInfoWidgets on _SongInfoPageState {
             const Center(
               child: Padding(
                 padding: EdgeInsets.only(top: 16),
-                child: SizedBox.square(
-                  dimension: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
+                child: ExpressiveLoadingIndicator(size: 20),
               ),
             )
           else if (hasTimeline || values.length > 1) ...[

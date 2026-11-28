@@ -1,5 +1,6 @@
 import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import '../AWMC/AwmcChartMetadata.dart';
+import '../../manager/AWMC/AwmcForumOAuthManager.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -976,7 +977,11 @@ class SongInfoService {
     try {
       final response = await ApiClient.post(
         Uri.parse(ApiUrls.CommentsCreateUrl),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          if (dataSource == 'awmc')
+            ...await AwmcForumOAuthManager.authHeaders(originalId),
+        },
         body: json.encode({
           'songId': songId,
           'levelIndex': levelIndex,
@@ -1057,7 +1062,11 @@ class SongInfoService {
     try {
       final response = await ApiClient.delete(
         Uri.parse('${ApiUrls.CommentsBaseUrl}/$commentId'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          if (dataSource == 'awmc')
+            ...await AwmcForumOAuthManager.authHeaders(originalId),
+        },
         body: json.encode({
           'dataSource': dataSource,
           'originalId': originalId,
@@ -1123,12 +1132,17 @@ class SongInfoService {
     String? reporterPlayerId,
   }) async {
     try {
+      final isAwmc = reporterPlayerId?.startsWith('awmc:') == true;
+      final awmcHeaders = isAwmc
+          ? await AwmcForumOAuthManager.authHeaders(reporterPlayerId!.substring(5))
+          : const <String, String>{};
       final response = await ApiClient.post(
         Uri.parse(ApiUrls.commentReportUrl(commentId)),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json', ...awmcHeaders},
         body: json.encode({
           'reason': reason,
-          if (reporterPlayerId != null && reporterPlayerId.isNotEmpty)
+          if (reporterPlayerId != null && reporterPlayerId.isNotEmpty &&
+              (!isAwmc || awmcHeaders.isNotEmpty))
             'reporterPlayerId': reporterPlayerId,
         }),
       );
@@ -1462,7 +1476,11 @@ class SongInfoService {
       final url = Uri.parse(ApiUrls.RatingsCreateUrl);
       final response = await ApiClient.post(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          if (identity.dataSource == 'awmc')
+            ...await AwmcForumOAuthManager.authHeaders(identity.originalId),
+        },
         body: json.encode({
           'songId': songId,
           'levelIndex': levelIndex,
@@ -1520,7 +1538,11 @@ class SongInfoService {
       });
       final response = await ApiClient.delete(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          if (identity.dataSource == 'awmc')
+            ...await AwmcForumOAuthManager.authHeaders(identity.originalId),
+        },
         body: json.encode({
           'dataSource': identity.dataSource,
           'originalId': identity.originalId,

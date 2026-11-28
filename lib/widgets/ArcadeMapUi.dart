@@ -15,6 +15,7 @@ import 'AppToast.dart';
 import 'AppUi.dart';
 import 'FavoriteStarButton.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 悬浮在地图上的白卡片底：地图内容杂，需要比普通卡片更明显的投影。
 BoxDecoration arcadeFloatingDecoration(BuildContext context, double radius) {
   return BoxDecoration(
@@ -89,11 +90,7 @@ class ArcadeMapControlButton extends StatelessWidget {
               height: 44,
               child: Center(
                 child: busy
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
+                    ? const ExpressiveLoadingIndicator(size: 18)
                     : Icon(icon, size: 22, color: color ?? scheme.onSurface),
               ),
             ),

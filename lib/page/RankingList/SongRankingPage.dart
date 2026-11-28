@@ -22,6 +22,7 @@ import 'package:my_first_flutter_app/widgets/MarqueeText.dart';
 import '../../widgets/AppDialogs.dart';
 import '../../widgets/AppToast.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 enum _DxScoreDisplayMode {
   starsBonus('星+'),
   nextStar('高一级星-'),
@@ -1006,7 +1007,7 @@ class _SongRankingPageState extends State<SongRankingPage> {
         ),
         Expanded(
             child: _isLoading && _rankingList.isEmpty
-                ? Center(child: CircularProgressIndicator())
+                ? Center(child: ExpressiveLoadingIndicator.contained(size: 48))
                 : _errorMessage != null
                     ? Center(child: Text(_errorMessage!))
                     : _rankingList.isEmpty

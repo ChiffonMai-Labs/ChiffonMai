@@ -29,6 +29,7 @@ import '../../widgets/AppToast.dart';
 import '../../widgets/ChartPeekPlaybackUi.dart';
 import '../../widgets/GuessSettingsUi.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 谱面片段猜歌（看谱猜歌）：从已缓存 maidata 的曲库中随机选一首，
 /// 随机截取一段 N 秒的谱面片段，**无声**播放谱面动画，凭「看谱」猜出歌名。
 ///
@@ -1557,7 +1558,7 @@ class _GuessChartByChartPeekPageState extends State<GuessChartByChartPeekPage> {
                           : Center(
                               child: Padding(
                                 padding: EdgeInsets.all(screenHeight * 0.1),
-                                child: CircularProgressIndicator(),
+                                child: ExpressiveLoadingIndicator.contained(size: 48),
                               ),
                             ),
                     ],

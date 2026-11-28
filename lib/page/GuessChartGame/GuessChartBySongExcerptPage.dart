@@ -33,6 +33,7 @@ import '../../widgets/AppToast.dart';
 import '../../widgets/AppUi.dart';
 import '../../widgets/GuessSettingsUi.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 class GuessChartBySongExcerptPage extends StatefulWidget {
   final GuessAudioMode mode;
   const GuessChartBySongExcerptPage(
@@ -1109,8 +1110,7 @@ class _GuessChartBySongExcerptPageState
                     child: _audioLoading
                         ? Padding(
                             padding: const EdgeInsets.all(16),
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2.4, color: scheme.primary),
+                            child: ExpressiveLoadingIndicator(size: 20, color: scheme.primary),
                           )
                         : AnimatedSwitcher(
                             duration: AppDesignTokens.motion(
@@ -1163,12 +1163,9 @@ class _GuessChartBySongExcerptPageState
                 const SizedBox(height: 8),
                 // 播放进度条
                 SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    trackHeight: 4,
-                    thumbShape:
-                        const RoundSliderThumbShape(enabledThumbRadius: 6),
-                    overlayShape: SliderComponentShape.noOverlay,
-                    inactiveTrackColor: AppSurfaces.inset(context),
+                  data: AppTheme.compactExpressiveSliderTheme(
+                    context,
+                    inactiveColor: AppSurfaces.inset(context),
                   ),
                   child: Slider(
                     value: _currentPosition.clamp(0.0, total),

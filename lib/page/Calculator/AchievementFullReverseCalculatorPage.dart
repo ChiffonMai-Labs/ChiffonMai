@@ -8,6 +8,7 @@ import '../../widgets/AppUi.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/AppDialogs.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 达成率反推：已知各档判定数量与总达成率，反推 BREAK 的 50落 / 100落 与
 /// GREAT 的 80% / 60% / 50% 细分。
 ///
@@ -453,12 +454,7 @@ class _AchievementReversePanelState extends State<AchievementReversePanel> {
                     ? Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: scheme.onPrimary),
-                          ),
+                          ExpressiveLoadingIndicator(size: 18, color: scheme.onPrimary),
                           const SizedBox(width: 10),
                            Text(context.l10n.flowCalculating2),
                         ],

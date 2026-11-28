@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../utils/AppTheme.dart';
 import '../../widgets/AppLauncherIcon.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 应用启动加载页：主题底色 + 应用图标 + 应用名称 + 加载动画。
 /// 设计目标：克制、聚焦，把视觉权重留给 Logo。
 class SplashPage extends StatelessWidget {
@@ -58,13 +59,6 @@ class SplashPage extends StatelessWidget {
 
   // 加载动画：Material CircularProgressIndicator
   Widget _buildLoading(ColorScheme scheme) {
-    return SizedBox(
-      width: 28,
-      height: 28,
-      child: CircularProgressIndicator(
-        strokeWidth: 2.4,
-        valueColor: AlwaysStoppedAnimation<Color>(scheme.primary),
-      ),
-    );
+    return ExpressiveLoadingIndicator(size: 28, color: scheme.primary);
   }
 }

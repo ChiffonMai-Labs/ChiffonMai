@@ -14,6 +14,7 @@ import 'AppDesignTokens.dart';
 import 'AppTheme.dart';
 import 'ExportImageTheme.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 export 'ExportImageTheme.dart';
 
 /// 导出质量选择结果
@@ -440,7 +441,7 @@ class ExportQualitySelector {
         if (!snapshot.hasData) {
           return const SizedBox(
             height: 180,
-            child: Center(child: CircularProgressIndicator()),
+            child: Center(child: ExpressiveLoadingIndicator.contained(size: 48)),
           );
         }
         return snapshot.data!;

@@ -458,16 +458,11 @@ class AutoSyncService {
     try {
       final suffix = method == 'POST' ? '/${action ?? 'credential'}' : '';
       final uri = Uri.parse('${ApiUrls.AutoSyncTaskUrl}$suffix');
-      String? awmcOAuthToken;
-      if (registration.platform == SyncPlatform.awmc && method == 'PUT') {
-        awmcOAuthToken = await AwmcForumOAuthManager.readAuthToken(
-          expectedQq: registration.accountId,
-        );
-      }
       final headers = {
         'Authorization': 'Bearer ${registration._token}',
-        if (awmcOAuthToken != null && awmcOAuthToken.isNotEmpty)
-          'X-AWMC-OAuth-Token': awmcOAuthToken,
+        if (registration.platform == SyncPlatform.awmc &&
+            (method == 'PUT' || (method == 'POST' && action != 'keepalive')))
+          ...await AwmcForumOAuthManager.authHeaders(registration.accountId),
         'Content-Type': 'application/json'
       };
       final response = switch (method) {
@@ -710,7 +705,11 @@ class AutoSyncService {
           'credential': trimmedCredential,
         'userId': userId,
       }),
-      headers: const {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        if (platform == SyncPlatform.awmc)
+          ...await AwmcForumOAuthManager.authHeaders(accountId),
+      },
       timeout: const Duration(seconds: 90),
     );
     dynamic data;

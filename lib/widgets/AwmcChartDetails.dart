@@ -6,6 +6,7 @@ import '../utils/AppDesignTokens.dart';
 import '../utils/AppTheme.dart';
 import 'AppUi.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 歌曲详情页内嵌的 AWMC 谱面分析、社区评分、评论与成绩纠错卡片。
 class AwmcChartDetails extends StatefulWidget {
   final String chartKey;
@@ -65,11 +66,7 @@ class _AwmcChartDetailsState extends State<AwmcChartDetails> {
         if (snapshot.connectionState != ConnectionState.done) {
           return Row(
             children: [
-              const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
+              const ExpressiveLoadingIndicator(size: 16),
               const SizedBox(width: 10),
               Text(
                 l10n.flowLoading2,

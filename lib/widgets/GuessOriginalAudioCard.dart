@@ -9,6 +9,7 @@ import '../utils/AppDesignTokens.dart';
 import '../utils/AppTheme.dart';
 import 'AppUi.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 结算后对照本轮题面试听原声；新回合或离页时释放播放器。
 class GuessOriginalAudioCard extends StatefulWidget {
   const GuessOriginalAudioCard({
@@ -204,8 +205,7 @@ class _GuessOriginalAudioCardState extends State<GuessOriginalAudioCard> {
                     child: loading
                         ? Padding(
                             padding: const EdgeInsets.all(15),
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2.4, color: scheme.primary),
+                            child: ExpressiveLoadingIndicator(size: 20, color: scheme.primary),
                           )
                         : AnimatedSwitcher(
                             duration: AppDesignTokens.motion(
@@ -255,12 +255,9 @@ class _GuessOriginalAudioCardState extends State<GuessOriginalAudioCard> {
                 ),
                 const SizedBox(height: 8),
                 SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    trackHeight: 4,
-                    thumbShape:
-                        const RoundSliderThumbShape(enabledThumbRadius: 6),
-                    overlayShape: SliderComponentShape.noOverlay,
-                    inactiveTrackColor: AppSurfaces.inset(context),
+                  data: AppTheme.compactExpressiveSliderTheme(
+                    context,
+                    inactiveColor: AppSurfaces.inset(context),
                   ),
                   child: Slider(
                     value: _position.clamp(0.0, _duration),

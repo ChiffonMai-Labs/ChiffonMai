@@ -128,8 +128,7 @@ class GuessSliderTile extends StatelessWidget {
         ),
         SliderTheme(
           data: SliderTheme.of(context).copyWith(
-            trackHeight: 4,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
           ),
           child: Slider(
             value: value.clamp(min, max),

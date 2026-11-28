@@ -40,6 +40,7 @@ import '../../widgets/AppToast.dart';
 import '../../widgets/ChartPeekPlaybackUi.dart';
 import '../../widgets/ErrorMessageDialog.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 class GameRoomPage extends StatefulWidget {
   final RoomEntity room;
 
@@ -2254,8 +2255,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
       }
       if (_gameState!.coverPreparing || !_coverImageReady) {
         return Padding(padding: const EdgeInsets.all(24), child: Column(children: [
-          const SizedBox(width: 24, height: 24,
-              child: CircularProgressIndicator(strokeWidth: 2)),
+          const ExpressiveLoadingIndicator(size: 24),
           const SizedBox(height: 12),
           Text(_gameState!.coverCrop == null
               ? context.l10n.flowPreparingCoverClue : context.l10n.flowWaitingForPlayersToLoadTheCover, style: AppTheme.font()),
@@ -2536,11 +2536,7 @@ class _GameRoomPageState extends State<GameRoomPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(
-              width: 28,
-              height: 28,
-              child: CircularProgressIndicator(strokeWidth: 2.5),
-            ),
+            const ExpressiveLoadingIndicator(size: 28),
             const SizedBox(height: 12),
             Text(
               context.l10n.flowPreparingChartExcerpt,
@@ -3213,10 +3209,11 @@ class _GameRoomPageState extends State<GameRoomPage> {
             // 进度条（拖动仅预览位置；音频以服务端种子的起始点整段播放，
             // 不支持 seek 到任意位置——只是把拖动反馈做得更平滑）
             SliderTheme(
-              data: SliderTheme.of(context).copyWith(
-                trackHeight: 3,
-                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
-                overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+              data: AppTheme.compactExpressiveSliderTheme(
+                context,
+                activeColor: Colors.white,
+                thumbColor: Colors.white,
+                inactiveColor: Colors.white.withValues(alpha: 0.35),
               ),
               child: Slider(
                 value: _currentPosition.clamp(
@@ -3233,8 +3230,6 @@ class _GameRoomPageState extends State<GameRoomPage> {
                     _currentPosition = value;
                   });
                 },
-                activeColor: Colors.white,
-                inactiveColor: Colors.white.withValues(alpha: 0.4),
               ),
             ),
             // 时间显示

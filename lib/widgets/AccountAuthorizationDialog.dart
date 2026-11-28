@@ -17,6 +17,7 @@ import 'AppToast.dart';
 import 'AppUi.dart';
 import 'RefreshDataDialog.dart' show launchUrlFallback;
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 账号授权/绑定对话框的操作结果。
 class AccountAuthorizationResult {
   /// 本次是否在对话框内新保存了有效的授权或绑定信息。
@@ -690,14 +691,7 @@ class _AccountAuthorizationDialogState
               if (activeSession == null)
                 FilledButton.icon(
                   icon: _awmcOAuthStarting
-                      ? SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: scheme.onPrimary,
-                          ),
-                        )
+                      ? ExpressiveLoadingIndicator(size: 14, color: scheme.onPrimary)
                       : const Icon(Icons.login_rounded, size: 16),
                   label: Text(
                     _awmcOAuthStarting
@@ -713,11 +707,7 @@ class _AccountAuthorizationDialogState
               else ...[
                 Row(
                   children: [
-                    const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
+                    const ExpressiveLoadingIndicator(size: 14),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(

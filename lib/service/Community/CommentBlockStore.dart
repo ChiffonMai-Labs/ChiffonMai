@@ -79,7 +79,6 @@ class CommentBlockStore {
       String playerId) async {
     final headers = await CommunityProfileAuthorization.ownerHeaders(playerId);
     final hasAuth = headers.containsKey('Authorization') ||
-        headers.containsKey('X-Profile-QQ') ||
         headers.containsKey('X-Auto-Sync-Token');
     return hasAuth ? headers : null;
   }

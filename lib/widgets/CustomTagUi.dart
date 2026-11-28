@@ -13,6 +13,7 @@ import 'AppDialogs.dart';
 import 'AppToast.dart';
 import 'AppUi.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 自定义标签的预设色板；也可以用色相滑条取任意颜色。
 const List<int> customTagPalette = [
   0xFFE53935, 0xFFF4511E, 0xFFFB8C00, 0xFFFDD835, //
@@ -156,9 +157,12 @@ class CustomTagColorPicker extends StatelessWidget {
               ),
               child: SliderTheme(
                 data: SliderTheme.of(context).copyWith(
+                  year2023: true,
                   trackHeight: 0,
                   activeTrackColor: Colors.transparent,
                   inactiveTrackColor: Colors.transparent,
+                  thumbShape:
+                      const RoundSliderThumbShape(enabledThumbRadius: 8),
                   overlayShape: SliderComponentShape.noOverlay,
                   thumbColor: Color(value),
                 ),
@@ -432,10 +436,7 @@ class _SongPickerSheetState extends State<_SongPickerSheet> {
               suffixIcon: _searching
                   ? const Padding(
                       padding: EdgeInsets.all(12),
-                      child: SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2)),
+                      child: ExpressiveLoadingIndicator(size: 16),
                     )
                   : null,
               isDense: true,

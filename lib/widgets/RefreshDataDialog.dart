@@ -1352,7 +1352,7 @@ Future<String?> _updateRankings({
     final response = await ApiClient.post(
       Uri.parse(ApiUrls.RankingsUpdateUrl),
       headers: {
-        ...(share || dataSource == 'luoxue'
+        ...(share || dataSource == 'luoxue' || dataSource == 'awmc'
             ? await PlayerExperienceService.ownerHeaders(
                 '$dataSource:$originalId')
             : {'Content-Type': 'application/json'}),

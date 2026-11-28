@@ -29,6 +29,7 @@ import '../../widgets/AppDialogs.dart';
 import '../../widgets/AppToast.dart';
 import '../../widgets/ErrorMessageDialog.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 class FriendComparePage extends StatefulWidget {
   const FriendComparePage({super.key});
 
@@ -295,7 +296,7 @@ class _FriendComparePageState extends State<FriendComparePage> {
                 padding: const EdgeInsets.symmetric(vertical: 48),
                 child: Column(
                   children: [
-                    const CircularProgressIndicator(),
+                    const ExpressiveLoadingIndicator.contained(size: 48),
                     const SizedBox(height: 16),
                     Text(
                       context.l10n.flowFetchingFriendDataAndComparing,

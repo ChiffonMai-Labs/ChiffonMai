@@ -330,7 +330,7 @@ class CommunityAvatarStore extends ValueNotifier<AvatarSyncState> {
     final player = value.playerId;
     if (player == null) return null;
     final headers = await CommunityProfileAuthorization.ownerHeaders(player);
-    return _canSync(player, headers) && value.playerId == player ? player : null;
+    return _canSync(headers) && value.playerId == player ? player : null;
   }
 
   Future<({List<CommunityTravelMember>? members, Collection? partner})>
@@ -481,11 +481,9 @@ class CommunityAvatarStore extends ValueNotifier<AvatarSyncState> {
     profileChanges.notifyListeners();
   }
 
-  static bool _canSync(String player, Map<String, String> headers) =>
+  static bool _canSync(Map<String, String> headers) =>
       headers.containsKey('Authorization') ||
-      headers.containsKey('X-Auto-Sync-Token') ||
-      (headers['X-Profile-Source'] == 'awmc' &&
-          player == 'awmc:${headers['X-Profile-QQ']}');
+      headers.containsKey('X-Auto-Sync-Token');
 
   Future<void> sync(String player) {
     final running = _syncing[player];
@@ -503,7 +501,7 @@ class CommunityAvatarStore extends ValueNotifier<AvatarSyncState> {
       final prefs = await SharedPreferences.getInstance(),
           headers = await CommunityProfileAuthorization.ownerHeaders(player);
       var entry = _entry(prefs, player);
-      if (!_canSync(player, headers)) {
+      if (!_canSync(headers)) {
         _publish(
             player, entry, appL10n.svcSavedOnThisDeviceOnlySignIn2, AvatarSyncLevel.localOnly);
         return;

@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:my_first_flutter_app/utils/AppTheme.dart';
 import 'package:my_first_flutter_app/widgets/CoverActionButton.dart';
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 
 /// 曲绘识别页操作按钮的配色测试。
 ///
@@ -67,8 +68,8 @@ void main() {
     Color spinner = foreground;
     if (loading) {
       spinner = tester
-          .widget<CircularProgressIndicator>(
-              find.byType(CircularProgressIndicator))
+          .widget<ExpressiveLoadingIndicator>(
+              find.byType(ExpressiveLoadingIndicator))
           .color!;
     }
     return (background: background!, foreground: foreground, spinner: spinner);

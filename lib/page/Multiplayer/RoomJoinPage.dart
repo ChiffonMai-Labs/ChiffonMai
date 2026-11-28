@@ -7,6 +7,7 @@ import 'package:my_first_flutter_app/widgets/BackgroundPageScaffold.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../widgets/AppUi.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 class RoomJoinPage extends StatefulWidget {
   const RoomJoinPage({super.key});
 
@@ -302,14 +303,7 @@ class _RoomJoinPageState extends State<RoomJoinPage> {
                       child: FilledButton(
                         onPressed: _isJoining ? null : _handleJoin,
                         child: _isJoining
-                            ? SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.4,
-                                  color: scheme.onPrimary,
-                                ),
-                              )
+                            ? ExpressiveLoadingIndicator(size: 22, color: scheme.onPrimary)
                             :  Text(
                                 context.l10n.flowJoinRoom,
                                 style: TextStyle(

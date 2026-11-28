@@ -530,12 +530,7 @@ extension _SongInfoLayout on _SongInfoPageState {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   _songSwitching
-                      ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 1.8, color: Colors.white),
-                        )
+                      ? const ExpressiveLoadingIndicator(size: 14, color: Colors.white)
                       : Icon(icon, size: 14, color: Colors.white),
                   const SizedBox(width: 4),
                   Text(

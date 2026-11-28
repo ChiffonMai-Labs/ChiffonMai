@@ -42,6 +42,7 @@ import 'package:my_first_flutter_app/entity/Portable/PortableSong.dart';
 import 'package:my_first_flutter_app/page/Portable/PortablePlayerPage.dart';
 import 'package:my_first_flutter_app/page/Portable/PortableNowPlayingPage.dart';
 import 'package:my_first_flutter_app/page/Portable/SongPlayPage.dart';
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 import 'package:my_first_flutter_app/widgets/PortablePlayerBadge.dart';
 import 'package:my_first_flutter_app/service/Portable/PortablePlayerController.dart';
 import 'package:my_first_flutter_app/service/Portable/PortableSongLibrary.dart';
@@ -168,7 +169,7 @@ void main() {
     expect(controller.currentSong?.lxnsId, songs.first.lxnsId);
     expect(controller.isPlaying, isTrue, reason: '点了行就该开始播');
     expect(
-      find.byType(CircularProgressIndicator),
+      find.byType(ExpressiveLoadingIndicator),
       findsNothing,
       reason: '已经在播了，行里不该还挂着 loading（这里是「await play()」的坑）',
     );

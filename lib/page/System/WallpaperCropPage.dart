@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import '../../utils/ImageEncodeUtil.dart';
 import '../../widgets/AppToast.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 壁纸裁剪：取景框按屏幕比例固定，双指缩放、单指拖动图片。
 ///
 /// 确认后返回裁好的 JPEG 字节；取消返回 null，旧壁纸不受影响。
@@ -194,7 +195,7 @@ class _WallpaperCropPageState extends State<WallpaperCropPage> {
                   )
                 : image == null
                     ? const Center(
-                        child: CircularProgressIndicator(color: Colors.white))
+                        child: ExpressiveLoadingIndicator(size: 44, color: Colors.white))
                     : LayoutBuilder(
                         builder: (context, constraints) {
                           final area = constraints.biggest;

@@ -31,6 +31,7 @@ import '../../widgets/AppToast.dart';
 import '../../widgets/ErrorMessageDialog.dart';
 import '../../widgets/ExportSuccessDialog.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 收藏夹管理页面：查看所有收藏夹、创建/重命名/删除收藏夹，浏览收藏夹内的谱面
 class FavoriteFolderPage extends StatefulWidget {
   const FavoriteFolderPage({super.key});
@@ -335,7 +336,7 @@ class _FavoriteFolderPageState extends State<FavoriteFolderPage> {
             // 内容
             Expanded(
               child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const Center(child: ExpressiveLoadingIndicator.contained(size: 48))
                   : _folders.isEmpty
                       ? _buildEmptyState()
                       : _buildFolderList(),
@@ -913,7 +914,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
             // 内容
             Expanded(
               child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const Center(child: ExpressiveLoadingIndicator.contained(size: 48))
                   : _charts.isEmpty
                       ? _buildEmptyState()
                       : _buildChartList(),
@@ -988,7 +989,7 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
           constraints:
               BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.6),
           child: _isLoadingTags
-              ? const Center(child: CircularProgressIndicator())
+              ? const Center(child: ExpressiveLoadingIndicator.contained(size: 48))
               : SingleChildScrollView(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

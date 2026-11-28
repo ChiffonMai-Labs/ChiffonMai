@@ -21,6 +21,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
+
 import 'package:my_first_flutter_app/page/GuessChartGame/GuessChartByAliaPage.dart';
 import 'package:my_first_flutter_app/page/GuessChartGame/GuessChartByBlurredCoverPage.dart';
 import 'package:my_first_flutter_app/page/GuessChartGame/GuessChartByCoverPage.dart';
@@ -93,7 +95,7 @@ void main() {
       expect(find.widgetWithText(TextButton, '投降'), findsOneWidget,
           reason: '$name 缺「投降」按钮');
       expect(
-        find.byType(CircularProgressIndicator),
+        find.byType(ExpressiveLoadingIndicator),
         findsNothing,
         reason: '$name 失败态不该继续转圈（会让人误以为「再等等就好」）',
       );
@@ -114,7 +116,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byType(ExpressiveLoadingIndicator), findsOneWidget);
     expect(find.text('重新拉取曲库'), findsNothing);
   });
 

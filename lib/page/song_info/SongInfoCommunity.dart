@@ -421,7 +421,7 @@ extension _SongInfoCommunity on _SongInfoPageState {
                             const Center(
                               child: Padding(
                                 padding: EdgeInsets.all(20),
-                                child: CircularProgressIndicator(),
+                                child: ExpressiveLoadingIndicator.contained(size: 48),
                               ),
                             )
                           else if (_chartRatingError != null)
@@ -1265,11 +1265,7 @@ extension _SongInfoCommunity on _SongInfoPageState {
           content: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
+              ExpressiveLoadingIndicator(size: 20),
               SizedBox(width: 14),
               Flexible(child: Text(context.l10n.flowSending)),
             ],
@@ -1843,8 +1839,7 @@ extension _SongInfoCommunity on _SongInfoPageState {
                             Center(
                               child: Padding(
                                 padding: const EdgeInsets.all(20),
-                                child: CircularProgressIndicator(
-                                    color: AppColors.linkBlue(brightness)),
+                                child: ExpressiveLoadingIndicator.contained(size: 48, color: AppColors.linkBlue(brightness)),
                               ),
                             )
                           else if (_comments.isEmpty)

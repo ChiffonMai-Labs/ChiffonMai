@@ -12,6 +12,7 @@ import '../../widgets/AppUi.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/SmoothLinearProgressIndicator.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 删除 App 内的账号数据。
 ///
 /// 只删 ChiffonMai 本机数据与自家服务端的评论/评分/排行，第三方平台账号保留；
@@ -143,7 +144,7 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
         title: l10n.deleteAccountTitle,
         onBack: _running ? () {} : null,
         child: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? const Center(child: ExpressiveLoadingIndicator.contained(size: 48))
             : SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(
                   AppDesignTokens.gutter,

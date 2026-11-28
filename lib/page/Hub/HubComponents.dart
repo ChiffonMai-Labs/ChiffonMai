@@ -5,6 +5,7 @@ import '../../l10n/FeatureLocalizations.dart';
 import 'package:flutter/material.dart';
 import '../../widgets/AnimatedReveal.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
+import '../../widgets/ExpressiveLoadingIndicator.dart';
 import '../../widgets/FavoriteStarButton.dart';
 import '../../widgets/MainNavigationInsets.dart';
 import '../../widgets/SmoothLinearProgressIndicator.dart';
@@ -354,16 +355,10 @@ class HubActionTile extends StatelessWidget {
         (loading
             ? hasProgressBar
                 ? const SizedBox(width: 20, height: 20) // 进度条替代 spinner
-                : apple
-                    ? const ios.CupertinoActivityIndicator()
-                    : SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.2,
-                          color: scheme.primary,
-                        ),
-                      )
+                : ExpressiveLoadingIndicator(
+                    size: 20,
+                    color: scheme.primary,
+                  )
             : _showStar
                 // B 方案：有星标时不再叠一个箭头，整行本身就是可点的
                 ? FavoriteStarButton(

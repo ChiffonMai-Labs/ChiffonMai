@@ -11,6 +11,7 @@ import 'GuessBpmHistoryFields.dart';
 import 'GuessCoverImage.dart';
 import 'MarqueeText.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 猜歌玩法共用的界面组件：色块、猜测卡片、贴底输入栏。
 ///
 /// 色块颜色由各玩法的 Service 算好（[AppColors.guessCorrectBg] 等），
@@ -454,11 +455,7 @@ class GuessSearchIcon extends StatelessWidget {
               dimension: 18,
               child: Padding(
                 padding: const EdgeInsets.all(1),
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.2,
-                  strokeCap: StrokeCap.round,
-                  color: scheme.primary,
-                ),
+                child: ExpressiveLoadingIndicator.contained(size: 48, color: scheme.primary),
               ),
             )
           : Icon(Icons.search_rounded,

@@ -35,6 +35,7 @@ import '../../widgets/NowPlayingUi.dart';
 import '../../widgets/PortablePlaybackModeButton.dart';
 import '../song_info/SongInfoPage.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 class PortableNowPlayingPage extends StatefulWidget {
   /// 歌曲详情页进来时，音源还没就绪就先显示这首歌，避免先闪出别的曲目或空页面。
   final PortableSong? preparingSong;
@@ -271,7 +272,7 @@ class _PortableNowPlayingPageState extends State<PortableNowPlayingPage>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          CircularProgressIndicator(color: scheme.primary),
+          ExpressiveLoadingIndicator.contained(size: 48, color: scheme.primary),
           const SizedBox(height: 12),
           Text(
             context.l10n.flowPreparingAudio,

@@ -12,6 +12,7 @@ import '../../widgets/AnimatedChoiceBar.dart';
 import '../../widgets/AppUi.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 enum _Quiz { difficulty, questions }
 
 /// 本地曲库离线挑战：极限二选一与规则版 20 问。
@@ -137,7 +138,7 @@ class _LocalSongQuizPageState extends State<LocalSongQuizPage> {
           if (_library == null)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 48),
-              child: Center(child: CircularProgressIndicator()),
+              child: Center(child: ExpressiveLoadingIndicator.contained(size: 48)),
             )
           else if (answer == null)
             AppCard(

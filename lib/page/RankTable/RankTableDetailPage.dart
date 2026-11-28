@@ -20,6 +20,7 @@ import '../../widgets/AppUi.dart';
 import '../../widgets/MarqueeText.dart';
 import '../../widgets/SmoothLinearProgressIndicator.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 class RankDetailPage extends StatefulWidget {
   final String rankName;
 
@@ -282,7 +283,7 @@ class _RankDetailPageState extends State<RankDetailPage> {
       contentPadding:
           EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: ExpressiveLoadingIndicator.contained(size: 48))
           : SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(AppDesignTokens.gutter, 8,
                   AppDesignTokens.gutter, AppDesignTokens.gutter),

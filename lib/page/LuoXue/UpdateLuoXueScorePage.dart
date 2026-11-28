@@ -17,6 +17,7 @@ import '../../utils/AppDesignTokens.dart';
 import '../../widgets/AppDialogs.dart';
 import '../../widgets/AppToast.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 同步成绩到落雪（对话框形式，与"同步成绩到水鱼"一致）
 ///
 /// 通过输入登入二维码（SGWCMAID 开头），使用 maimai Score Hub 的
@@ -493,11 +494,7 @@ class _UpdateLuoXueScorePageState extends State<UpdateLuoXueScorePage> {
                   const Center(
                     child: Padding(
                       padding: EdgeInsets.only(bottom: 12),
-                      child: SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(strokeWidth: 2.5),
-                      ),
+                      child: ExpressiveLoadingIndicator(size: 24),
                     ),
                   ),
                 ],

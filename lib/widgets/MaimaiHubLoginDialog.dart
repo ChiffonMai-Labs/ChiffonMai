@@ -7,6 +7,7 @@ import 'QrQuickFillButtons.dart';
 import '../widgets/AppDialogs.dart';
 import 'AppUi.dart' show FadeSwitcher;
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 独立的 maimai Score Hub 登录入口。
 ///
 /// 这里只做二维码认证并缓存 maimai Score Hub token，不创建成绩抓取任务。
@@ -191,11 +192,7 @@ class _MaimaiHubLoginDialogState extends State<_MaimaiHubLoginDialog> {
           FilledButton.icon(
             onPressed: _loggingIn ? null : _login,
             icon: _loggingIn
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
+                ? const ExpressiveLoadingIndicator(size: 16)
                 : const Icon(Icons.login, size: 18),
             label: Text(_loggingIn
                 ? context.l10n.flowSigningIn

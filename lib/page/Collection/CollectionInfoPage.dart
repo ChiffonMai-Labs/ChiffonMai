@@ -31,6 +31,7 @@ import '../../widgets/ProgressUi.dart';
 import '../../widgets/AppDialogs.dart';
 import '../../widgets/AppToast.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 class CollectionInfoPage extends StatefulWidget {
   final int collectionId;
   final String collectionType;
@@ -750,11 +751,7 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
         if (isTranslating)
           const Padding(
             padding: EdgeInsets.only(top: 8),
-            child: SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
+            child: ExpressiveLoadingIndicator(size: 20),
           )
         else if (translatedText != null)
           Padding(
@@ -1002,7 +999,7 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
     if (_isLoadingSongs) {
       entries.add((_) => const Padding(
             padding: EdgeInsets.only(top: 20),
-            child: Center(child: CircularProgressIndicator()),
+            child: Center(child: ExpressiveLoadingIndicator.contained(size: 48)),
           ));
     }
     return entries;
@@ -1016,7 +1013,7 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
       contentPadding:
           EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: ExpressiveLoadingIndicator.contained(size: 48))
           : _collection == null
               ? Center(
                   child: Column(

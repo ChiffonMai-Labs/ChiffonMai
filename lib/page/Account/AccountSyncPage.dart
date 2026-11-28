@@ -13,6 +13,7 @@ import '../../widgets/AppDialogs.dart';
 import '../../widgets/AppToast.dart';
 import '../../widgets/AppUi.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 class AccountSyncPage extends StatefulWidget {
   const AccountSyncPage({super.key});
 
@@ -313,11 +314,7 @@ class _LoginDialogState extends State<_LoginDialog> {
         FilledButton(
           onPressed: _isLoggingIn ? null : _submit,
           child: _isLoggingIn
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
+              ? const ExpressiveLoadingIndicator(size: 18)
               : Text(context.l10n.flowSignIn),
         ),
       ],

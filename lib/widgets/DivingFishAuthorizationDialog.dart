@@ -16,6 +16,7 @@ import 'AppDialogs.dart';
 import 'AppToast.dart';
 import 'AppUi.dart' show FadeSwitcher;
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 读取水鱼账号资料；未登录水鱼时返回 null。
 Future<Map<String, dynamic>?> fetchDivingFishProfile() async {
   final jwt =
@@ -136,7 +137,7 @@ class _DivingFishAuthorizationDialogState
       body = const Center(
         child: Padding(
           padding: EdgeInsets.all(24),
-          child: CircularProgressIndicator(),
+          child: ExpressiveLoadingIndicator.contained(size: 48),
         ),
       );
     } else if (_error != null) {
@@ -224,11 +225,7 @@ class _DivingFishAuthorizationDialogState
             : Icons.warning_amber;
     final Widget status;
     if (_checking) {
-      status = const SizedBox(
-        width: 16,
-        height: 16,
-        child: CircularProgressIndicator(strokeWidth: 2),
-      );
+      status = const ExpressiveLoadingIndicator(size: 16);
     } else if (_qq.isEmpty) {
       status = Text(l10n.flowNoQQIDFoundRefreshDataOr,
           style: TextStyle(color: color, fontSize: 13));

@@ -281,12 +281,18 @@ class AwmcQrSyncService {
   }
 
   /// 为需要绑定目标 QQ 归属的 AWMC 接口附加论坛 OAuth 会话令牌。
-  static Future<Map<String, String>> _awmcAuthHeaders(String? awmcQq) async {
-    final qq = awmcQq?.trim() ?? '';
-    if (!qqPattern.hasMatch(qq)) return const {};
-    final token = await AwmcForumOAuthManager.readAuthToken(expectedQq: qq);
-    if (token == null || token.isEmpty) return const {};
-    return {'X-AWMC-OAuth-Token': token};
+  static Future<Map<String, String>> _awmcAuthHeaders(String? awmcQq) =>
+      AwmcForumOAuthManager.authHeaders(awmcQq?.trim());
+
+  static Future<Map<String, String>> _migrationAuthHeaders(String awmcQq) async {
+    final fishToken = (await SecureCredentialStore.read(
+      CacheKeyConstant.probeDivingFishToken,
+    ))?.trim();
+    return {
+      ...await _awmcAuthHeaders(awmcQq),
+      if (fishToken != null && fishToken.isNotEmpty)
+        'Authorization': 'Bearer $fishToken',
+    };
   }
 
   /// 落雪线路 1 是否已有 OAuth 或个人 API 密钥。
@@ -1143,13 +1149,13 @@ class AwmcQrSyncService {
       AppTaskActivity.run(() async {
         final uri = Uri.parse(ApiUrls.AwmcInitProfileUrl);
         try {
-          final awmcAuthHeaders = await _awmcAuthHeaders(awmcQq);
+          final authHeaders = await _migrationAuthHeaders(awmcQq);
           final response = await ApiClient.post(
             uri,
             headers: {
               'Accept': 'application/json',
               'Content-Type': 'application/json',
-              ...awmcAuthHeaders,
+              ...authHeaders,
             },
             body: json.encode({
               'source': 'fish',
@@ -1316,13 +1322,13 @@ class AwmcQrSyncService {
   }) =>
       AppTaskActivity.run(() async {
         try {
-          final awmcAuthHeaders = await _awmcAuthHeaders(awmcQq);
+          final authHeaders = await _migrationAuthHeaders(awmcQq);
           final response = await ApiClient.post(
             Uri.parse(ApiUrls.AwmcMigrateToFishUrl),
             headers: {
               'Accept': 'application/json',
               'Content-Type': 'application/json',
-              ...awmcAuthHeaders,
+              ...authHeaders,
             },
             body: json.encode({
               'awmcQq': awmcQq.trim(),

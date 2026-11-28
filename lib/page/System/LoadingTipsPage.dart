@@ -14,6 +14,7 @@ import '../../widgets/AppDialogs.dart';
 import '../../widgets/AppToast.dart';
 import '../../widgets/QuickSearchBar.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 class LoadingTipsPage extends StatefulWidget {
   const LoadingTipsPage({super.key});
   @override
@@ -222,7 +223,7 @@ class _LoadingTipsPageState extends State<LoadingTipsPage> {
           ),
           Expanded(
             child: _busy && tips.isEmpty && localTips.isEmpty
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(child: ExpressiveLoadingIndicator.contained(size: 48))
                 : FadeContent(
                     child: filtered.isEmpty
                         ? (q.isNotEmpty

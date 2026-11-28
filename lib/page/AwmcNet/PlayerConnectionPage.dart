@@ -12,6 +12,7 @@ import '../../service/AWMC/AwmcQrSyncService.dart';
 import '../../service/Account/AccountAuthorizationStore.dart';
 import '../../service/Account/AccountSwitchService.dart';
 import '../../utils/ExternalLaunchUtil.dart';
+import '../../widgets/ExpressiveLoadingIndicator.dart';
 import '../../widgets/QrQuickFillButtons.dart';
 import '../../widgets/RefreshDataDialog.dart';
 import '../Best50/Best50Page.dart';
@@ -401,7 +402,7 @@ class _PlayerConnectionPageState extends State<PlayerConnectionPage>
                 if (_busy)
                   Center(
                     child: Column(children: [
-                      const CupertinoActivityIndicator(),
+                      const ExpressiveLoadingIndicator.contained(size: 44),
                       const SizedBox(height: 8),
                       Text(_progress ?? l.qqPlayerBusy),
                     ]),
@@ -409,7 +410,7 @@ class _PlayerConnectionPageState extends State<PlayerConnectionPage>
                 else if (isWaitingOAuth) ...[
                   Center(
                     child: Column(children: [
-                      const CupertinoActivityIndicator(),
+                      const ExpressiveLoadingIndicator.contained(size: 44),
                       const SizedBox(height: 8),
                       Text(
                         l.qqPlayerOAuthWaiting,

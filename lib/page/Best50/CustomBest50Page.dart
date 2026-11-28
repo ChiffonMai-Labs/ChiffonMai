@@ -29,6 +29,7 @@ import '../../widgets/Best50Ui.dart';
 import '../../widgets/AppDialogs.dart';
 import 'package:my_first_flutter_app/service/System/BackgroundExportService.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 自定义 Best50 的一键排序方式。
 enum _SortMode { raDesc, raAsc, dsDesc, dsAsc }
 
@@ -230,7 +231,7 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
                   const Divider(height: 1),
                   Expanded(
                     child: searching
-                        ? const Center(child: CircularProgressIndicator())
+                        ? const Center(child: ExpressiveLoadingIndicator.contained(size: 48))
                         : filtered.isEmpty
                             ? Center(
                                 child: Text(
@@ -959,7 +960,7 @@ class _CustomBest50PageState extends State<CustomBest50Page> {
       return BackgroundPageScaffold(
         title: context.l10n.featureCreateBest50,
         resizeToAvoidBottomInset: false,
-        child: Center(child: CircularProgressIndicator()),
+        child: Center(child: ExpressiveLoadingIndicator.contained(size: 48)),
       );
     }
 

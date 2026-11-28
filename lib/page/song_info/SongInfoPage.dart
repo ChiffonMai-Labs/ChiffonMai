@@ -91,6 +91,7 @@ import '../../widgets/ErrorMessageDialog.dart';
 import '../../utils/AppError.dart';
 import 'package:my_first_flutter_app/service/System/BackgroundExportService.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 part 'SongInfoLoaders.dart';
 part 'SongInfoCommunity.dart';
 part 'SongInfoTables.dart';
@@ -431,7 +432,7 @@ class _SongInfoPageState extends State<_SongInfoView> {
     if (_isLoading || _songData == null) {
       return BackgroundPageScaffold(
         title: context.l10n.flowSongDetails,
-        child: Center(child: CircularProgressIndicator()),
+        child: Center(child: ExpressiveLoadingIndicator.contained(size: 48)),
       );
     }
 
@@ -805,7 +806,7 @@ class _BookmarkFolderSelectorDialogState
             _isLoading
                 ? const Padding(
                     padding: EdgeInsets.all(24),
-                    child: CircularProgressIndicator(),
+                    child: ExpressiveLoadingIndicator.contained(size: 48),
                   )
                 : _folders.isEmpty
                     ? Padding(

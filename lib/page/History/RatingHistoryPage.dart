@@ -27,6 +27,7 @@ import '../../utils/AppDesignTokens.dart';
 import '../../widgets/AppDialogs.dart';
 import '../../widgets/AppToast.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// Rating 历史曲线。
 ///
 /// 数据来自本机采集（`ChartHistoryStore`），也支持手动补录；时间精确到秒。
@@ -379,11 +380,7 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
                     IconButton(
                       tooltip: context.l10n.flowSyncRatingHistoryFromAWMCNET,
                       icon: _awmcSyncing
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
+                          ? const ExpressiveLoadingIndicator(size: 18)
                           : const Icon(Icons.cloud_sync_outlined),
                       onPressed: _awmcSyncing ? null : _syncFromAwmcNet,
                     ),
@@ -412,7 +409,7 @@ class _RatingHistoryPageState extends State<RatingHistoryPage> {
                   child: _loading && _all.isEmpty
                       ? const Padding(
                           padding: EdgeInsets.symmetric(vertical: 80),
-                          child: Center(child: CircularProgressIndicator()),
+                          child: Center(child: ExpressiveLoadingIndicator.contained(size: 48)),
                         )
                       : Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,

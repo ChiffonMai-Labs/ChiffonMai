@@ -5,6 +5,7 @@ import '../utils/TranslationUtil.dart';
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 class SongTitleDialog extends StatefulWidget {
   final String title;
   const SongTitleDialog({super.key, required this.title});
@@ -69,10 +70,7 @@ class _SongTitleDialogState extends State<SongTitleDialog> {
                 TextButton.icon(
                     onPressed: _loading ? null : _translate,
                     icon: _loading
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2))
+                        ? const ExpressiveLoadingIndicator(size: 16)
                         : const Icon(Icons.translate),
                     label: Text(_loading
                         ? context.l10n.flowTranslating

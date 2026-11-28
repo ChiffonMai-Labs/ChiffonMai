@@ -18,6 +18,7 @@ import '../../utils/AppDesignTokens.dart';
 import '../../widgets/AppUi.dart';
 import '../../widgets/MarqueeText.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 最近评论页面：展示最近50条评论，每页10条，Redis+MySQL二级缓存
 class RecentCommentsPage extends StatefulWidget {
   const RecentCommentsPage({super.key});
@@ -184,7 +185,7 @@ class _RecentCommentsPageState extends State<RecentCommentsPage> {
 
   Widget _buildLoading(Brightness brightness) {
     return Center(
-      child: CircularProgressIndicator(color: AppColors.linkBlue(brightness)),
+      child: ExpressiveLoadingIndicator.contained(size: 48, color: AppColors.linkBlue(brightness)),
     );
   }
 

@@ -14,6 +14,7 @@ import '../../utils/StringUtil.dart';
 import '../song_info/SongInfoPage.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 谱面定数分布柱状图页面
 class DifficultyDistributionPage extends StatefulWidget {
   const DifficultyDistributionPage({super.key});
@@ -131,7 +132,7 @@ class _DifficultyDistributionPageState
             child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 20, 12, 12),
               child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const Center(child: ExpressiveLoadingIndicator.contained(size: 48))
                   : _buckets.isEmpty
                       ? Center(
                           child: Text(context.l10n.flowNoData,

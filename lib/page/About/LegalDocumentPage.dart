@@ -8,6 +8,7 @@ import '../../utils/ExternalLaunchUtil.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/AppToast.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 enum AppLegalDocument {
   userAgreement('用户协议', 'user_agreement.md'),
   privacyPolicy('隐私政策', 'privacy_policy.md');
@@ -146,7 +147,7 @@ class _LegalDocumentPageState extends State<LegalDocumentPage> {
                 );
               }
               if (!snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
+                return const Center(child: ExpressiveLoadingIndicator.contained(size: 48));
               }
               if (isPlainText) {
                 return SingleChildScrollView(

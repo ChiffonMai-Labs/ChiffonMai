@@ -9,14 +9,13 @@ abstract final class CommunityProfileAuthorization {
   static Future<Map<String, String>?> legacyHeaders(String player) async {
     final source = player.split(':').first;
     if (source == 'awmc') {
+      if (!player.startsWith('awmc:')) return null;
       final qq = player.substring('awmc:'.length);
-      if (!RegExp(r'^[1-9]\d{4,11}$').hasMatch(qq)) return null;
       final token = await AwmcForumOAuthManager.readAuthToken(expectedQq: qq);
+      if (token == null || qq.isEmpty) return null;
       return {
-        if (token != null) 'Authorization': 'Bearer $token',
-        if (token != null) 'X-AWMC-OAuth-Token': token,
+        'Authorization': 'Bearer $token',
         'X-Profile-Source': 'awmc',
-        'X-Profile-QQ': qq,
         'Content-Type': 'application/json'
       };
     }
@@ -41,7 +40,7 @@ abstract final class CommunityProfileAuthorization {
     final result =
         Map<String, String>.from(await legacyHeaders(playerId) ?? const {});
     result['Content-Type'] = 'application/json';
-    // AWMC 直接按 QQ 匹配账号，不读取或依赖自动同步管理凭据。
+    // AWMC 资料操作仅使用论坛授权令牌。
     if (playerId.startsWith('awmc:')) return result;
     final raw =
         await SecureCredentialStore.read(CacheKeyConstant.autoSyncTasks);

@@ -13,6 +13,7 @@ import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/CustomTagUi.dart';
 import '../song_info/SongInfoPage.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 自定义标签：名称、颜色、谱面都由用户决定。
 ///
 /// 标签会合并进现有标签系统（见 [CustomTagStore]），在乐曲查询的标签筛选、
@@ -70,7 +71,7 @@ class _CustomTagsPageState extends State<CustomTagsPage> {
         listenable: _store,
         builder: (context, _) {
           if (!_store.loaded) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: ExpressiveLoadingIndicator.contained(size: 48));
           }
           final tags = _store.tags;
           return ListView.builder(

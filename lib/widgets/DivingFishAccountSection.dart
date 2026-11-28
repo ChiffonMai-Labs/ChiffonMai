@@ -8,6 +8,7 @@ import '../utils/AppTheme.dart';
 import '../utils/ExternalLaunchUtil.dart';
 import '../widgets/AppToast.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 水鱼账号在 App 里的「身份标识」状态。
 ///
 /// App 用 **QQ** 当水鱼账号的标识（后端换票时 `subject = ref:sha256(client_id:qq)`），
@@ -157,11 +158,7 @@ class DivingFishAccountSection extends StatelessWidget {
             if (reloadingQq)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 8),
-                child: SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
+                child: ExpressiveLoadingIndicator(size: 18),
               )
             else
               FilledButton.tonalIcon(
@@ -236,11 +233,7 @@ class DivingFishAccountSection extends StatelessWidget {
     if (checkingAuth || recheckingAuth) {
       return Row(
         children: [
-          const SizedBox(
-            width: 14,
-            height: 14,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
+          const ExpressiveLoadingIndicator(size: 14),
           const SizedBox(width: 8),
           Text(appL10n.flowCheckingAuthorization,
               style: TextStyle(fontSize: 12, color: muted)),

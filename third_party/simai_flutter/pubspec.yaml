@@ -14,6 +14,7 @@ dependencies:
     sdk: flutter
   flame: ^1.37.0
   flutter_soloud: ^4.0.12
+  material_new_shapes: ^1.0.0
 
 dev_dependencies:
   flutter_test:
@@ -31,6 +32,7 @@ flutter:
   assets:
     - assets/answer.wav
     - assets/sensor.webp
+    - assets/sfx/
 
 platforms:
   android:

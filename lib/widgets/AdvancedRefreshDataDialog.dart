@@ -21,6 +21,7 @@ import '../widgets/AppDialogs.dart';
 import 'AppUi.dart' show AnimatedReveal, FadeSwitcher;
 import '../widgets/AppToast.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 单条连通性测试结果。
 class _TestResult {
   final bool success;
@@ -766,7 +767,7 @@ class AdvancedRefreshDataPanelState extends State<AdvancedRefreshDataPanel> {
         height: 28,
         child: Padding(
           padding: EdgeInsets.all(6),
-          child: CircularProgressIndicator(strokeWidth: 2),
+          child: ExpressiveLoadingIndicator.contained(size: 48),
         ),
       );
     }

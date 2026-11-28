@@ -22,6 +22,7 @@ import '../../widgets/AppToast.dart';
 import '../../widgets/AppUi.dart';
 import '../../widgets/MarqueeText.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 吃分推荐：按「仅这一张谱达标后 B50 涨多少」挑谱。算法由 AWMC 提供。
 ///
 /// 会话语义（沿用 AWMC 方案）：
@@ -405,7 +406,7 @@ class _GainRecommendPageState extends State<GainRecommendPage> {
 
   Widget _buildBody(BuildContext context) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: ExpressiveLoadingIndicator.contained(size: 48));
     }
     final error = _error;
     if (error != null) {

@@ -26,6 +26,7 @@ import '../../service/Account/AccountStore.dart';
 import '../../utils/Best50Tie.dart';
 import '../../utils/MusicDataIndex.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 class DiffBest50Page extends StatefulWidget {
   const DiffBest50Page({super.key});
 
@@ -309,8 +310,7 @@ class _DiffBest50PageState extends State<DiffBest50Page> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    CircularProgressIndicator(
-                        color: Theme.of(context).colorScheme.onSurface),
+                    ExpressiveLoadingIndicator.contained(size: 48, color: Theme.of(context).colorScheme.onSurface),
                     SizedBox(height: 16),
                     Text(
                       context.l10n.flowCalculatingFittedBest50,

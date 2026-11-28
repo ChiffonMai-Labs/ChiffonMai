@@ -10,6 +10,7 @@ import 'package:my_first_flutter_app/service/RankingList/SongRankingService.dart
 import 'package:my_first_flutter_app/service/SongInfo/SongInfoService.dart';
 import 'package:my_first_flutter_app/utils/CommunityProfileUtil.dart';
 import 'package:my_first_flutter_app/widgets/CommunityAvatar.dart';
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 
 void main() {
   test('服务端匿名 author 优先于旧头像字段，包括空或损坏的 author', () {
@@ -124,7 +125,7 @@ void main() {
     final image =
         tester.widget<CachedNetworkImage>(find.byType(CachedNetworkImage));
     expect(image.imageUrl, 'https://assets2.lxns.net/maimai/icon/1234.png');
-    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.byType(ExpressiveLoadingIndicator), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 }

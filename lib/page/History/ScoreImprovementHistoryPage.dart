@@ -29,6 +29,7 @@ import '../../widgets/SongSearchEntry.dart';
 import '../song_info/SongInfoPage.dart';
 import '../../widgets/AppDialogs.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 enum _GrowthPeriod { day, week, month, year }
 
 class ScoreImprovementHistoryPage extends StatefulWidget {
@@ -457,7 +458,7 @@ class _ScoreImprovementHistoryPageState
               if (_loading)
                 const SliverFillRemaining(
                   hasScrollBody: false,
-                  child: Center(child: CircularProgressIndicator()),
+                  child: Center(child: ExpressiveLoadingIndicator.contained(size: 48)),
                 )
               else if (_error != null || _searchError != null)
                 SliverFillRemaining(

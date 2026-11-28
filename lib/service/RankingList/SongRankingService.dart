@@ -390,7 +390,7 @@ class SongRankingService {
         return true;
       }
 
-      final headers = syncChanges
+      final headers = syncChanges || playerId.startsWith('awmc:')
           ? await PlayerExperienceService.ownerHeaders(playerId)
           : <String, String>{};
       if (uploadTicket != null) {

@@ -24,6 +24,7 @@ import '../../widgets/Best50Ui.dart';
 import '../../widgets/AppDialogs.dart';
 import 'package:my_first_flutter_app/service/System/BackgroundExportService.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 理想 Best50：把全部游玩记录里非 SSS+ 的成绩升一档（100.4 → 100.5），
 /// 重算 RA 后重新取 B35 + B15，并列出相对原榜的新进榜歌曲。
 class IdealBest50Page extends StatefulWidget {
@@ -370,7 +371,7 @@ class _IdealBest50PageState extends State<IdealBest50Page> {
       return BackgroundPageScaffold(
         title: context.l10n.featureIdealBest50,
         resizeToAvoidBottomInset: false,
-        child: Center(child: CircularProgressIndicator()),
+        child: Center(child: ExpressiveLoadingIndicator.contained(size: 48)),
       );
     }
 

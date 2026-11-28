@@ -16,6 +16,7 @@ import '../../utils/AppDesignTokens.dart';
 import '../../widgets/AppUi.dart';
 import '../../widgets/RecommendUi.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 class RecommendByTags extends StatefulWidget {
   const RecommendByTags({super.key});
 
@@ -415,8 +416,7 @@ class _RecommendByTagsState extends State<RecommendByTags> {
                                   EdgeInsets.all(screenHeight * 0.05),
                               child: Column(
                                 children: [
-                                  CircularProgressIndicator(
-                                      color: scheme.primary),
+                                  ExpressiveLoadingIndicator.contained(size: 48, color: scheme.primary),
                                   SizedBox(
                                       height: screenHeight * 0.02),
                                   Text(context.l10n.flowCalculatingRecommendations,

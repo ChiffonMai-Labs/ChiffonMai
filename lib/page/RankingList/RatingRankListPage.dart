@@ -19,6 +19,7 @@ import '../../widgets/AppUi.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../widgets/AppToast.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 class RatingRankListPage extends StatefulWidget {
   const RatingRankListPage({super.key});
 
@@ -440,9 +441,7 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
                   ),
                   IconButton(
                     icon: _isLoading
-                        ? CircularProgressIndicator(
-                            color: AppColors.primaryText(brightness),
-                            strokeWidth: 2)
+                        ? ExpressiveLoadingIndicator(size: 20, color: AppColors.primaryText(brightness))
                         : Icon(Icons.refresh,
                             color: AppColors.primaryText(brightness)),
                     onPressed:
@@ -485,8 +484,7 @@ class _RatingRankListPageState extends State<RatingRankListPage> {
               Expanded(
                 child: _isLoading && _rankList.isEmpty
                     ? Center(
-                        child: CircularProgressIndicator(
-                            color: AppColors.primaryText(brightness)))
+                        child: ExpressiveLoadingIndicator.contained(size: 48, color: AppColors.primaryText(brightness)))
                     : _rankList.isEmpty
                         ? _buildEmptyState(brightness)
                         : ListView.builder(

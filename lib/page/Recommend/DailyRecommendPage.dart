@@ -17,6 +17,7 @@ import '../../utils/AppDesignTokens.dart';
 import '../../widgets/AppUi.dart';
 import '../../widgets/MarqueeText.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 class DailyRecommendPage extends StatefulWidget {
   const DailyRecommendPage({super.key});
 
@@ -283,7 +284,7 @@ class _DailyRecommendPageState extends State<DailyRecommendPage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    CircularProgressIndicator(color: scheme.primary),
+                    ExpressiveLoadingIndicator.contained(size: 48, color: scheme.primary),
                     const SizedBox(height: 16),
                     Text(context.l10n.flowPickingTodaySRecommendations,
                         style: TextStyle(color: scheme.onSurfaceVariant)),

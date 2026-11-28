@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../utils/AppDesignTokens.dart';
 import '../utils/AppTheme.dart';
 import 'AppUi.dart';
+import 'ExpressiveLoadingIndicator.dart';
 
 /// 对话框的语气，决定图标和颜色。
 enum AppDialogTone { info, success, warning, error }
@@ -815,11 +816,7 @@ DialogRoute<void> showAppProgressDialog(
       icon: Icons.hourglass_top_rounded,
       content: Row(
         children: [
-          const SizedBox(
-            width: 22,
-            height: 22,
-            child: CircularProgressIndicator(strokeWidth: 2.5),
-          ),
+          const ExpressiveLoadingIndicator(size: 24),
           const SizedBox(width: 14),
           Expanded(child: Text(message)),
         ],

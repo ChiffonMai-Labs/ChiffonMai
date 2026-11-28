@@ -40,6 +40,7 @@ import '../../widgets/MarqueeText.dart';
 import '../../widgets/AppDialogs.dart';
 import '../../widgets/AppToast.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 class PortablePlayerPage extends StatefulWidget {
   const PortablePlayerPage({super.key});
 
@@ -571,21 +572,11 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
                                 children: [
                                   Expanded(
                                     child: SliderTheme(
-                                      // 用主题里现成的配色，只把尺寸压扁到
-                                      // 「进度条」的量级；padding 收紧是为了
-                                      // 别把这一条撑成 48 高（拖拽命中区仍由
-                                      // overlay 保证）。
-                                      data: SliderTheme.of(context).copyWith(
-                                        trackHeight: 3,
-                                        thumbShape: const RoundSliderThumbShape(
-                                          enabledThumbRadius: 6,
-                                        ),
-                                        overlayShape:
-                                            const RoundSliderOverlayShape(
-                                          overlayRadius: 12,
-                                        ),
+                                      data: AppTheme.compactExpressiveSliderTheme(
+                                        context,
                                         padding: const EdgeInsets.symmetric(
-                                          horizontal: 6,
+                                          horizontal: 4,
+                                          vertical: 4,
                                         ),
                                       ),
                                       child: Slider(
@@ -654,7 +645,7 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
 
   Widget _buildBody(ColorScheme scheme) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: ExpressiveLoadingIndicator.contained(size: 48));
     }
     if (_error != null) {
       return _buildMessage(Icons.music_off, _error!);
@@ -824,11 +815,7 @@ class _PortablePlayerPageState extends State<PortablePlayerPage> {
               // future 挂满整首歌，用它会出现「已经播了，右边还在转圈」。
               if (isPending ||
                   (isCurrent && (_player.isLoading || _player.isBuffering)))
-                const SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2.2),
-                )
+                const ExpressiveLoadingIndicator(size: 22)
               else if (isCurrent && _player.isPlaying)
                 Icon(Icons.graphic_eq, size: 22, color: scheme.primary)
               else

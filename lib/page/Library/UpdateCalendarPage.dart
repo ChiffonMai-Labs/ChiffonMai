@@ -20,6 +20,7 @@ import '../../widgets/MarqueeText.dart';
 import '../../widgets/ProgressUi.dart';
 import '../song_info/SongInfoPage.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 某一天上线的一首歌的一种谱面。
 class UpdateCalendarEntry {
   /// 项目内统一的歌曲 ID（DX 谱带 1xxxx 前缀）。
@@ -301,7 +302,7 @@ class _UpdateCalendarPageState extends State<UpdateCalendarPage> {
       child: _months.isNotEmpty
           ? _buildContent()
           : _loading || _loadingDeliveries
-              ? const Center(child: CircularProgressIndicator())
+              ? const Center(child: ExpressiveLoadingIndicator.contained(size: 48))
               : _buildEmpty(),
     );
   }

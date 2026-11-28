@@ -36,6 +36,7 @@ import '../../widgets/AppToast.dart';
 import '../../widgets/ErrorMessageDialog.dart';
 import '../../widgets/QrQuickFillButtons.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 结算画面识别页（拍摄机台结算画面 → 裁剪 → 识别 → 显示结构化成绩）
 ///
 /// 输入不是手机截图，而是**对着机台结算页面拍的照片**，所以文案一律用「拍摄」
@@ -1313,7 +1314,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
                   const Divider(height: 1),
                   Expanded(
                     child: searching
-                        ? const Center(child: CircularProgressIndicator())
+                        ? const Center(child: ExpressiveLoadingIndicator.contained(size: 48))
                         : filtered.isEmpty
                             ? Center(
                                 child: Text(
@@ -1465,7 +1466,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
         child: Column(
           children: [
-            const CircularProgressIndicator(),
+            const ExpressiveLoadingIndicator.contained(size: 48),
             const SizedBox(height: 16),
             Text(context.l10n.flowRecognizingScores,
                 style: TextStyle(
@@ -1804,11 +1805,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
                         ? () => _syncToDivingFish(item)
                         : null,
                     icon: _uploadingIndex == item.index
-                        ? const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
+                        ? const ExpressiveLoadingIndicator(size: 14)
                         : const Icon(Icons.cloud_upload_outlined, size: 18),
                     label: FittedBox(
                       fit: BoxFit.scaleDown,
@@ -1828,11 +1825,7 @@ class _ScoreOcrPageState extends State<ScoreOcrPage> {
                             ? () => _syncToLuoXue(item)
                             : null,
                     icon: _uploadingLuoXueIndex == item.index
-                        ? const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
+                        ? const ExpressiveLoadingIndicator(size: 14)
                         : const Icon(Icons.cloud_sync_outlined, size: 18),
                     label: FittedBox(
                       fit: BoxFit.scaleDown,
@@ -2223,11 +2216,7 @@ class _OcrHubLoginPanelState extends State<_OcrHubLoginPanel> {
           FilledButton.icon(
             onPressed: _loggingIn ? null : _login,
             icon: _loggingIn
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
+                ? const ExpressiveLoadingIndicator(size: 16)
                 : const Icon(Icons.login, size: 18),
             label: Text(_loggingIn
                 ? context.l10n.flowSigningIn2
@@ -2571,7 +2560,7 @@ class _OcrImageCropPageState extends State<_OcrImageCropPage> {
       return Scaffold(
         backgroundColor: Colors.black,
         body: const Center(
-          child: CircularProgressIndicator(color: Colors.white),
+          child: ExpressiveLoadingIndicator(size: 44, color: Colors.white),
         ),
       );
     }
@@ -2633,14 +2622,14 @@ class _OcrImageCropPageState extends State<_OcrImageCropPage> {
                 }
                 if (_imageRect.isEmpty) {
                   return const Center(
-                    child: CircularProgressIndicator(color: Colors.white),
+                    child: ExpressiveLoadingIndicator(size: 44, color: Colors.white),
                   );
                 }
                 if (_cropRect.isEmpty || _cropRect == Rect.zero) {
                   WidgetsBinding.instance
                       .addPostFrameCallback((_) => _initCropRect());
                   return const Center(
-                    child: CircularProgressIndicator(color: Colors.white),
+                    child: ExpressiveLoadingIndicator(size: 44, color: Colors.white),
                   );
                 }
                 final cropRect = _cropRectPx;

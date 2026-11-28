@@ -29,6 +29,7 @@ import '../../widgets/AppUi.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../widgets/AppDialogs.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 enum _ConstantFilterMode { anyChart, perDifficulty }
 
 class SongSearchPage extends StatefulWidget {
@@ -1913,9 +1914,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                 ? Center(
                     child: Padding(
                       padding: EdgeInsets.all(screenHeight * 0.02),
-                      child: CircularProgressIndicator(
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
+                      child: ExpressiveLoadingIndicator.contained(size: 48, color: Theme.of(context).colorScheme.onSurface),
                     ),
                   )
                 : _tagGroups.isEmpty
@@ -2177,7 +2176,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
                       if (isLoadingList)
                         const Padding(
                           padding: EdgeInsets.all(24),
-                          child: Center(child: CircularProgressIndicator()),
+                          child: Center(child: ExpressiveLoadingIndicator.contained(size: 48)),
                         )
                       else
                         ConstrainedBox(
@@ -2645,7 +2644,7 @@ class _SongSearchPageState extends State<SongSearchPage> {
     if (_isSearching && _allSearchResults.isEmpty) {
       return message(Column(
         children: [
-          CircularProgressIndicator(color: scheme.onSurface),
+          ExpressiveLoadingIndicator.contained(size: 48, color: scheme.onSurface),
           const SizedBox(height: 12),
           Text(context.l10n.flowSearching,
               style: TextStyle(fontSize: 14, color: scheme.onSurfaceVariant)),

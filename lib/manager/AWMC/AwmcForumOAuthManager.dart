@@ -66,18 +66,17 @@ class AwmcForumOAuthManager {
   }) async {
     final normalizedQq = qq.trim();
     final normalizedToken = authToken.trim();
+    if (!_qqRe.hasMatch(normalizedQq) || !_isCurrentToken(normalizedToken)) {
+      throw const FormatException('AWMC 论坛授权结果无效');
+    }
+    await SecureCredentialStore.write(
+        CacheKeyConstant.awmcOAuthToken, normalizedToken);
+    await SecureCredentialStore.write(
+        CacheKeyConstant.awmcOAuthVerifiedQq, normalizedQq);
     await AccountAuthorizationStore.saveAwmcQQ(normalizedQq);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(CacheKeyConstant.awmcNetSyncQQ, normalizedQq);
-    if (normalizedToken.isNotEmpty && _qqRe.hasMatch(normalizedQq)) {
-      await SecureCredentialStore.write(
-          CacheKeyConstant.awmcOAuthToken, normalizedToken);
-      await SecureCredentialStore.write(
-          CacheKeyConstant.awmcOAuthVerifiedQq, normalizedQq);
-      AccountAuthorizationStore.setAwmcOAuthAuthorized(true);
-    } else {
-      await clearAuthorizedSession();
-    }
+    AccountAuthorizationStore.setAwmcOAuthAuthorized(true);
   }
 
   /// 读取本机安全存储中的 AWMC OAuth 会话令牌；校验与目标 QQ 一致。
@@ -87,7 +86,7 @@ class AwmcForumOAuthManager {
           (await SecureCredentialStore.read(CacheKeyConstant.awmcOAuthToken))
                   ?.trim() ??
               '';
-      if (token.isEmpty) return null;
+      if (!_isCurrentToken(token)) return null;
       final verifiedQq = (await SecureCredentialStore.read(
                   CacheKeyConstant.awmcOAuthVerifiedQq))
               ?.trim() ??
@@ -104,6 +103,27 @@ class AwmcForumOAuthManager {
 
   static Future<bool> hasValidOAuthSession({String? expectedQq}) async =>
       (await readAuthToken(expectedQq: expectedQq)) != null;
+
+  static Future<Map<String, String>> authHeaders(String? qq) async {
+    if (qq == null || !_qqRe.hasMatch(qq)) return const {};
+    final token = await readAuthToken(expectedQq: qq);
+    return token == null ? const {} : {'X-AWMC-OAuth-Token': token};
+  }
+
+  // 本机只检查版本与过期时间，签名和账号归属由服务端验证。
+  static bool _isCurrentToken(String token) {
+    final parts = token.split('.');
+    if (parts.length != 3 || parts[0] != 'awmc_v2') return false;
+    try {
+      final payload = jsonDecode(utf8.decode(base64Url.decode(
+        base64Url.normalize(parts[1]),
+      )));
+      final exp = payload is Map ? payload['exp'] : null;
+      return exp is int && exp * 1000 > DateTime.now().millisecondsSinceEpoch;
+    } on FormatException {
+      return false;
+    }
+  }
 
   /// 清除本机安全存储中的 AWMC OAuth 会话令牌与已验证 QQ 标记。
   static Future<void> clearAuthorizedSession() async {
@@ -150,10 +170,9 @@ class AwmcForumOAuthManager {
 
   Future<AwmcForumOAuthPollResult> pollStatus(String sessionId) async {
     try {
-      final uri = Uri.parse(ApiUrls.AwmcOAuthStatusUrl)
-          .replace(queryParameters: {'sessionId': sessionId});
       final response = await ApiClient.get(
-        uri,
+        Uri.parse(ApiUrls.AwmcOAuthStatusUrl),
+        headers: {'X-AWMC-OAuth-Session': sessionId},
         timeout: const Duration(seconds: 10),
       );
       final data = _tryDecodeMap(response.body);
@@ -171,7 +190,7 @@ class AwmcForumOAuthManager {
           final xfUserId = (data['xfUserId'] as String?)?.trim() ?? '';
           final authToken = (data['authToken'] as String?)?.trim() ?? '';
           final tokenExpiresAt = (data['tokenExpiresAt'] as num?)?.toInt();
-          if (RegExp(r'^\d{5,12}$').hasMatch(qq)) {
+          if (_qqRe.hasMatch(qq) && _isCurrentToken(authToken)) {
             return AwmcForumOAuthPollResult(
               status: AwmcForumOAuthPollStatus.completed,
               qq: qq,
@@ -183,7 +202,7 @@ class AwmcForumOAuthManager {
           }
           return const AwmcForumOAuthPollResult(
             status: AwmcForumOAuthPollStatus.failed,
-            error: '授权响应缺少有效 QQ 号，请重试',
+            error: '授权响应未包含有效的账号会话，请重新授权',
           );
         }
         if (status == 'failed') {

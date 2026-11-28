@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../manager/DivingFish/MaimaiMusicDataManager.dart';
 import '../../widgets/AppToast.dart';
+import '../../widgets/ExpressiveLoadingIndicator.dart';
 
 /// 单人猜歌页「开局取曲」失败时的兜底视图。
 ///
@@ -141,11 +142,7 @@ class _GuessChartLoadingViewState extends State<GuessChartLoadingView> {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (loading)
-              const SizedBox(
-                width: 32,
-                height: 32,
-                child: CircularProgressIndicator(strokeWidth: 2.5),
-              )
+              const ExpressiveLoadingIndicator.contained(size: 48)
             else
               Icon(Icons.cloud_off_outlined, size: 36, color: scheme.outline),
             if (loading) ...[
@@ -175,11 +172,7 @@ class _GuessChartLoadingViewState extends State<GuessChartLoadingView> {
                     FilledButton.tonalIcon(
                       onPressed: _retrying ? null : _handleRetry,
                       icon: _retrying
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
+                          ? const ExpressiveLoadingIndicator(size: 16)
                           : const Icon(Icons.refresh, size: 18),
                       label: Text(_retrying ? context.l10n.flowFetchingSongs : context.l10n.flowReloadSongs),
                     ),
@@ -187,11 +180,7 @@ class _GuessChartLoadingViewState extends State<GuessChartLoadingView> {
                     OutlinedButton.icon(
                       onPressed: _openingSettings ? null : _handleOpenSettings,
                       icon: _openingSettings
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
+                          ? const ExpressiveLoadingIndicator(size: 16)
                           : const Icon(Icons.settings, size: 18),
                       label:  Text(context.l10n.flowOpenSettings2),
                     ),

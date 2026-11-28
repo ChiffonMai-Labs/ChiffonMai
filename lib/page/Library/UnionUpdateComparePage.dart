@@ -18,6 +18,7 @@ import '../../widgets/AppDialogs.dart';
 import '../../widgets/AppUi.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 「国服更新对照」页：把本地曲库按**国服（水鱼）更新前沿**摆开，
 /// 让用户一眼看到「日服已上、国服还没上」的歌 = 下次更新最可能补上的曲目。
 ///
@@ -105,7 +106,7 @@ class _UnionUpdateComparePageState extends State<UnionUpdateComparePage> {
       contentPadding:
           EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
       child: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: ExpressiveLoadingIndicator.contained(size: 48))
           : !(_compare?.hasData ?? false)
               ? _buildEmpty()
               : _buildBody(brightness),

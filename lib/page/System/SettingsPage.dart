@@ -36,6 +36,7 @@ import '../../widgets/AppSwitch.dart';
 import '../../widgets/AppUpdateAutoInstallControl.dart';
 import '../../widgets/SongDetailDifficultySettings.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 设置页（独立页面，从首页主题弹窗"更多设置"进入）
 ///
 /// 提供：
@@ -502,11 +503,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ? null
                   : _useSystemWallpaperColor,
               icon: _readingSystemWallpaperColor
-                  ? const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
+                  ? const ExpressiveLoadingIndicator(size: 14)
                   : const Icon(Icons.palette_outlined, size: 18),
               label: Text(_readingSystemWallpaperColor
                   ? context.l10n.reading
@@ -980,11 +977,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         ? null
                         : _pickBackground,
                 icon: _pickingImage
-                    ? const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
+                    ? const ExpressiveLoadingIndicator(size: 14)
                     : const Icon(Icons.image_outlined, size: 18),
                 label: Text(_pickingImage
                     ? context.l10n.processing

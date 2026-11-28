@@ -604,11 +604,9 @@ class _PortableMiniCardState extends State<PortableMiniCard> {
             ),
             const SizedBox(height: 8),
             SliderTheme(
-              data: SliderTheme.of(context).copyWith(
-                trackHeight: 4,
-                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                overlayShape: SliderComponentShape.noOverlay,
-                inactiveTrackColor: AppSurfaces.inset(context),
+              data: AppTheme.compactExpressiveSliderTheme(
+                context,
+                inactiveColor: AppSurfaces.inset(context),
               ),
               child: Slider(
                 value: value,

@@ -10,6 +10,7 @@ import '../../utils/AppDesignTokens.dart';
 import '../../widgets/AppUi.dart';
 import '../../widgets/RecommendUi.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 class DsRangeRecommendPage extends StatefulWidget {
   const DsRangeRecommendPage({super.key});
 
@@ -242,9 +243,7 @@ class _DsRangeRecommendPageState extends State<DsRangeRecommendPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
+            ExpressiveLoadingIndicator.contained(size: 48, color: Theme.of(context).colorScheme.onSurface),
             const SizedBox(height: 16),
             Text(
               context.l10n.flowLoadingRecommendations,

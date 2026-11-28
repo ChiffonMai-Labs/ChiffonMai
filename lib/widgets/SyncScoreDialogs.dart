@@ -32,6 +32,7 @@ import '../widgets/AppToast.dart';
 import '../utils/AppDesignTokens.dart';
 import 'AppUi.dart' hide AnimatedReveal;
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 export 'MultiScoreSyncDialog.dart'
     show MultiScoreSyncInput, showMultiScoreSyncInputDialog;
 
@@ -781,14 +782,7 @@ class SyncScoreDialogs {
                     ),
                     ElevatedButton.icon(
                       icon: isBinding
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
+                          ? const ExpressiveLoadingIndicator(size: 16, color: Colors.white)
                           : const Icon(Icons.link, size: 18),
                       label: Text(isBinding
                           ? dialogContext.l10n.flowLinking
@@ -1059,12 +1053,7 @@ class SyncScoreDialogs {
                 if (!loginSuccess)
                   ElevatedButton.icon(
                     icon: isLoggingIn
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white),
-                          )
+                        ? const ExpressiveLoadingIndicator(size: 16, color: Colors.white)
                         : const Icon(Icons.login, size: 18),
                     label: Text(isLoggingIn
                         ? dialogContext.l10n.flowSigningIn

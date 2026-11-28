@@ -21,6 +21,7 @@ import '../../utils/AppTheme.dart';
 import '../../widgets/AppDialogs.dart';
 import '../../widgets/AppToast.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 class RandomChartPage extends StatefulWidget {
   const RandomChartPage({super.key});
 
@@ -653,14 +654,7 @@ class _RandomChartPageState extends State<RandomChartPage> {
                         ? Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  color: scheme.onSurfaceVariant,
-                                  strokeWidth: 2,
-                                ),
-                              ),
+                              ExpressiveLoadingIndicator(size: 18, color: scheme.onSurfaceVariant),
                               const SizedBox(width: 8),
                                Text(context.l10n.flowPreparing),
                             ],

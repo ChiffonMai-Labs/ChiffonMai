@@ -15,6 +15,7 @@ import '../../widgets/AppUi.dart';
 import '../../widgets/AppToast.dart';
 import '../../widgets/ChartPeekPlaybackUi.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 猜歌设置统一入口，继续使用各模式原有的设置存储。
 class GuessGameSettingsPage extends StatefulWidget {
   const GuessGameSettingsPage({super.key});
@@ -145,7 +146,7 @@ class _GuessGameSettingsPageState extends State<GuessGameSettingsPage> {
       child: s == null
           ? Center(
               child: _error == null
-                  ? const CircularProgressIndicator()
+                  ? const ExpressiveLoadingIndicator.contained(size: 48)
                   : TextButton(onPressed: _load, child: Text(_error!)))
           : SingleChildScrollView(
               padding: EdgeInsets.fromLTRB(

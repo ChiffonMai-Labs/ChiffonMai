@@ -354,6 +354,27 @@ class AppTheme {
       splashFactory: NoSplash.splashFactory,
       splashColor: Colors.transparent,
       highlightColor: Colors.transparent,
+      sliderTheme: SliderThemeData(
+        year2023: false,
+        activeTrackColor: scheme.primary,
+        inactiveTrackColor: dark
+            ? scheme.surfaceContainerHighest
+            : scheme.secondaryContainer,
+        disabledActiveTrackColor: scheme.onSurface.withValues(alpha: 0.38),
+        disabledInactiveTrackColor: scheme.onSurface.withValues(alpha: 0.12),
+        thumbColor: scheme.primary,
+        disabledThumbColor: scheme.onSurface.withValues(alpha: 0.38),
+        overlayColor: Colors.transparent,
+        overlayShape: SliderComponentShape.noOverlay,
+        // 高档位 divisions 不在粗轨道上堆满圆点；端点止动圆点由 GappedSliderTrackShape 自动绘制。
+        tickMarkShape: SliderTickMarkShape.noTickMark,
+        rangeTickMarkShape: RoundRangeSliderTickMarkShape(tickMarkRadius: 0),
+        valueIndicatorColor: scheme.inverseSurface,
+        valueIndicatorTextStyle: base.textTheme.labelMedium?.copyWith(
+          color: scheme.onInverseSurface,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
       iconButtonTheme: const IconButtonThemeData(
         style: ButtonStyle(overlayColor: noOverlay),
       ),
@@ -442,6 +463,40 @@ class AppTheme {
 
   static ThemeData lightTheme({Color? seedColor}) =>
       _canvasStyle(_lightThemeBase(seedColor: seedColor));
+
+  /// 紧凑空间（如音频进度条）使用的表达力滑条样式：保留 M3E 分段粗轨与竖条手柄，高度收紧。
+  static SliderThemeData compactExpressiveSliderTheme(
+    BuildContext context, {
+    Color? activeColor,
+    Color? inactiveColor,
+    Color? thumbColor,
+    EdgeInsetsGeometry padding = const EdgeInsets.symmetric(
+      horizontal: 4,
+      vertical: 6,
+    ),
+  }) {
+    final base = SliderTheme.of(context);
+    return base.copyWith(
+      year2023: false,
+      trackHeight: 8.0,
+      trackGap: 4.0,
+      trackShape: const GappedSliderTrackShape(),
+      thumbShape: const HandleThumbShape(),
+      thumbSize: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.pressed) ||
+            states.contains(WidgetState.focused)) {
+          return const Size(2.0, 20.0);
+        }
+        return const Size(3.5, 20.0);
+      }),
+      overlayColor: Colors.transparent,
+      overlayShape: SliderComponentShape.noOverlay,
+      padding: padding,
+      activeTrackColor: activeColor ?? base.activeTrackColor,
+      inactiveTrackColor: inactiveColor ?? base.inactiveTrackColor,
+      thumbColor: thumbColor ?? activeColor ?? base.thumbColor,
+    );
+  }
 
   static ThemeData _lightThemeBase({Color? seedColor}) {
     final scheme = buildLightColorScheme(seedColor: seedColor);

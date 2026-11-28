@@ -140,6 +140,7 @@ import '../../widgets/HomeStatusWidgets.dart';
 import '../../service/Home/HomeWidgetService.dart';
 import 'package:my_first_flutter_app/widgets/FavoriteEditGrid.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 // ds值与歌曲对应关系数据类已随 _calculateRatingLimits 一起抽离到
 // lib/widgets/RefreshDataDialog.dart，不再需要此处的定义。
 
@@ -542,7 +543,7 @@ class HomePageState extends State<HomePage> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(),
+            ExpressiveLoadingIndicator.contained(size: 48),
             SizedBox(height: 16),
             Text(context.l10n.flowSigningOutOfDivingFish),
           ],
@@ -1298,10 +1299,7 @@ class HomePageState extends State<HomePage> {
           borderRadius: BorderRadius.circular(14)),
       child: Row(children: [
         if (!completed)
-          const SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(strokeWidth: 2))
+          const ExpressiveLoadingIndicator(size: 18)
         else
           Icon(Icons.check_circle_outline, color: scheme.onSecondaryContainer),
         const SizedBox(width: 10),
@@ -1674,12 +1672,7 @@ class HomePageState extends State<HomePage> {
                           const Center(
                             child: Padding(
                               padding: EdgeInsets.only(bottom: 12),
-                              child: SizedBox(
-                                width: 24,
-                                height: 24,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2.5),
-                              ),
+                              child: ExpressiveLoadingIndicator(size: 24),
                             ),
                           ),
                         ],
@@ -1782,14 +1775,7 @@ class HomePageState extends State<HomePage> {
                     ),
                     ElevatedButton.icon(
                       icon: isBinding
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
+                          ? const ExpressiveLoadingIndicator(size: 16, color: Colors.white)
                           : const Icon(Icons.link, size: 18),
                       label: Text(isBinding
                           ? dialogContext.l10n.flowLinking
@@ -2199,14 +2185,7 @@ class HomePageState extends State<HomePage> {
                 if (!loginSuccess)
                   ElevatedButton.icon(
                     icon: isLoggingIn
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
+                        ? const ExpressiveLoadingIndicator(size: 16, color: Colors.white)
                         : const Icon(Icons.login, size: 18),
                     label: Text(isLoggingIn
                         ? dialogContext.l10n.flowSigningIn
@@ -2341,7 +2320,7 @@ class HomePageState extends State<HomePage> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const CircularProgressIndicator(),
+            const ExpressiveLoadingIndicator.contained(size: 48),
             const SizedBox(height: 16),
             Text(message),
           ],
@@ -3390,7 +3369,7 @@ class _HomeSongSearchResultsState extends State<_HomeSongSearchResults> {
     } else if (songs == null) {
       body = const Padding(
         padding: EdgeInsets.symmetric(vertical: 24),
-        child: Center(child: CircularProgressIndicator()),
+        child: Center(child: ExpressiveLoadingIndicator.contained(size: 48)),
       );
     } else if (songs.isEmpty) {
       body = message(widget.query.trim().isEmpty

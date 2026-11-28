@@ -23,6 +23,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:my_first_flutter_app/constant/CacheKeyConstant.dart';
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 import 'package:my_first_flutter_app/page/Attendance/FavoriteFolderPage.dart';
 import 'package:my_first_flutter_app/page/Score/PersonalizedScorePage.dart';
 import 'package:my_first_flutter_app/service/Favorite/FavoriteFolderService.dart';
@@ -243,7 +244,7 @@ void main() {
             () => Future<void>.delayed(const Duration(milliseconds: 200)));
       }
       await tester.pump();
-      expect(find.byType(CircularProgressIndicator), findsNothing,
+      expect(find.byType(ExpressiveLoadingIndicator), findsNothing,
           reason: '页面要先真的加载出来，否则后面找不到按钮');
     }
 

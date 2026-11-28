@@ -11,6 +11,7 @@ import 'AdvancedRefreshDataDialog.dart';
 import 'AppUi.dart' show AnimatedReveal;
 import 'RefreshDataDialog.dart' show RefreshDataRequest, RefreshDataSource;
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 同步成功后默认刷新，直接复用高级刷新的配置内容。
 class PostSyncRefreshOptions extends StatefulWidget {
   final RefreshDataSource? source;
@@ -177,7 +178,7 @@ class PostSyncRefreshOptionsState extends State<PostSyncRefreshOptions> {
               if (!snapshot.hasData) {
                 return const Padding(
                   padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Center(child: CircularProgressIndicator()),
+                  child: Center(child: ExpressiveLoadingIndicator.contained(size: 48)),
                 );
               }
               final c = snapshot.data!;

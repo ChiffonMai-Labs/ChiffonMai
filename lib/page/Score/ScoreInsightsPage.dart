@@ -16,6 +16,7 @@ import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/SmoothLinearProgressIndicator.dart';
 import '../song_info/SongInfoPage.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 enum _View { overview, audit, coverage }
 
 /// 成绩深度分析页：成绩全景、弱项处方、B50 边缘巡检与等级覆盖。
@@ -149,7 +150,7 @@ class _ScoreInsightsPageState extends State<ScoreInsightsPage> {
             bottom: MediaQuery.paddingOf(context).bottom,
           ),
           child: snapshot.connectionState != ConnectionState.done
-              ? const Center(child: CircularProgressIndicator())
+              ? const Center(child: ExpressiveLoadingIndicator.contained(size: 48))
               : score == null
                   ? Center(
                       child: Padding(
@@ -617,7 +618,7 @@ class _ScoreInsightsPageState extends State<ScoreInsightsPage> {
             else
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 32),
-                child: Center(child: CircularProgressIndicator()),
+                child: Center(child: ExpressiveLoadingIndicator.contained(size: 48)),
               ),
           ],
         );

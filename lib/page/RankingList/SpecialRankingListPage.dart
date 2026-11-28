@@ -15,6 +15,7 @@ import '../../widgets/AppUi.dart';
 import '../../widgets/MarqueeText.dart';
 import '../../widgets/AppDialogs.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 class SpecialRankingListPage extends StatefulWidget {
   const SpecialRankingListPage({super.key});
 
@@ -700,7 +701,7 @@ class _SpecialRankingListPageState extends State<SpecialRankingListPage> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const CircularProgressIndicator(),
+                      const ExpressiveLoadingIndicator.contained(size: 48),
                       const SizedBox(height: 16),
                       Text(context.l10n.flowLoading3,
                           style: TextStyle(

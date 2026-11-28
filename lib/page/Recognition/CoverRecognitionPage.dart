@@ -21,6 +21,7 @@ import '../../widgets/RankingUi.dart';
 import '../../widgets/AppDialogs.dart';
 import '../../widgets/AppToast.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 曲绘识别页面
 /// 支持拍照/相册选取 → 手动裁剪 → 识别 → 显示Top10匹配结果
 class CoverRecognitionPage extends StatefulWidget {
@@ -242,7 +243,7 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
     if (_isInitializing) {
       return Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-        const CircularProgressIndicator(),
+        const ExpressiveLoadingIndicator.contained(size: 48),
         const SizedBox(height: 16),
         Text(context.l10n.flowLoading3,
             style: TextStyle(color: c, fontSize: sw * 0.04)),
@@ -690,11 +691,7 @@ class _CoverRecognitionPageState extends State<CoverRecognitionPage> {
           FilledButton.icon(
             onPressed: _isRecognizing ? null : _recognize,
             icon: _isRecognizing
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
+                ? const ExpressiveLoadingIndicator(size: 16)
                 : const Icon(Icons.search),
             label: Text(_isRecognizing
                 ? context.l10n.flowRecognizing
@@ -1131,7 +1128,7 @@ class _ImageCropPageState extends State<_ImageCropPage> {
       return Scaffold(
         backgroundColor: Colors.black,
         body:
-            const Center(child: CircularProgressIndicator(color: Colors.white)),
+            const Center(child: ExpressiveLoadingIndicator(size: 44, color: Colors.white)),
       );
     }
 
@@ -1192,13 +1189,13 @@ class _ImageCropPageState extends State<_ImageCropPage> {
               }
               if (_imageRect.isEmpty) {
                 return const Center(
-                    child: CircularProgressIndicator(color: Colors.white));
+                    child: ExpressiveLoadingIndicator(size: 44, color: Colors.white));
               }
               if (_cropRect.isEmpty || _cropRect == Rect.zero) {
                 WidgetsBinding.instance
                     .addPostFrameCallback((_) => _initCropRect());
                 return const Center(
-                    child: CircularProgressIndicator(color: Colors.white));
+                    child: ExpressiveLoadingIndicator(size: 44, color: Colors.white));
               }
               final cropRect = _cropRectPx;
 

@@ -33,6 +33,7 @@ import '../../service/Account/AccountStore.dart';
 import '../../utils/Best50Tie.dart';
 import '../../utils/MusicDataIndex.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 class PersonalizedBest50Page extends StatefulWidget {
   const PersonalizedBest50Page({super.key});
 
@@ -729,7 +730,7 @@ class _PersonalizedBest50PageState extends State<PersonalizedBest50Page> {
       return BackgroundPageScaffold(
         title: context.l10n.featureCustomBest50Analysis,
         resizeToAvoidBottomInset: false,
-        child: Center(child: CircularProgressIndicator()),
+        child: Center(child: ExpressiveLoadingIndicator.contained(size: 48)),
       );
     }
 

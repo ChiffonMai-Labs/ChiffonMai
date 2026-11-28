@@ -12,6 +12,7 @@ import '../../widgets/BackgroundPageScaffold.dart';
 import '../song_info/SongInfoPage.dart';
 import 'AwmcCabinetPage.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 enum _Resource { music, rival }
 
 /// AWMC 资源候选与对手资料查询页面。
@@ -256,14 +257,7 @@ class _AwmcResourcesPageState extends State<AwmcResourcesPage> {
                         ? Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: scheme.onPrimary,
-                                ),
-                              ),
+                              ExpressiveLoadingIndicator(size: 16, color: scheme.onPrimary),
                               const SizedBox(width: 8),
                               Text(l10n.flowLoading2),
                             ],

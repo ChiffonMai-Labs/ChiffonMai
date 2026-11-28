@@ -37,6 +37,7 @@ import '../../utils/JsonIsolate.dart';
 import '../../utils/Best50Order.dart';
 import '../../utils/Best50Tie.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 class B50Page extends StatefulWidget {
   final Map<String, dynamic>? b50Data;
 
@@ -650,7 +651,7 @@ class _B50PageState extends State<B50Page> {
       return const BackgroundPageScaffold(
         title: 'Best50',
         resizeToAvoidBottomInset: false,
-        child: Center(child: CircularProgressIndicator()),
+        child: Center(child: ExpressiveLoadingIndicator.contained(size: 48)),
       );
     }
 
@@ -1151,14 +1152,7 @@ class _B50PageState extends State<B50Page> {
                       ),
                     ),
                     if (_isLoadingTags)
-                      SizedBox(
-                        width: 18.0,
-                        height: 18.0,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.0,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      )
+                      ExpressiveLoadingIndicator(size: 18.0, color: colorScheme.onSurfaceVariant)
                     else if (_tagStats.isEmpty)
                       Text(
                         context.l10n.flowNoTagData,

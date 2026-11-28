@@ -27,6 +27,7 @@ import 'QuickSyncOption.dart';
 import 'RefreshDataDialog.dart' show RefreshDataRequest, RefreshDataSource;
 import 'SyncDialogUi.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 已确认具备凭据的同步目标，由执行器依次执行。
 class MultiScoreSyncInput {
   final String qrCode;
@@ -657,7 +658,7 @@ class _MultiScoreSyncDialogState extends State<MultiScoreSyncDialog> {
                     if (_loading)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 16),
-                        child: Center(child: CircularProgressIndicator()),
+                        child: Center(child: ExpressiveLoadingIndicator.contained(size: 48)),
                       )
                     else if (_loadError != null) ...[
                       Text(

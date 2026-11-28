@@ -10,6 +10,7 @@ import '../../widgets/AppDialogs.dart';
 import '../../widgets/AppToast.dart';
 import '../../widgets/ErrorMessageDialog.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 class DataBackupPage extends StatefulWidget {
   const DataBackupPage({super.key});
 
@@ -204,12 +205,7 @@ class _DataBackupPageState extends State<DataBackupPage> {
             child: ElevatedButton.icon(
               onPressed: isLoading ? null : onPressed,
               icon: isLoading
-                  ? SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: buttonFg),
-                    )
+                  ? ExpressiveLoadingIndicator(size: 16, color: buttonFg)
                   : Icon(
                       icon == Icons.file_upload
                           ? Icons.file_upload

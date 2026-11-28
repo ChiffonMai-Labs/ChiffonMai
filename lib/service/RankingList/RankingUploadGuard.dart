@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../api/ApiUrls.dart';
 import '../../l10n/AppMessages.dart';
+import '../../manager/AWMC/AwmcForumOAuthManager.dart';
 import '../../utils/ApiClient.dart';
 import '../../utils/ChartDifficulty.dart';
 
@@ -160,7 +161,11 @@ class RankingUploadGuard {
     try {
       final response = await ApiClient.postGzip(
         Uri.parse(ApiUrls.UploadGuardCheckUrl),
-        headers: await _headers(),
+        headers: {
+          ...await _headers(),
+          if (playerId.startsWith('awmc:'))
+            ...await AwmcForumOAuthManager.authHeaders(playerId.substring(5)),
+        },
         body: {
           'playerId': playerId,
           'rating': {

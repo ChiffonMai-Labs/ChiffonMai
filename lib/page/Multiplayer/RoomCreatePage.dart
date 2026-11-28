@@ -17,6 +17,7 @@ import '../../widgets/GuessAudioRateSlider.dart';
 import '../../widgets/GuessSettingsUi.dart';
 import 'package:simai_flutter/simai_flutter.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 class RoomCreatePage extends StatefulWidget {
   const RoomCreatePage({super.key});
 
@@ -443,7 +444,7 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
         ),
       ],
       child: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: ExpressiveLoadingIndicator.contained(size: 48))
           : Column(
               children: [
                 Expanded(
@@ -574,14 +575,7 @@ class _RoomCreatePageState extends State<RoomCreatePage> {
                         child: FilledButton(
                           onPressed: _isCreating ? null : _handleCreateRoom,
                           child: _isCreating
-                              ? SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.4,
-                                    color: scheme.onPrimary,
-                                  ),
-                                )
+                              ? ExpressiveLoadingIndicator(size: 22, color: scheme.onPrimary)
                               :  Text(
                                   context.l10n.flowCreateRoom,
                                   style: TextStyle(

@@ -30,6 +30,7 @@ import '../../utils/AppError.dart';
 import '../../utils/ChartCodeFontPreference.dart';
 import '../../utils/MaidataDecodeUtil.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 class SongMaidataPage extends StatefulWidget {
   final String songId;
   final String songTitle;
@@ -761,7 +762,7 @@ class _SongMaidataPageState extends State<SongMaidataPage> {
         Expanded(
             child: _isLoading
                 ? const Center(
-                    child: CircularProgressIndicator(),
+                    child: ExpressiveLoadingIndicator.contained(size: 48),
                   )
                 : _errorMessage != null
                     ? Center(

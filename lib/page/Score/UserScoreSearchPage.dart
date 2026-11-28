@@ -21,6 +21,7 @@ import '../../widgets/AppDialogs.dart';
 import '../../widgets/AppToast.dart';
 import '../../widgets/ProgressUi.dart' show GroupedRowShell;
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 class UserScoreSearchPage extends StatefulWidget {
   /// 进入页面时直接打开搜索框（成绩 Hub 的搜索入口）。
   final bool openSearch;
@@ -606,7 +607,7 @@ class _UserScoreSearchPageState extends State<UserScoreSearchPage> {
         ),
       ],
       child: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: ExpressiveLoadingIndicator.contained(size: 48))
           : _userPlayData == null
               ? Center(
                   child: Text(context.l10n.flowNoCachedDataFound,

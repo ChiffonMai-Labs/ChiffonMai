@@ -17,6 +17,7 @@ import '../../utils/AppDesignTokens.dart';
 import '../../widgets/AppUi.dart';
 import '../../widgets/MarqueeText.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 评分记录数据模型
 class RatingRecordItem {
   final int id;
@@ -288,7 +289,7 @@ class _RecentRatingsPageState extends State<RecentRatingsPage> {
 
   Widget _buildLoading(Brightness brightness) {
     return Center(
-      child: CircularProgressIndicator(color: AppColors.linkBlue(brightness)),
+      child: ExpressiveLoadingIndicator.contained(size: 48, color: AppColors.linkBlue(brightness)),
     );
   }
 

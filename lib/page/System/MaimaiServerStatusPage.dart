@@ -10,6 +10,7 @@ import '../../widgets/EmptyState.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../utils/AppError.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 舞萌服务器状态页面。
 ///
 /// 数据来自 mai.chongxi.us 的机器人状态接口，页面直接展示接口提供的总览、
@@ -184,7 +185,7 @@ class _MaimaiServerStatusPageState extends State<MaimaiServerStatusPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                CircularProgressIndicator(color: scheme.primary),
+                ExpressiveLoadingIndicator.contained(size: 48, color: scheme.primary),
                 const SizedBox(height: 12),
                 Text(context.l10n.flowReadingServerStatus,
                     style: TextStyle(color: scheme.onSurfaceVariant)),
@@ -209,14 +210,7 @@ class _MaimaiServerStatusPageState extends State<MaimaiServerStatusPage> {
               borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
             ),
             child: Center(
-              child: SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: scheme.primary,
-                ),
-              ),
+              child: ExpressiveLoadingIndicator(size: 18, color: scheme.primary),
             ),
           ),
       ],

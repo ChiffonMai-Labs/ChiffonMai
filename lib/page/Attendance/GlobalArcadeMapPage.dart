@@ -24,6 +24,7 @@ import '../../widgets/ArcadeMapUi.dart';
 import '../../widgets/EmptyState.dart';
 import '../../widgets/SmoothLinearProgressIndicator.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 全球机厅地图：全屏地图 + 悬浮搜索筛选 + 可拖动的机厅抽屉。
 class GlobalArcadeMapPage extends StatefulWidget {
   const GlobalArcadeMapPage({super.key});
@@ -1300,7 +1301,7 @@ class _GlobalArcadeMapPageState extends State<GlobalArcadeMapPage>
         SliverFillRemaining(hasScrollBody: false, child: child);
 
     if (_isLoading) {
-      return [fill(const Center(child: CircularProgressIndicator()))];
+      return [fill(const Center(child: ExpressiveLoadingIndicator.contained(size: 48)))];
     }
     if (_error != null) {
       return [

@@ -11,6 +11,7 @@ import '../utils/AppTheme.dart';
 import '../utils/CurrentDataSourceNotifier.dart';
 import 'AppUi.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 歌曲详情页内嵌的 AWMC NET 云端历史卡片。
 class AwmcCloudSongHistory extends StatefulWidget {
   const AwmcCloudSongHistory({
@@ -143,11 +144,7 @@ class _AwmcCloudSongHistoryState extends State<AwmcCloudSongHistory> {
             if (_loading)
               Row(
                 children: [
-                  const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
+                  const ExpressiveLoadingIndicator(size: 16),
                   const SizedBox(width: 10),
                   Text(
                     l10n.flowLoading2,

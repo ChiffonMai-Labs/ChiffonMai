@@ -12,6 +12,7 @@ import 'MarqueeText.dart';
 import '../widgets/AppDialogs.dart';
 import '../widgets/AppToast.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 /// 弹出「切换账号」底部面板。
 ///
 /// 三个数据源（水鱼 / 落雪 / AWMC NET）各占一行；点击即用**缓存**切换数据源与
@@ -319,14 +320,7 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
                 alignment: Alignment.centerLeft,
                 child: _switchingTo != null
                     ? Row(children: [
-                        SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: scheme.primary,
-                          ),
-                        ),
+                        ExpressiveLoadingIndicator(size: 14, color: scheme.primary),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Semantics(
@@ -527,14 +521,7 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
             ),
             SizedBox(width: widget.dialog ? 6 : 8),
             if (isSwitching || isClearing)
-              SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: scheme.primary,
-                ),
-              )
+              ExpressiveLoadingIndicator(size: 18, color: scheme.primary)
             else ...[
               if (!isCurrent && !hasData)
                 Text(context.l10n.flowNoCache,

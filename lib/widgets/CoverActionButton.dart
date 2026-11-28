@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'ExpressiveLoadingIndicator.dart';
+
 /// 曲绘识别页那一排操作按钮（开始识别 / 重新识别 / 重新裁剪 / 重选 / 再选一张）。
 ///
 /// 为什么单独抽成组件：配色踩过坑 ——
@@ -60,13 +62,9 @@ class CoverActionButton extends StatelessWidget {
     return ElevatedButton.icon(
       onPressed: onPressed,
       icon: loading && onPressed == null
-          ? SizedBox(
-              width: scale * 0.035,
-              height: scale * 0.035,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: foreground,
-              ),
+          ? ExpressiveLoadingIndicator(
+              size: scale * 0.038,
+              color: foreground,
             )
           : Icon(icon, size: scale * 0.042),
       label: Text(label, style: TextStyle(fontSize: scale * 0.032)),

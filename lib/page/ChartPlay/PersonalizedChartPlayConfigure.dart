@@ -21,6 +21,7 @@ import '../../utils/AppError.dart';
 import '../../widgets/AppDialogs.dart';
 import '../../widgets/AppToast.dart';
 
+import 'package:my_first_flutter_app/widgets/ExpressiveLoadingIndicator.dart';
 // ─────────────────────────────────────────────────────────
 // 谱面包导入（.adx / .zip）
 //
@@ -644,8 +645,7 @@ class _PersonalizedChartPlayConfigureState
                       width: 20,
                       height: 20,
                       child: busy
-                          ? CircularProgressIndicator(
-                              strokeWidth: 2, color: scheme.primary)
+                          ? ExpressiveLoadingIndicator.contained(size: 48, color: scheme.primary)
                           : Icon(Icons.folder_zip_outlined,
                               size: 20, color: scheme.primary),
                     ),
@@ -857,13 +857,7 @@ class _PersonalizedChartPlayConfigureState
                                 onPressed:
                                     _isImporting ? null : _pickChartPackage,
                                 icon: _isImporting
-                                    ? const SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: Colors.white),
-                                      )
+                                    ? const ExpressiveLoadingIndicator(size: 18, color: Colors.white)
                                     : const Icon(Icons.unarchive_outlined),
                                 label: Text(_isImporting
                                     ? context.l10n.flowExtracting
