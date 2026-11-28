@@ -52,18 +52,21 @@ class BackgroundExport {
 
   /// 导出可能在用户切走后才结束，再发一条系统通知。通知发不出去不影响导出结果。
   static Future<void> _notifySystem(String label, ExportDiagnostics log) async {
-    if (!Platform.isAndroid) {
-      log.note('非Android平台，跳过系统导出通知');
+    if (!Platform.isAndroid && !Platform.isIOS) {
+      log.note('非移动端平台，跳过系统导出通知');
       return;
     }
     try {
-      final status =
-          await log.step('查询通知权限', () => Permission.notification.status);
-      log.note('当前通知权限=$status');
-      if (status.isDenied) {
-        final requested =
-            await log.step('请求通知权限', () => Permission.notification.request());
-        log.note('请求后通知权限=$requested');
+      // iOS 通知权限由原生 UNUserNotificationCenter 按需申请，避免依赖 PERMISSION_NOTIFICATIONS 宏。
+      if (Platform.isAndroid) {
+        final status =
+            await log.step('查询通知权限', () => Permission.notification.status);
+        log.note('当前通知权限=$status');
+        if (status.isDenied) {
+          final requested =
+              await log.step('请求通知权限', () => Permission.notification.request());
+          log.note('请求后通知权限=$requested');
+        }
       }
       await log.step(
           '发送系统导出通知',

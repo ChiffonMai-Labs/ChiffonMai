@@ -14,7 +14,7 @@ import 'LogExportService.dart';
 
 /// 上次崩溃后的善后：启动时自动导出日志、发系统通知、在 App 内提示。
 ///
-/// 崩溃记录由 Android 侧的 `CrashReporter` 留下；iOS 暂时没有对应实现。
+/// 崩溃记录分别由 Android 侧 `CrashReporter` 与 iOS 侧 `AppDelegate` 留下。
 class CrashReportService {
   CrashReportService._();
 
@@ -22,7 +22,7 @@ class CrashReportService {
       MethodChannel('com.example.app/crash_report');
 
   static Future<void> checkPreviousCrash() async {
-    if (!Platform.isAndroid) return;
+    if (!Platform.isAndroid && !Platform.isIOS) return;
     try {
       final crash =
           await _channel.invokeMapMethod<String, String>('takePendingCrash');
@@ -51,8 +51,10 @@ class CrashReportService {
 
   static Future<void> _notify(bool exported) async {
     try {
-      final status = await Permission.notification.status;
-      if (status.isDenied) await Permission.notification.request();
+      if (Platform.isAndroid) {
+        final status = await Permission.notification.status;
+        if (status.isDenied) await Permission.notification.request();
+      }
       await _channel.invokeMethod<void>('notifyCrashReport', {
         'title': appL10n.flowChiffonMaiClosedUnexpectedlyLastTime,
         'text': exported ? appL10n.svcTheLogWasExportedAutomaticallyYouCan : appL10n.svcLogExportFailedYouCanExportIt,

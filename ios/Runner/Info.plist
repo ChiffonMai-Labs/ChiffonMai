@@ -115,6 +115,48 @@
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
 
+	<!-- 系统「文件」App / 分享弹窗点开 .cmf 收藏夹文件时唤起 App 一键导入 -->
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>ChiffonMai Favorites</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>cloud.chiffonmai.app.favorites</string>
+			</array>
+		</dict>
+	</array>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>cloud.chiffonmai.app.favorites</string>
+			<key>UTTypeDescription</key>
+			<string>ChiffonMai Favorites</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.json</string>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>cmf</string>
+				</array>
+				<key>public.mime-type</key>
+				<array>
+					<string>application/json</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
+
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>bilibili</string>
