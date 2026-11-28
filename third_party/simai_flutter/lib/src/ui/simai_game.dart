@@ -56,6 +56,7 @@ class SimaiGame extends FlameGame with KeyboardEvents {
   double touchApproachTime;
   double slideDisplayTiming;
   SimaiAutoPlayMode autoPlayMode;
+  int autoPlaySeed;
   SimaiAutoPlayTimeline? _autoPlayTimeline;
   double playbackRate;
   double musicVolume;
@@ -207,6 +208,7 @@ class SimaiGame extends FlameGame with KeyboardEvents {
         NoteMotion.defaultApproachTime * NoteMotion.touchApproachMultiplier,
     double slideDisplayTiming = 0.0,
     this.autoPlayMode = SimaiAutoPlayMode.allCriticalPerfect,
+    this.autoPlaySeed = 0,
     this.playbackRate = 1.0,
     this.musicVolume = 0.5,
     double hitSoundOffset = 0.0,
@@ -424,7 +426,11 @@ class SimaiGame extends FlameGame with KeyboardEvents {
 
   /// 当前模拟游玩判定时间线（按需构建并缓存，供判定表示、击打特效与达成率共用）。
   SimaiAutoPlayTimeline get autoPlayTimeline =>
-      _autoPlayTimeline ??= SimaiAutoPlayTimeline.build(chart, autoPlayMode);
+      _autoPlayTimeline ??= SimaiAutoPlayTimeline.build(
+        chart,
+        autoPlayMode,
+        seed: autoPlaySeed,
+      );
 
   void setSlideDisplayTiming(double value) {
     final normalized = NoteMotion.normalizeSlideDisplayTiming(value);
@@ -436,6 +442,14 @@ class SimaiGame extends FlameGame with KeyboardEvents {
   void setAutoPlayMode(SimaiAutoPlayMode mode) {
     if (autoPlayMode == mode) return;
     autoPlayMode = mode;
+    _autoPlayTimeline = null;
+    invalidateNotes();
+  }
+
+  /// 更新随机判定种子并重建模拟游玩判定时间线。
+  void setAutoPlaySeed(int seed) {
+    if (autoPlaySeed == seed) return;
+    autoPlaySeed = seed;
     _autoPlayTimeline = null;
     invalidateNotes();
   }

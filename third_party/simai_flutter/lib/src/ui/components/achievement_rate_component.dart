@@ -285,6 +285,7 @@ class AchievementRateComponent extends PositionComponent
   double _lastLabelFontSize = -1;
   SimaiCenterDisplayMode? _lastMode;
   SimaiAutoPlayMode? _lastAutoPlayMode;
+  int? _lastAutoPlaySeed;
   bool _wasVisible = false;
   double _labelElapsed = 0;
 
@@ -397,6 +398,7 @@ class AchievementRateComponent extends PositionComponent
       _labelElapsed = 0;
     }
     final autoPlayMode = game.autoPlayMode;
+    final autoPlaySeed = game.autoPlaySeed;
     final snapshot = game.autoPlayTimeline.snapshotAt(game.chartTime);
     final int metricKey = _displayValueKey(mode, snapshot);
     final minEdge = min(size.x, size.y);
@@ -406,6 +408,7 @@ class AchievementRateComponent extends PositionComponent
     if (_wasVisible &&
         mode == _lastMode &&
         autoPlayMode == _lastAutoPlayMode &&
+        autoPlaySeed == _lastAutoPlaySeed &&
         metricKey == _lastMetricKey &&
         fontSize == _lastFontSize) {
       return;
@@ -421,6 +424,7 @@ class AchievementRateComponent extends PositionComponent
     _wasVisible = true;
     _lastMode = mode;
     _lastAutoPlayMode = autoPlayMode;
+    _lastAutoPlaySeed = autoPlaySeed;
     _lastMetricKey = metricKey;
     _lastFontSize = fontSize;
     switch (mode) {

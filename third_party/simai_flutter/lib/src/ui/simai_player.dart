@@ -62,6 +62,9 @@ class SimaiPlayerController extends ChangeNotifier {
   double _touchSpeed = 8.0;
   double _slideDisplayTiming = 0.0;
   SimaiAutoPlayMode _autoPlayMode = SimaiAutoPlayMode.allCriticalPerfect;
+  int _autoPlaySeed = 0;
+  SimaiAutoPlayTimeline? _cachedAutoPlayTimeline;
+  static final math.Random _autoPlayRandom = math.Random();
   bool _isPlaying = false;
   double _playbackRate = 1.0;
   double _musicVolume = 0.5;
@@ -125,6 +128,29 @@ class SimaiPlayerController extends ChangeNotifier {
   double get touchSpeed => _touchSpeed;
   double get slideDisplayTiming => _slideDisplayTiming;
   SimaiAutoPlayMode get autoPlayMode => _autoPlayMode;
+  int get autoPlaySeed => _autoPlaySeed;
+
+  /// 当前模拟游玩判定时间线，供设置面板展示预计达成率与判定分布。
+  SimaiAutoPlayTimeline get autoPlayTimeline {
+    final game = _game;
+    if (game != null &&
+        game.autoPlayMode == _autoPlayMode &&
+        game.autoPlaySeed == _autoPlaySeed) {
+      return _cachedAutoPlayTimeline = game.autoPlayTimeline;
+    }
+    final cached = _cachedAutoPlayTimeline;
+    if (cached != null &&
+        cached.mode == _autoPlayMode &&
+        cached.seed == _autoPlaySeed) {
+      return cached;
+    }
+    return _cachedAutoPlayTimeline = SimaiAutoPlayTimeline.build(
+      chart,
+      _autoPlayMode,
+      seed: _autoPlaySeed,
+    );
+  }
+
   bool get isPlaying => _isPlaying;
   double get playbackRate => _playbackRate;
   double get musicVolume => _musicVolume;
@@ -210,8 +236,26 @@ class SimaiPlayerController extends ChangeNotifier {
   set autoPlayMode(SimaiAutoPlayMode value) {
     if (_autoPlayMode == value) return;
     _autoPlayMode = value;
+    _cachedAutoPlayTimeline = null;
     _applyToGame();
     notifyListeners();
+  }
+
+  set autoPlaySeed(int value) {
+    if (_autoPlaySeed == value) return;
+    _autoPlaySeed = value;
+    _cachedAutoPlayTimeline = null;
+    _applyToGame();
+    notifyListeners();
+  }
+
+  /// 生成新的随机判定种子，立即重抽各音符模拟判定细节。
+  void randomizeAutoPlaySeed() {
+    var next = _autoPlayRandom.nextInt(0x7FFFFFFF);
+    if (next == _autoPlaySeed) {
+      next = (next + 1) & 0x7FFFFFFF;
+    }
+    autoPlaySeed = next;
   }
 
   set playbackRate(double value) {
@@ -635,6 +679,7 @@ class SimaiPlayerController extends ChangeNotifier {
     game.touchApproachTime = touchApproachTime;
     game.setSlideDisplayTiming(_slideDisplayTiming);
     game.setAutoPlayMode(_autoPlayMode);
+    game.setAutoPlaySeed(_autoPlaySeed);
     game.offset = effectiveMusicOffsetSeconds;
     game.hitSoundOffset = _hitSoundOffsetMs / 1000.0;
     game.hitSoundEnabled = _hitSoundEnabled;
@@ -771,6 +816,7 @@ class _SimaiPlayerState extends State<SimaiPlayer> {
       touchApproachTime: controller.touchApproachTime,
       slideDisplayTiming: controller.slideDisplayTiming,
       autoPlayMode: controller.autoPlayMode,
+      autoPlaySeed: controller.autoPlaySeed,
       playbackRate: controller.playbackRate,
       musicVolume: controller.musicVolume,
       hitSoundVolume: controller.hitSoundVolume,
@@ -2254,6 +2300,10 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
                           ],
                           onChanged: (v) => controller.autoPlayMode = v,
                         ),
+                        if (controller.autoPlayMode.hasRandomDetails) ...[
+                          const SizedBox(height: 8),
+                          _buildAutoPlayRandomPanel(context),
+                        ],
                         const SizedBox(height: 16),
                         _buildDropdownSetting<SimaiCenterDisplayMode>(
                           context,
@@ -2434,6 +2484,48 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
           color: Theme.of(context).colorScheme.primary,
           fontWeight: FontWeight.bold,
           letterSpacing: 1.2,
+        ),
+      ),
+    );
+  }
+
+  /// 构建“随机判定明细 + 重新随机判定”区域，仅在含随机判定的模拟模式下展示。
+  Widget _buildAutoPlayRandomPanel(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: scheme.onSurface.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: scheme.outlineVariant),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              controller.autoPlayTimeline.summaryLabel,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.onSurface,
+                fontWeight: FontWeight.w600,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: controller.randomizeAutoPlaySeed,
+                icon: const Icon(Icons.shuffle_rounded, size: 16),
+                label: const Text('重新随机判定'),
+                style: OutlinedButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -594,6 +594,7 @@ SimaiPlayerController createSimaiVideoExportControllerSnapshot(
     ..touchSpeed = source.touchSpeed
     ..slideDisplayTiming = source.slideDisplayTiming
     ..autoPlayMode = source.autoPlayMode
+    ..autoPlaySeed = source.autoPlaySeed
     ..playbackRate = source.playbackRate
     ..musicVolume = source.musicVolume
     ..hitSoundVolume = source.hitSoundVolume

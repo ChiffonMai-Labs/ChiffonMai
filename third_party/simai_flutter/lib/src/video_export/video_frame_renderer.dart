@@ -89,6 +89,7 @@ class SimaiVideoFrameRenderer {
       ..touchSpeed = source.touchSpeed
       ..slideDisplayTiming = source.slideDisplayTiming
       ..autoPlayMode = source.autoPlayMode
+      ..autoPlaySeed = source.autoPlaySeed
       ..mirrorMode = source.mirrorMode
       ..backgroundMode = source.backgroundMode
       ..backgroundOpacity = source.backgroundOpacity
@@ -131,6 +132,7 @@ class SimaiVideoFrameRenderer {
     _game.setBackgroundOpacity(source.backgroundOpacity);
     _game.setSlideDisplayTiming(source.slideDisplayTiming);
     _game.setAutoPlayMode(source.autoPlayMode);
+    _game.setAutoPlaySeed(source.autoPlaySeed);
     updateFrameRate(frameRate);
 
     await _game.setNoteStyleAsync(source.noteStyle);
@@ -185,6 +187,7 @@ class SimaiVideoFrameRenderer {
       touchApproachTime: controller.touchApproachTime,
       slideDisplayTiming: controller.slideDisplayTiming,
       autoPlayMode: controller.autoPlayMode,
+      autoPlaySeed: controller.autoPlaySeed,
       playbackRate: 1.0,
       musicVolume: controller.musicVolume,
       hitSoundOffset: controller.hitSoundOffsetMs / 1000.0,

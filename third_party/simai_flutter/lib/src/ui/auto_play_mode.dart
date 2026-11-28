@@ -25,6 +25,11 @@ enum SimaiAutoPlayMode {
   final String label;
   final String description;
 
+  /// 该模拟游玩方式是否包含随机判定细节（等级、绝赞细分或 FAST/LATE）。
+  bool get hasRandomDetails =>
+      this != SimaiAutoPlayMode.allCriticalPerfect &&
+      this != SimaiAutoPlayMode.allMiss;
+
   static SimaiAutoPlayMode fromName(
     Object? raw, {
     SimaiAutoPlayMode fallback = SimaiAutoPlayMode.allCriticalPerfect,
@@ -92,6 +97,7 @@ class _SimulatedNoteOutcome {
 class SimaiAutoPlayTimeline {
   SimaiAutoPlayTimeline._({
     required this.mode,
+    required this.seed,
     required this.events,
     required List<double> eventTimes,
     required List<double> earnedBasePrefix,
@@ -104,6 +110,13 @@ class SimaiAutoPlayTimeline {
     required Map<int, SimaiJudgeGrade> headGrades,
     required this.totalBaseWeight,
     required this.totalBreakCount,
+    required this.criticalPerfectCount,
+    required this.perfectCount,
+    required this.greatCount,
+    required this.goodCount,
+    required this.missCount,
+    required this.fastCount,
+    required this.lateCount,
   }) : _eventTimes = eventTimes,
        _earnedBasePrefix = earnedBasePrefix,
        _lostBasePrefix = lostBasePrefix,
@@ -115,6 +128,7 @@ class SimaiAutoPlayTimeline {
        _headGrades = headGrades;
 
   final SimaiAutoPlayMode mode;
+  final int seed;
   final List<SimaiJudgementRecord> events;
   final List<double> _eventTimes;
   final List<double> _earnedBasePrefix;
@@ -127,6 +141,13 @@ class SimaiAutoPlayTimeline {
   final Map<int, SimaiJudgeGrade> _headGrades;
   final double totalBaseWeight;
   final int totalBreakCount;
+  final int criticalPerfectCount;
+  final int perfectCount;
+  final int greatCount;
+  final int goodCount;
+  final int missCount;
+  final int fastCount;
+  final int lateCount;
 
   // 缓存最近一次已判定数量对应的快照，同帧多 HUD 查询与音符间隔期零分配复用。
   int _cachedJudgedCount = -1;
@@ -136,6 +157,31 @@ class SimaiAutoPlayTimeline {
   int get maxDxScore => eventCount * 3;
   double get maxAchievement =>
       totalBaseWeight <= 0 ? 0.0 : (totalBreakCount > 0 ? 101.0 : 100.0);
+
+  /// 整谱结束时的模拟最终达成率。
+  double get finalAchievement {
+    final double basePct = totalBaseWeight <= 0
+        ? 0.0
+        : (_earnedBasePrefix.last * 100.0 / totalBaseWeight);
+    final double earnedBreakPct = totalBreakCount <= 0
+        ? 0.0
+        : (_earnedBreakPrefix.last / totalBreakCount);
+    return basePct + earnedBreakPct;
+  }
+
+  /// 供设置区展示的随机判定分布摘要。
+  String get summaryLabel {
+    final achv = finalAchievement.toStringAsFixed(4);
+    if (mode == SimaiAutoPlayMode.allPerfect ||
+        mode == SimaiAutoPlayMode.allGreat ||
+        mode == SimaiAutoPlayMode.allGood) {
+      return '预计 $achv% · FAST $fastCount / LATE $lateCount';
+    }
+    if (greatCount == 0 && goodCount == 0 && missCount == 0) {
+      return '预计 $achv% · CP $criticalPerfectCount / P $perfectCount · FAST $fastCount / LATE $lateCount';
+    }
+    return '预计 $achv% · CP $criticalPerfectCount / P $perfectCount / Gr $greatCount / Gd $goodCount / M $missCount';
+  }
 
   /// 供打击特效与 Hold 按压辉光 O(1) 查询头部模拟判定。
   SimaiJudgeGrade headGradeFor(int collectionIndex, int noteIndex) {
@@ -210,7 +256,11 @@ class SimaiAutoPlayTimeline {
   static int _headKey(int collectionIndex, int noteIndex) =>
       (collectionIndex << 16) ^ noteIndex;
 
-  factory SimaiAutoPlayTimeline.build(MaiChart chart, SimaiAutoPlayMode mode) {
+  factory SimaiAutoPlayTimeline.build(
+    MaiChart chart,
+    SimaiAutoPlayMode mode, {
+    int seed = 0,
+  }) {
     final records = <SimaiJudgementRecord>[];
     final headGrades = <int, SimaiJudgeGrade>{};
     final collections = chart.noteCollections;
@@ -247,6 +297,7 @@ class SimaiAutoPlayTimeline {
             }
             final outcome = _simulateOutcome(
               mode: mode,
+              seed: seed,
               isBreak: isBreakHead,
               collectionIndex: cIdx,
               noteIndex: nIdx,
@@ -281,6 +332,7 @@ class SimaiAutoPlayTimeline {
           final isBreakSlide = slide.type == NoteType.breakNote;
           final outcome = _simulateOutcome(
             mode: mode,
+            seed: seed,
             isBreak: isBreakSlide,
             collectionIndex: cIdx,
             noteIndex: nIdx,
@@ -321,9 +373,33 @@ class SimaiAutoPlayTimeline {
     var totalBaseWeight = 0.0;
     var totalBreakCount = 0;
     var currentCombo = 0;
+    var criticalPerfectCount = 0;
+    var perfectCount = 0;
+    var greatCount = 0;
+    var goodCount = 0;
+    var missCount = 0;
+    var fastCount = 0;
+    var lateCount = 0;
 
     for (final record in records) {
       eventTimes.add(record.judgedTime);
+      switch (record.grade) {
+        case SimaiJudgeGrade.criticalPerfect:
+          criticalPerfectCount++;
+        case SimaiJudgeGrade.perfect:
+          perfectCount++;
+        case SimaiJudgeGrade.great:
+          greatCount++;
+        case SimaiJudgeGrade.good:
+          goodCount++;
+        case SimaiJudgeGrade.miss:
+          missCount++;
+      }
+      if (record.timing == SimaiJudgeTiming.fast) {
+        fastCount++;
+      } else if (record.timing == SimaiJudgeTiming.late) {
+        lateCount++;
+      }
       final isBreak =
           record.scoringType == SimaiGameplayScoringType.breakNote;
       final double weight = switch (record.scoringType) {
@@ -370,6 +446,7 @@ class SimaiAutoPlayTimeline {
 
     return SimaiAutoPlayTimeline._(
       mode: mode,
+      seed: seed,
       events: List.unmodifiable(records),
       eventTimes: List.unmodifiable(eventTimes),
       earnedBasePrefix: List.unmodifiable(earnedBasePrefix),
@@ -382,6 +459,13 @@ class SimaiAutoPlayTimeline {
       headGrades: headGrades,
       totalBaseWeight: totalBaseWeight,
       totalBreakCount: totalBreakCount,
+      criticalPerfectCount: criticalPerfectCount,
+      perfectCount: perfectCount,
+      greatCount: greatCount,
+      goodCount: goodCount,
+      missCount: missCount,
+      fastCount: fastCount,
+      lateCount: lateCount,
     );
   }
 
@@ -396,36 +480,51 @@ class SimaiAutoPlayTimeline {
     int nIdx,
     int sIdx,
     int salt,
+    int seed,
   ) {
     var h = (cIdx * 0x9E3779B1) ^
         ((nIdx + 1) * 0x85EBCA77) ^
         ((sIdx + 7) * 0xC2B2AE3D) ^
-        (salt * 0x27D4EB2F);
+        (salt * 0x27D4EB2F) ^
+        (seed * 0x165667B1);
     h = ((h ^ (h >>> 16)) * 0x45D9F3B) & 0x7FFFFFFF;
     h = ((h ^ (h >>> 16)) * 0x45D9F3B) & 0x7FFFFFFF;
     h = (h ^ (h >>> 16)) & 0x7FFFFFFF;
     return h / 0x80000000;
   }
 
-  static SimaiJudgeTiming _deterministicFastLate(int cIdx, int nIdx, int sIdx) {
-    return _deterministicUnit(cIdx, nIdx, sIdx, 97) < 0.5
+  static SimaiJudgeTiming _deterministicFastLate(
+    int cIdx,
+    int nIdx,
+    int sIdx,
+    int seed,
+  ) {
+    return _deterministicUnit(cIdx, nIdx, sIdx, 97, seed) < 0.5
         ? SimaiJudgeTiming.fast
         : SimaiJudgeTiming.late;
   }
 
   static _SimulatedNoteOutcome _simulateOutcome({
     required SimaiAutoPlayMode mode,
+    required int seed,
     required bool isBreak,
     required int collectionIndex,
     required int noteIndex,
     required int slidePathIndex,
   }) {
-    final u = _deterministicUnit(collectionIndex, noteIndex, slidePathIndex, 13);
+    final u = _deterministicUnit(
+      collectionIndex,
+      noteIndex,
+      slidePathIndex,
+      13,
+      seed,
+    );
     final sub = _deterministicUnit(
       collectionIndex,
       noteIndex,
       slidePathIndex,
       41,
+      seed,
     );
 
     switch (mode) {
@@ -445,6 +544,7 @@ class SimaiAutoPlayTimeline {
             collectionIndex,
             noteIndex,
             slidePathIndex,
+            seed,
           ),
         );
       case SimaiAutoPlayMode.randomPerfect:
@@ -464,6 +564,7 @@ class SimaiAutoPlayTimeline {
             collectionIndex,
             noteIndex,
             slidePathIndex,
+            seed,
           ),
         );
       case SimaiAutoPlayMode.breakRandomPerfect:
@@ -481,6 +582,7 @@ class SimaiAutoPlayTimeline {
             collectionIndex,
             noteIndex,
             slidePathIndex,
+            seed,
           ),
         );
       case SimaiAutoPlayMode.allRandom:
@@ -501,6 +603,7 @@ class SimaiAutoPlayTimeline {
               collectionIndex,
               noteIndex,
               slidePathIndex,
+              seed,
             ),
           );
         }
@@ -515,6 +618,7 @@ class SimaiAutoPlayTimeline {
               collectionIndex,
               noteIndex,
               slidePathIndex,
+              seed,
             ),
           );
         }
@@ -526,6 +630,7 @@ class SimaiAutoPlayTimeline {
               collectionIndex,
               noteIndex,
               slidePathIndex,
+              seed,
             ),
           );
         }
@@ -549,6 +654,7 @@ class SimaiAutoPlayTimeline {
             collectionIndex,
             noteIndex,
             slidePathIndex,
+            seed,
           ),
         );
       case SimaiAutoPlayMode.allGood:
@@ -559,6 +665,7 @@ class SimaiAutoPlayTimeline {
             collectionIndex,
             noteIndex,
             slidePathIndex,
+            seed,
           ),
         );
       case SimaiAutoPlayMode.allMiss:

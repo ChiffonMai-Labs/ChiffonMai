@@ -24,6 +24,7 @@ class PlaybackJudgementComponent extends PositionComponent
   int _windowStartIndex = 0;
   double _lastChartTime = double.negativeInfinity;
   SimaiAutoPlayMode? _lastAutoPlayMode;
+  int? _lastAutoPlaySeed;
   bool _hasActiveCache = false;
 
   int _lowerBound(List<SimaiJudgementRecord> events, double targetTime) {
@@ -69,12 +70,14 @@ class PlaybackJudgementComponent extends PositionComponent
     if (!now.isFinite) return;
     final double windowStart = now - simaiJudgementFeedbackDuration;
 
-    // 正常单调推进播放时 O(1) 滑动游标；切换模式、回退或跨度 > 1s 时自动回退二分。
+    // 正常单调推进播放时 O(1) 滑动游标；切换模式、重抽种子、回退或跨度 > 1s 时自动回退二分。
     if (_lastAutoPlayMode != timeline.mode ||
+        _lastAutoPlaySeed != timeline.seed ||
         now < _lastChartTime ||
         now - _lastChartTime > 1.0) {
       _windowStartIndex = _lowerBound(events, windowStart);
       _lastAutoPlayMode = timeline.mode;
+      _lastAutoPlaySeed = timeline.seed;
     } else {
       while (_windowStartIndex < events.length &&
           events[_windowStartIndex].judgedTime <= windowStart) {
