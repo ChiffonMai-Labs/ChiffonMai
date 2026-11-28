@@ -205,6 +205,7 @@ class _AccountAuthorizationDialogState
     extends State<_AccountAuthorizationDialog> with WidgetsBindingObserver {
   final authCodeController = TextEditingController();
   String _boundAwmcQq = '';
+  bool _hasAwmcOAuthToken = false;
   bool _saving = false;
   bool _initializingProfile = false;
   String? _boundFishQq;
@@ -226,13 +227,24 @@ class _AccountAuthorizationDialogState
     _boundAwmcQq = widget.initialQQ.trim();
     if (!widget.luoxue) {
       _loadExternalSources();
+      _loadAwmcOAuthState();
     }
   }
 
-  Future<void> _persistAwmcQq(String qq) async {
-    await AccountAuthorizationStore.saveAwmcQQ(qq);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(CacheKeyConstant.awmcNetSyncQQ, qq);
+  Future<void> _loadAwmcOAuthState() async {
+    final qq = _boundAwmcQq.trim();
+    if (!RegExp(r'^\d{5,12}$').hasMatch(qq)) return;
+    final hasToken =
+        await AwmcForumOAuthManager.hasValidOAuthSession(expectedQq: qq);
+    if (!mounted) return;
+    setState(() => _hasAwmcOAuthToken = hasToken);
+  }
+
+  Future<void> _persistAwmcQq(String qq, {String authToken = ''}) async {
+    await AwmcForumOAuthManager.saveAuthorizedSession(
+      qq: qq,
+      authToken: authToken,
+    );
   }
 
   @override
@@ -311,10 +323,14 @@ class _AccountAuthorizationDialogState
           _stopAwmcOAuth(clearError: true);
           setState(() {
             _boundAwmcQq = result.qq;
+            _hasAwmcOAuthToken = result.authToken.isNotEmpty;
             _saving = true;
           });
           try {
-            await _persistAwmcQq(result.qq);
+            await _persistAwmcQq(
+              result.qq,
+              authToken: result.authToken,
+            );
             if (!mounted) return;
             final label = result.username.isNotEmpty
                 ? '${result.username}（QQ ${result.qq}）'
@@ -369,7 +385,9 @@ class _AccountAuthorizationDialogState
       _initializingProfile = true;
     });
     try {
-      await _persistAwmcQq(qq);
+      await AccountAuthorizationStore.saveAwmcQQ(qq);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(CacheKeyConstant.awmcNetSyncQQ, qq);
       final res = fromFish
           ? await AwmcQrSyncService.initAwmcProfileFromFish(
               awmcQq: qq,
@@ -578,10 +596,14 @@ class _AccountAuthorizationDialogState
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              color: AppColors.successSurface(brightness),
+              color: _hasAwmcOAuthToken
+                  ? AppColors.successSurface(brightness)
+                  : AppColors.warningOrange(brightness).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: AppColors.successForeground(brightness)
+                color: (_hasAwmcOAuthToken
+                        ? AppColors.successForeground(brightness)
+                        : AppColors.warningOrange(brightness))
                     .withValues(alpha: 0.28),
               ),
             ),
@@ -589,9 +611,13 @@ class _AccountAuthorizationDialogState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(
-                  Icons.check_circle_rounded,
+                  _hasAwmcOAuthToken
+                      ? Icons.check_circle_rounded
+                      : Icons.warning_amber_rounded,
                   size: 16,
-                  color: AppColors.successForeground(brightness),
+                  color: _hasAwmcOAuthToken
+                      ? AppColors.successForeground(brightness)
+                      : AppColors.warningOrange(brightness),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -599,16 +625,22 @@ class _AccountAuthorizationDialogState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '当前已绑定 QQ：$_boundAwmcQq',
+                        _hasAwmcOAuthToken
+                            ? '已通过 AWMC 论坛授权绑定 QQ：$_boundAwmcQq'
+                            : '当前绑定 QQ：$_boundAwmcQq（旧版方式，待完成论坛 OAuth 授权）',
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.successForeground(brightness),
+                          color: _hasAwmcOAuthToken
+                              ? AppColors.successForeground(brightness)
+                              : AppColors.warningOrange(brightness),
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        '原有绑定会继续保留；如需换绑，请通过下方 AWMC 论坛重新授权。',
+                        _hasAwmcOAuthToken
+                            ? '原有绑定会继续保留；如需换绑，请通过下方 AWMC 论坛重新授权。'
+                            : '为全面弃用 QQ 号直输，请点击下方按钮通过 AWMC 论坛完成一次 OAuth 授权升级。',
                         style: TextStyle(
                           fontSize: 11.5,
                           color: AppColors.greyHint(brightness),
@@ -776,7 +808,7 @@ class _AccountAuthorizationDialogState
               ),
               const SizedBox(height: 6),
               Text(
-                '${context.l10n.flowAWMCNETIsAThirdPartyScore}\n需使用绑定了 QQ 邮箱（数字@qq.com）的 AWMC 论坛账号完成授权；绑定后支持直接扫码同步自动建档，也可用已绑定的水鱼/落雪成绩一键初始化档案。',
+                context.l10n.flowAWMCNETIsAThirdPartyScore,
                 style: TextStyle(
                     fontSize: 12, color: AppColors.greyHint(brightness)),
               ),

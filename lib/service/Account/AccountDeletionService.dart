@@ -1,4 +1,5 @@
 import '../AWMC/AwmcPlayerConnection.dart';
+import '../../manager/AWMC/AwmcForumOAuthManager.dart';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -91,7 +92,9 @@ class AccountDeletionService {
           hasCredential =
               await _hasCredential(CacheKeyConstant.luoxueAccessToken);
         case RefreshDataSource.awmc:
-          hasCredential = await _hasCredential(CacheKeyConstant.awmcPlayerSession) || await _hasCredential(CacheKeyConstant.awmcToken) ||
+          hasCredential = await _hasCredential(CacheKeyConstant.awmcPlayerSession) ||
+              await _hasCredential(CacheKeyConstant.awmcToken) ||
+              await _hasCredential(CacheKeyConstant.awmcOAuthToken) ||
               await _hasCredential(CacheKeyConstant.awmcNetImportToken);
       }
       if (!hasMeta && !hasCache && !hasCredential) continue;
@@ -400,11 +403,13 @@ class AccountDeletionService {
               break;
             case RefreshDataSource.awmc:
               await AwmcPlayerConnection.disconnect();
+              await AwmcForumOAuthManager.clearAuthorizedSession();
               await SecureCredentialStore.delete(CacheKeyConstant.awmcToken);
               await SecureCredentialStore.delete(
                   CacheKeyConstant.awmcNetImportToken);
               await prefs.remove(CacheKeyConstant.awmcUserId);
               await prefs.remove(CacheKeyConstant.awmcLookupQQ);
+              await prefs.remove(CacheKeyConstant.awmcNetSyncQQ);
               break;
             case RefreshDataSource.shuiyu:
               break;

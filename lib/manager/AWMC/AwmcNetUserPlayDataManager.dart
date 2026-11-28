@@ -1,4 +1,5 @@
 import '../../service/AWMC/AwmcPlayerConnection.dart';
+import 'AwmcForumOAuthManager.dart';
 import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -85,24 +86,6 @@ class AwmcNetUserPlayDataManager {
       throw const AwmcNetException('QQ 号格式不对（应为 5–12 位数字）');
     }
 
-    final session = await _restorePlayerSession();
-    if (session != null && session.qq == id) {
-      try {
-        final response =
-            await AwmcPlayerConnection.request('records', token: session.token);
-        final data = normalizeRecords(response['player']);
-        if (data == null) {
-          throw AwmcNetException(appL10n.svcAWMCNETHasNoDataForQQ(id));
-        }
-        return data;
-      } on PlayerConnectionError catch (error) {
-        if (error.code != 'expired_session') {
-          throw AwmcNetException(appL10n.qqPlayerOffline);
-        }
-        // 普通刷新仍可使用原来的按 QQ 查询；连接页负责提示重新验证。
-      }
-    }
-
     final uri = Uri.parse(ApiUrls.AwmcNetRecordsProxyApi)
         .replace(queryParameters: {'qq': id});
 
@@ -143,15 +126,6 @@ class AwmcNetUserPlayDataManager {
     return data;
   }
 
-  Future<({String qq, String token})?> _restorePlayerSession() async {
-    try {
-      return await AwmcPlayerConnection.restore();
-    } on Exception catch (error) {
-      debugPrint('[AWMC NET] 读取 QQ 会话失败: ${error.runtimeType}');
-      return null;
-    }
-  }
-
   /// 把 HTTP 错误码翻成带人话文案的异常。
   AwmcNetException _errorForStatus(int status, String body, String qq) {
     // 服务端错误体形如 {"message": "no such user"} 或 {"detail": ...}
@@ -171,10 +145,16 @@ class AwmcNetUserPlayDataManager {
         if (detail.contains('no such user') || detail.contains('不存在')) {
           return AwmcNetException(
             appL10n.svcAWMCNETHasNoDataForQQ(qq.toString()),
+            isNotFound: true,
           );
         }
         return AwmcNetException(
             appL10n.svcAWMCNETRejectedTheRequestP0((detail.isEmpty ? appL10n.svcInvalidParameters : detail).toString()));
+      case 404:
+        return AwmcNetException(
+          appL10n.svcAWMCNETHasNoDataForQQ(qq.toString()),
+          isNotFound: true,
+        );
       case 401:
       case 403:
         return AwmcNetException(
@@ -250,10 +230,19 @@ class AwmcNetUserPlayDataManager {
 
   /// 清除 AWMC NET 的账号数据与存档。
   ///
-  /// 清理本机成绩前撤销移动端的 QQ 会话。
+  /// 清理本机成绩前撤销移动端的旧 QQ 会话并清除论坛 OAuth 令牌。
   Future<void> logout() async {
-    await AccountSwitchService.onAccountLoggedOut(RefreshDataSource.awmc,
-        clearCredentials: AwmcPlayerConnection.disconnect);
+    await AccountSwitchService.onAccountLoggedOut(
+      RefreshDataSource.awmc,
+      clearCredentials: () async {
+        await AwmcForumOAuthManager.clearAuthorizedSession();
+        try {
+          await AwmcPlayerConnection.disconnect();
+        } catch (_) {
+          await AwmcPlayerConnection.forget();
+        }
+      },
+    );
     debugPrint('✓ 已清除 AWMC NET 账号数据');
   }
 }

@@ -1,17 +1,22 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart' show Material, Theme;
-import 'package:flutter/services.dart';
 
 import '../../l10n/LocalizationsExtension.dart';
+import '../../manager/AWMC/AwmcForumOAuthManager.dart';
+import '../../manager/AWMC/AwmcNetException.dart';
 import '../../manager/AWMC/AwmcNetUserPlayDataManager.dart';
 import '../../service/AWMC/AwmcPlayerConnection.dart';
+import '../../service/AWMC/AwmcQrSyncService.dart';
 import '../../service/Account/AccountAuthorizationStore.dart';
 import '../../service/Account/AccountSwitchService.dart';
+import '../../utils/ExternalLaunchUtil.dart';
 import '../../widgets/QrQuickFillButtons.dart';
 import '../../widgets/RefreshDataDialog.dart';
 import '../Best50/Best50Page.dart';
 
-enum _Step { qq, code, records, qr, confirm }
+enum _Step { oauth, records, qr }
 
 class PlayerConnectionPage extends StatefulWidget {
   const PlayerConnectionPage({super.key});
@@ -26,31 +31,35 @@ class PlayerConnectionPage extends StatefulWidget {
   State<PlayerConnectionPage> createState() => _PlayerConnectionPageState();
 }
 
-class _PlayerConnectionPageState extends State<PlayerConnectionPage> {
-  final _qq = TextEditingController();
-  final _code = TextEditingController();
+class _PlayerConnectionPageState extends State<PlayerConnectionPage>
+    with WidgetsBindingObserver {
   final _qr = TextEditingController();
-  _Step _step = _Step.qq;
-  String _challenge = '', _token = '', _ticket = '', _nickname = '';
-  String? _error, _progress, _previousNickname;
-  int _count = 0;
+  _Step _step = _Step.oauth;
+  String _qq = '', _username = '';
+  String? _errorCode, _errorMessage, _progress;
   bool _busy = true, _committing = false;
+  AwmcForumOAuthSession? _oauthSession;
+  bool _oauthPolling = false;
+  Timer? _oauthTimer;
+  int _oauthGeneration = 0;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _restore();
   }
 
   Future<void> _restore() async {
     try {
-      final session = await AwmcPlayerConnection.restore();
-      if (!mounted || session == null) return;
-      _qq.text = session.qq;
-      _token = session.token;
+      final qq = (await AccountAuthorizationStore.awmcQQ()).trim();
+      final hasOAuth = qq.isNotEmpty &&
+          await AwmcForumOAuthManager.hasValidOAuthSession(expectedQq: qq);
+      if (!mounted || !hasOAuth) return;
+      _qq = qq;
       _step = _Step.records;
     } catch (_) {
-      _error = 'unavailable';
+      _errorCode = 'unavailable';
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -58,97 +67,188 @@ class _PlayerConnectionPageState extends State<PlayerConnectionPage> {
 
   @override
   void dispose() {
-    _qq.dispose();
-    _code.dispose();
+    _stopOAuth();
+    WidgetsBinding.instance.removeObserver(this);
     _qr.dispose();
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // 浏览器授权完成后切回应用，立即补查一次会话状态，无需等下一轮定时轮询。
+    if (state == AppLifecycleState.resumed &&
+        _oauthSession != null &&
+        !_busy &&
+        !_committing) {
+      unawaited(_pollOAuthOnce());
+    }
+  }
+
+  void _stopOAuth({bool clearError = false}) {
+    _oauthGeneration++;
+    _oauthTimer?.cancel();
+    _oauthTimer = null;
+    _oauthPolling = false;
+    _oauthSession = null;
+    if (clearError) {
+      _errorCode = null;
+      _errorMessage = null;
+    }
+  }
+
   Future<void> _run(Future<void> Function() action) async {
-    if (_busy) return;
+    if (_busy || _committing) return;
     FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
       _busy = true;
-      _error = null;
+      _errorCode = null;
+      _errorMessage = null;
       _progress = null;
     });
     try {
       await action();
-    } on PlayerConnectionError catch (e) {
-      if (!mounted) return;
-      _error = e.code;
-      if (e.code == 'expired_session') {
-        _reset(keepQQ: true);
-        try {
-          await AwmcPlayerConnection.forget();
-        } catch (_) {
-          // 服务端已拒绝该会话，新验证码验证成功后会覆盖本地凭据。
-        }
-      } else if (e.code == 'preview_expired' ||
-          e.code == 'different_player' ||
-          (_step == _Step.confirm && e.code == 'empty_scores')) {
-        _ticket = '';
-        _step = _Step.qr;
-      }
     } on AccountUpdateBusy {
-      _error = 'account_changed';
+      if (mounted) _errorCode = 'account_changed';
     } catch (_) {
-      _error = 'unavailable';
+      if (mounted) _errorCode = 'unavailable';
     } finally {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _busy = false;
           _committing = false;
         });
+      }
     }
   }
 
-  void _reset({bool keepQQ = false}) {
-    if (!keepQQ) _qq.clear();
-    _code.clear();
+  void _reset() {
+    _stopOAuth(clearError: true);
+    _qq = '';
+    _username = '';
     _qr.clear();
-    _token = '';
-    _ticket = '';
-    _challenge = '';
-    _step = _Step.qq;
+    _progress = null;
+    _step = _Step.oauth;
   }
 
-  Future<void> _send() async {
-    if (!RegExp(r'^[1-9][0-9]{4,11}$').hasMatch(_qq.text)) {
-      throw const PlayerConnectionError('invalid_qq');
+  Future<void> _startOAuth() async {
+    if (_busy || _committing) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() {
+      _stopOAuth(clearError: true);
+      _busy = true;
+      _progress = null;
+    });
+    final gen = _oauthGeneration;
+    try {
+      final res = await AwmcForumOAuthManager.instance.startSession();
+      if (!mounted || gen != _oauthGeneration) return;
+      if (res.session == null) {
+        _errorCode = 'unavailable';
+        _errorMessage = res.error;
+        return;
+      }
+      final session = res.session!;
+      _oauthSession = session;
+      _oauthTimer = Timer.periodic(
+        const Duration(seconds: 2),
+        (_) => unawaited(_pollOAuthOnce()),
+      );
+      await _openOAuthUrl(session.authorizeUrl);
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
     }
-    final data =
-        await AwmcPlayerConnection.request('code', fields: {'qq': _qq.text});
-    if (!mounted) return;
-    _challenge = data['challenge'] as String;
-    _code.clear();
-    _step = _Step.code;
   }
 
-  Future<void> _verify() async {
-    final revision = AccountSwitchService.revision;
-    final data = await AwmcPlayerConnection.request('verify',
-        fields: {'challenge': _challenge, 'code': _code.text});
-    if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
-    if (data['qq'] != _qq.text || data['token'] is! String)
-      throw const PlayerConnectionError('unavailable');
-    _token = data['token'];
-    await AwmcPlayerConnection.remember(_qq.text, _token);
+  Future<void> _openOAuthUrl(String url) async {
+    try {
+      if (await ExternalLaunchUtil.openString(url)) return;
+    } catch (_) {}
     if (!mounted) return;
-    _step = _Step.records;
-    _code.clear();
-    await _read(revision);
+    await ExternalLaunchUtil.copyFallback(context, url);
+  }
+
+  Future<void> _pollOAuthOnce() async {
+    final session = _oauthSession;
+    if (session == null || _oauthPolling || _committing) return;
+    final gen = _oauthGeneration;
+    _oauthPolling = true;
+    try {
+      final result =
+          await AwmcForumOAuthManager.instance.pollStatus(session.sessionId);
+      if (!mounted || gen != _oauthGeneration) return;
+      switch (result.status) {
+        case AwmcForumOAuthPollStatus.pending:
+          return;
+        case AwmcForumOAuthPollStatus.completed:
+          _stopOAuth(clearError: true);
+          setState(() {
+            _busy = true;
+            _progress = null;
+          });
+          try {
+            await AwmcForumOAuthManager.saveAuthorizedSession(
+              qq: result.qq,
+              authToken: result.authToken,
+            );
+            // 清掉旧版邮件验证码会话残留，统一收敛到 OAuth 2.0 凭据。
+            try {
+              await AwmcPlayerConnection.forget();
+            } catch (_) {}
+            if (!mounted) return;
+            _qq = result.qq;
+            _username = result.username;
+            _step = _Step.records;
+            await _read(AccountSwitchService.revision);
+          } on AccountUpdateBusy {
+            if (mounted) _errorCode = 'account_changed';
+          } catch (_) {
+            if (mounted) _errorCode = 'unavailable';
+          } finally {
+            if (mounted) {
+              setState(() {
+                _busy = false;
+                _committing = false;
+              });
+            }
+          }
+          return;
+        case AwmcForumOAuthPollStatus.failed:
+        case AwmcForumOAuthPollStatus.expired:
+          setState(() {
+            _stopOAuth();
+            _errorCode = result.status == AwmcForumOAuthPollStatus.expired
+                ? 'expired_session'
+                : 'unavailable';
+            _errorMessage = result.error;
+          });
+          return;
+      }
+    } finally {
+      _oauthPolling = false;
+    }
   }
 
   Future<void> _read(int revision) async {
-    final qq = _qq.text;
-    final result = await AwmcPlayerConnection.request('records', token: _token);
+    final qq = _qq;
+    final Map<String, dynamic> data;
+    try {
+      data = await AwmcNetUserPlayDataManager().fetchUserPlayData(qq);
+    } on AwmcNetException catch (e) {
+      if (!mounted) return;
+      if (e.isNotFound) {
+        _step = _Step.qr;
+        _errorCode = null;
+        _errorMessage = null;
+        return;
+      }
+      _errorCode = 'unavailable';
+      _errorMessage = e.message;
+      return;
+    }
     if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
-    final player = result['player'];
-    final normalized = AwmcNetUserPlayDataManager.normalizeRecords(player);
-    if (!result.containsKey('player') || (player != null && normalized == null))
-      throw const PlayerConnectionError('unavailable');
-    if (normalized == null || (normalized['records'] as List).isEmpty) {
+    if ((data['records'] as List).isEmpty) {
       _step = _Step.qr;
       return;
     }
@@ -156,207 +256,213 @@ class _PlayerConnectionPageState extends State<PlayerConnectionPage> {
         mounted &&
         ModalRoute.of(context)?.isCurrent == true &&
         AccountSwitchService.revision == revision;
-    if (!current()) throw const PlayerConnectionError('account_changed');
+    if (!current()) {
+      _errorCode = 'account_changed';
+      return;
+    }
     setState(() => _committing = true);
     await AccountSwitchService.guardedRefresh(
-        current,
-        () => refreshAwmcNetDataWithProgress(qq, (percent, message) {
-              if (mounted) setState(() => _progress = '$percent% · $message');
-            }, verifiedPlayerData: normalized),
-        accountId: qq);
-    await AccountAuthorizationStore.saveAwmcQQ(qq);
+      current,
+      () => refreshAwmcNetDataWithProgress(
+        qq,
+        (percent, message) {
+          if (mounted) setState(() => _progress = '$percent% · $message');
+        },
+        verifiedPlayerData: data,
+      ),
+      accountId: qq,
+    );
     if (mounted && ModalRoute.of(context)?.isCurrent == true) {
       Navigator.of(context).pushReplacement<void, void>(
           CupertinoPageRoute(builder: (_) => const B50Page()));
     }
   }
 
-  Future<void> _preview() async {
+  Future<void> _importQr() async {
     final qr = QrQuickFillButtons.gameCode(_qr.text);
-    if (qr == null) throw const PlayerConnectionError('qr_failed');
-    final data = await AwmcPlayerConnection.request('preview',
-        token: _token, fields: {'qr': qr});
+    if (qr == null) {
+      _errorCode = 'qr_failed';
+      return;
+    }
+    final res = await AwmcQrSyncService.syncByQr(qrCode: qr, awmcQq: _qq);
     if (!mounted) return;
-    _ticket = data['ticket'] as String;
-    _nickname = data['nickname'] as String;
-    _previousNickname = data['previous_nickname'] as String?;
-    _count = data['count'] as int;
+    if (res.code == 'AWMC_OAUTH_REQUIRED') {
+      await AwmcForumOAuthManager.clearAuthorizedSession();
+      if (!mounted) return;
+      _reset();
+      _errorCode = 'expired_session';
+      _errorMessage = res.errorMessage;
+      return;
+    }
+    if (!res.ok || !(res.awmc?.ok ?? false)) {
+      _errorCode = 'qr_failed';
+      _errorMessage = res.awmc?.message ?? res.errorMessage;
+      return;
+    }
     _qr.clear();
-    _step = _Step.confirm;
+    _step = _Step.records;
+    await _read(AccountSwitchService.revision);
   }
 
-  Future<void> _confirm() async {
-    final revision = AccountSwitchService.revision;
-    setState(() => _committing = true);
-    await AwmcPlayerConnection.request('confirm',
-        token: _token, fields: {'ticket': _ticket});
-    if (!mounted) return;
-    _step = _Step.records;
-    _ticket = '';
-    await _read(revision);
+  Future<void> _switchAccount() async {
+    _stopOAuth(clearError: true);
+    await AwmcForumOAuthManager.clearAuthorizedSession();
+    try {
+      await AwmcPlayerConnection.forget();
+    } catch (_) {}
+    if (mounted) _reset();
   }
 
   @override
   Widget build(BuildContext context) {
     final l = context.l10n;
     final title = switch (_step) {
-      _Step.qq => l.qqPlayerConnect,
-      _Step.code => l.qqPlayerCode,
+      _Step.oauth => l.qqPlayerConnect,
       _Step.records => l.qqPlayerVerified,
       _Step.qr => l.qqPlayerImport,
-      _Step.confirm => l.qqPlayerConfirm,
     };
-    final message = switch (_error) {
-      'invalid_qq' => l.flowInvalidQQID512DigitsRequired,
-      'invalid_code' => l.qqPlayerInvalid,
-      'expired_session' => l.qqPlayerExpired,
-      'slow_down' => l.qqPlayerLimited,
-      'qr_failed' => l.qqPlayerQrError,
-      'different_player' => l.qqPlayerConflict,
-      'preview_expired' => l.qqPlayerTicket,
-      'empty_scores' => l.qqPlayerEmpty,
-      'account_changed' => l.svcTheAccountChangedSoTheDataRefresh,
-      null => null,
-      _ => l.qqPlayerOffline,
-    };
-    final action = switch (_step) {
-      _Step.qq => _send,
-      _Step.code => _verify,
-      _Step.records => () => _read(AccountSwitchService.revision),
-      _Step.qr => _preview,
-      _Step.confirm => _confirm,
-    };
-    final label = switch (_step) {
-      _Step.qq => l.qqPlayerSend,
-      _Step.code || _Step.records => l.qqPlayerVerified,
-      _Step.qr => l.qqPlayerPreview,
-      _Step.confirm => l.qqPlayerConfirm,
-    };
+    final message = _errorMessage ??
+        switch (_errorCode) {
+          'expired_session' => l.qqPlayerExpired,
+          'qr_failed' => l.qqPlayerQrError,
+          'account_changed' => l.svcTheAccountChangedSoTheDataRefresh,
+          null => null,
+          _ => l.qqPlayerOffline,
+        };
+    final accountSubtitle =
+        _username.isNotEmpty ? '$_username · QQ $_qq' : 'QQ $_qq';
+    final isWaitingOAuth = _step == _Step.oauth && _oauthSession != null;
+
     return PopScope(
-        canPop: !_committing,
-        child: CupertinoPageScaffold(
-          navigationBar: CupertinoNavigationBar(
-              automaticallyImplyLeading: false,
-              leading: CupertinoButton(
-                  padding: EdgeInsets.zero,
-                  onPressed: _committing
-                      ? null
-                      : () => Navigator.of(context).maybePop(),
-                  child: Text(l.featureCancel))),
-          child: SafeArea(
-              child: Material(
-                  color: CupertinoColors.systemBackground.resolveFrom(context),
-                  child: ListView(
-                    keyboardDismissBehavior:
-                        ScrollViewKeyboardDismissBehavior.onDrag,
-                    padding: const EdgeInsets.fromLTRB(22, 24, 22, 32),
-                    children: [
-                      Semantics(
-                          header: true,
-                          child: Text(title,
-                              style: CupertinoTheme.of(context)
-                                  .textTheme
-                                  .navLargeTitleTextStyle)),
-                      const SizedBox(height: 12),
-                      Text(switch (_step) {
-                        _Step.qq => l.qqPlayerIntro,
-                        _Step.code => '${_qq.text}@qq.com',
-                        _Step.records => 'QQ ${_qq.text}',
-                        _Step.qr => l.qqPlayerQrHelp,
-                        _Step.confirm =>
-                          '$_nickname · ${l.qqPlayerScoreCount(_count)}'
-                      }),
-                      if (_step == _Step.confirm && _previousNickname != null)
-                        Padding(
-                            padding: const EdgeInsets.only(top: 12),
-                            child: Text(l.qqPlayerMerge(
-                                _previousNickname!, _nickname))),
-                      const SizedBox(height: 24),
-                      if (_step == _Step.qq || _step == _Step.code)
-                        CupertinoTextField(
-                            key: ValueKey(_step),
-                            controller: _step == _Step.qq ? _qq : _code,
-                            enabled: !_busy,
-                            keyboardType: TextInputType.number,
-                            placeholder:
-                                _step == _Step.qq ? l.flowQQID : l.qqPlayerCode,
-                            autofillHints: _step == _Step.code
-                                ? const [AutofillHints.oneTimeCode]
-                                : null,
-                            padding: const EdgeInsets.all(14),
-                            maxLength: _step == _Step.qq ? 12 : 6,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly
-                            ],
-                            onChanged: (_) => setState(() {})),
-                      if (_step == _Step.qr) ...[
-                        CupertinoTextField(
-                          controller: _qr,
-                          enabled: !_busy,
-                          placeholder: l.flowQRCodeContent,
-                          autocorrect: false,
-                          enableSuggestions: false,
-                          padding: const EdgeInsets.all(14),
-                          onChanged: (_) => setState(() {}),
-                        ),
-                        const SizedBox(height: 12),
-                        QrQuickFillButtons(
-                            controller: _qr,
-                            enabled: !_busy,
-                            onFilled: () => _run(_preview)),
-                      ],
-                      if (message != null)
-                        Padding(
-                            padding: const EdgeInsets.only(top: 12),
-                            child: Semantics(
-                                liveRegion: true,
-                                child: Text(message,
-                                    style: TextStyle(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .error)))),
-                      const SizedBox(height: 20),
-                      if (_busy)
-                        Center(
-                            child: Column(children: [
-                          const CupertinoActivityIndicator(),
-                          const SizedBox(height: 8),
-                          Text(_progress ?? l.qqPlayerBusy)
-                        ]))
-                      else if (_step != _Step.qr || _qr.text.isNotEmpty)
-                        CupertinoButton.filled(
-                            onPressed: (_step == _Step.code &&
-                                        _code.text.length != 6 ||
-                                    _step == _Step.qq && _qq.text.length < 5)
-                                ? null
-                                : () => _run(action),
-                            child: Text(label)),
-                      if (_step == _Step.code)
-                        CupertinoButton(
-                            onPressed: _busy ? null : () => _run(_send),
-                            child: Text(l.qqPlayerResend)),
-                      if (_step == _Step.records || _step == _Step.confirm)
-                        CupertinoButton(
-                            onPressed: _busy
-                                ? null
-                                : () => setState(() {
-                                      _step = _Step.qr;
-                                      _ticket = '';
-                                      _error = null;
-                                    }),
-                            child: Text(l.qqPlayerImport)),
-                      if (_step != _Step.qq)
-                        CupertinoButton(
-                            onPressed: _busy
-                                ? null
-                                : () => _run(() async {
-                                      if (_token.isNotEmpty)
-                                        await AwmcPlayerConnection.disconnect();
-                                      if (mounted) _reset();
-                                    }),
-                            child: Text(l.qqPlayerSwitch)),
-                    ],
-                  ))),
-        ));
+      canPop: !_committing,
+      child: CupertinoPageScaffold(
+        navigationBar: CupertinoNavigationBar(
+          automaticallyImplyLeading: false,
+          leading: CupertinoButton(
+            padding: EdgeInsets.zero,
+            onPressed:
+                _committing ? null : () => Navigator.of(context).maybePop(),
+            child: Text(l.featureCancel),
+          ),
+        ),
+        child: SafeArea(
+          child: Material(
+            color: CupertinoColors.systemBackground.resolveFrom(context),
+            child: ListView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: const EdgeInsets.fromLTRB(22, 24, 22, 32),
+              children: [
+                Semantics(
+                  header: true,
+                  child: Text(
+                    title,
+                    style: CupertinoTheme.of(context)
+                        .textTheme
+                        .navLargeTitleTextStyle,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(switch (_step) {
+                  _Step.oauth => l.qqPlayerIntro,
+                  _Step.records => accountSubtitle,
+                  _Step.qr => '$accountSubtitle\n${l.qqPlayerQrHelp}',
+                }),
+                const SizedBox(height: 24),
+                if (_step == _Step.qr) ...[
+                  CupertinoTextField(
+                    controller: _qr,
+                    enabled: !_busy,
+                    placeholder: l.flowQRCodeContent,
+                    autocorrect: false,
+                    enableSuggestions: false,
+                    padding: const EdgeInsets.all(14),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  const SizedBox(height: 12),
+                  QrQuickFillButtons(
+                    controller: _qr,
+                    enabled: !_busy,
+                    onFilled: () => _run(_importQr),
+                  ),
+                ],
+                if (message != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Semantics(
+                      liveRegion: true,
+                      child: Text(
+                        message,
+                        style: TextStyle(
+                            color: Theme.of(context).colorScheme.error),
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 20),
+                if (_busy)
+                  Center(
+                    child: Column(children: [
+                      const CupertinoActivityIndicator(),
+                      const SizedBox(height: 8),
+                      Text(_progress ?? l.qqPlayerBusy),
+                    ]),
+                  )
+                else if (isWaitingOAuth) ...[
+                  Center(
+                    child: Column(children: [
+                      const CupertinoActivityIndicator(),
+                      const SizedBox(height: 8),
+                      Text(
+                        l.qqPlayerOAuthWaiting,
+                        textAlign: TextAlign.center,
+                      ),
+                    ]),
+                  ),
+                  const SizedBox(height: 16),
+                  CupertinoButton.filled(
+                    onPressed: () =>
+                        unawaited(_openOAuthUrl(_oauthSession!.authorizeUrl)),
+                    child: Text(l.qqPlayerOAuthReopen),
+                  ),
+                  CupertinoButton(
+                    onPressed: () =>
+                        setState(() => _stopOAuth(clearError: true)),
+                    child: Text(l.qqPlayerOAuthCancel),
+                  ),
+                ] else if (_step == _Step.oauth)
+                  CupertinoButton.filled(
+                    onPressed: _startOAuth,
+                    child: Text(l.qqPlayerSend),
+                  )
+                else if (_step == _Step.records)
+                  CupertinoButton.filled(
+                    onPressed: () =>
+                        _run(() => _read(AccountSwitchService.revision)),
+                    child: Text(l.qqPlayerVerified),
+                  )
+                else if (_qr.text.isNotEmpty)
+                  CupertinoButton.filled(
+                    onPressed: () => _run(_importQr),
+                    child: Text(l.qqPlayerConfirm),
+                  ),
+                if (!_busy && _step == _Step.records)
+                  CupertinoButton(
+                    onPressed: () => setState(() {
+                      _step = _Step.qr;
+                      _errorCode = null;
+                      _errorMessage = null;
+                    }),
+                    child: Text(l.qqPlayerImport),
+                  ),
+                if (!_busy && _step != _Step.oauth)
+                  CupertinoButton(
+                    onPressed: () => _run(_switchAccount),
+                    child: Text(l.qqPlayerSwitch),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

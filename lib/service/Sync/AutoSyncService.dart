@@ -14,6 +14,7 @@ import '../../utils/SecureCredentialStore.dart';
 import 'SyncStatsService.dart';
 import '../AWMC/AwmcQuickIdentityStore.dart';
 import '../AWMC/AwmcQuickSyncService.dart';
+import '../../manager/AWMC/AwmcForumOAuthManager.dart';
 import '../Account/AccountStore.dart';
 import '../Account/AccountSwitchService.dart';
 import 'PostSyncRefreshService.dart';
@@ -457,8 +458,16 @@ class AutoSyncService {
     try {
       final suffix = method == 'POST' ? '/${action ?? 'credential'}' : '';
       final uri = Uri.parse('${ApiUrls.AutoSyncTaskUrl}$suffix');
+      String? awmcOAuthToken;
+      if (registration.platform == SyncPlatform.awmc && method == 'PUT') {
+        awmcOAuthToken = await AwmcForumOAuthManager.readAuthToken(
+          expectedQq: registration.accountId,
+        );
+      }
       final headers = {
         'Authorization': 'Bearer ${registration._token}',
+        if (awmcOAuthToken != null && awmcOAuthToken.isNotEmpty)
+          'X-AWMC-OAuth-Token': awmcOAuthToken,
         'Content-Type': 'application/json'
       };
       final response = switch (method) {
@@ -855,6 +864,8 @@ class AutoSyncService {
         'upload_failed' => appL10n.svcScoreUploadFailedSomeBatchesMayHave,
         'upload_credential_invalid' =>
           appL10n.svcTheAWMCNETImportTokenIsInvalid,
+        'awmc_oauth_required' =>
+          'AWMC 论坛授权已失效或尚未完成，请重新通过 AWMC 论坛授权绑定后再开启自动同步',
         'fish_write_consent_required' =>
           appL10n.flowDivingFishWriteConsentRequiredMessage,
         'gateway_failed' => appL10n.svcCouldNotReadCabinetScoresTryAgain,

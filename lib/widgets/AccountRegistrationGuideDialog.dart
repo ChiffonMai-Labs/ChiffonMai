@@ -199,8 +199,7 @@ class _AccountRegistrationGuideDialogState
               ),
               items: [
                 context.l10n.flowEnableMakeMyScoresPublicOrScores,
-                context.l10n.flowImportTokenRegenerateItThenPasteIt,
-                context.l10n.flowRotatingATokenReplacesTheOldOne,
+                '在应用内「绑定与授权管理」选择 AWMC NET，通过 AWMC 论坛（bbs.wmc.pub）完成 OAuth 授权即可自动绑定，无需手动输入 QQ 号或成绩导入 Token。',
               ],
             ),
             image: const _GuideImage(

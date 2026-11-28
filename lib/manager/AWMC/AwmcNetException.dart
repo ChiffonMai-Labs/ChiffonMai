@@ -8,8 +8,9 @@
 /// 加了枚举也只会是没人读的死信息。等真有消费者时再加。
 class AwmcNetException implements Exception {
   final String message;
+  final bool isNotFound;
 
-  const AwmcNetException(this.message);
+  const AwmcNetException(this.message, {this.isNotFound = false});
 
   @override
   String toString() => message;

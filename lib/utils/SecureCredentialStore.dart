@@ -25,6 +25,8 @@ class SecureCredentialStore {
     CacheKeyConstant.awmcToken,
     CacheKeyConstant.awmcNetImportToken,
     CacheKeyConstant.awmcPlayerSession,
+    CacheKeyConstant.awmcOAuthToken,
+    CacheKeyConstant.awmcOAuthVerifiedQq,
   };
 
   /// 每次写入或删除后递增，让展示凭据状态的界面即时重新读取。

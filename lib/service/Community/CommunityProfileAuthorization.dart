@@ -1,6 +1,7 @@
 import 'dart:convert';
 import '../../constant/CacheKeyConstant.dart';
 import '../../utils/SecureCredentialStore.dart';
+import '../../manager/AWMC/AwmcForumOAuthManager.dart';
 import '../../manager/LuoXue/LuoXueOAuthManager.dart';
 
 /// 资料、排行榜与签到接口共用各数据源的身份头。
@@ -10,7 +11,10 @@ abstract final class CommunityProfileAuthorization {
     if (source == 'awmc') {
       final qq = player.substring('awmc:'.length);
       if (!RegExp(r'^[1-9]\d{4,11}$').hasMatch(qq)) return null;
+      final token = await AwmcForumOAuthManager.readAuthToken(expectedQq: qq);
       return {
+        if (token != null) 'Authorization': 'Bearer $token',
+        if (token != null) 'X-AWMC-OAuth-Token': token,
         'X-Profile-Source': 'awmc',
         'X-Profile-QQ': qq,
         'Content-Type': 'application/json'

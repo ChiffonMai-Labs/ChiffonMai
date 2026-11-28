@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../api/ApiUrls.dart';
 import '../../constant/CacheKeyConstant.dart';
 import '../../l10n/AppMessages.dart';
+import '../../manager/AWMC/AwmcForumOAuthManager.dart';
 import '../../manager/DivingFish/DivingFishOAuthManager.dart';
 import '../../manager/DivingFish/DivingFishProbeManager.dart';
 import '../../manager/LuoXue/LuoXueOAuthManager.dart';
@@ -279,6 +280,15 @@ class AwmcQrSyncService {
     return qqPattern.hasMatch(netSync) ? netSync : null;
   }
 
+  /// 为需要绑定目标 QQ 归属的 AWMC 接口附加论坛 OAuth 会话令牌。
+  static Future<Map<String, String>> _awmcAuthHeaders(String? awmcQq) async {
+    final qq = awmcQq?.trim() ?? '';
+    if (!qqPattern.hasMatch(qq)) return const {};
+    final token = await AwmcForumOAuthManager.readAuthToken(expectedQq: qq);
+    if (token == null || token.isEmpty) return const {};
+    return {'X-AWMC-OAuth-Token': token};
+  }
+
   /// 落雪线路 1 是否已有 OAuth 或个人 API 密钥。
   static Future<bool> hasLuoXueSyncAuth() async {
     if (await LuoXueOAuthManager().isLoggedIn()) return true;
@@ -330,6 +340,7 @@ class AwmcQrSyncService {
           } catch (_) {}
         }
 
+        final awmcAuthHeaders = await _awmcAuthHeaders(awmcQq);
         final sw = Stopwatch()..start();
         try {
           final response = await ApiClient.post(
@@ -337,6 +348,7 @@ class AwmcQrSyncService {
             headers: {
               'Accept': 'application/json',
               'Content-Type': 'application/json',
+              ...awmcAuthHeaders,
             },
             body: json.encode({
               'qrcode': qr,
@@ -546,14 +558,16 @@ class AwmcQrSyncService {
           );
         }
 
+        final awmcAuthHeaders = await _awmcAuthHeaders(normalizedAwmcQq);
         final sw = Stopwatch()..start();
         final rivalCost = AwmcApiService.costOf('/v1/rival/music');
         try {
           final response = await ApiClient.post(
             uri,
-            headers: const {
+            headers: {
               'Accept': 'application/json',
               'Content-Type': 'application/json',
+              ...awmcAuthHeaders,
             },
             body: json.encode({'userId': userId, 'targets': targets}),
             timeout: _syncTimeout,
@@ -719,6 +733,9 @@ class AwmcQrSyncService {
     }
     if (code == 'FISH_CONSENT_REQUIRED') {
       return appL10n.flowDivingFishWriteConsentRequiredMessage;
+    }
+    if (code == 'AWMC_OAUTH_REQUIRED') {
+      return 'AWMC 论坛授权已失效或尚未完成，请前往「绑定与授权管理」重新通过 AWMC 论坛授权绑定';
     }
     final raw = decoded?['message']?.toString() ?? decoded?['error']?.toString();
     if (raw != null && raw.trim().isNotEmpty) {
@@ -1126,11 +1143,13 @@ class AwmcQrSyncService {
       AppTaskActivity.run(() async {
         final uri = Uri.parse(ApiUrls.AwmcInitProfileUrl);
         try {
+          final awmcAuthHeaders = await _awmcAuthHeaders(awmcQq);
           final response = await ApiClient.post(
             uri,
-            headers: const {
+            headers: {
               'Accept': 'application/json',
               'Content-Type': 'application/json',
+              ...awmcAuthHeaders,
             },
             body: json.encode({
               'source': 'fish',
@@ -1240,11 +1259,13 @@ class AwmcQrSyncService {
             );
           }
 
+          final awmcAuthHeaders = await _awmcAuthHeaders(awmcQq);
           final response = await ApiClient.post(
             Uri.parse(ApiUrls.AwmcInitProfileUrl),
-            headers: const {
+            headers: {
               'Accept': 'application/json',
               'Content-Type': 'application/json',
+              ...awmcAuthHeaders,
             },
             body: json.encode({
               'source': 'lx',
@@ -1295,11 +1316,13 @@ class AwmcQrSyncService {
   }) =>
       AppTaskActivity.run(() async {
         try {
+          final awmcAuthHeaders = await _awmcAuthHeaders(awmcQq);
           final response = await ApiClient.post(
             Uri.parse(ApiUrls.AwmcMigrateToFishUrl),
-            headers: const {
+            headers: {
               'Accept': 'application/json',
               'Content-Type': 'application/json',
+              ...awmcAuthHeaders,
             },
             body: json.encode({
               'awmcQq': awmcQq.trim(),

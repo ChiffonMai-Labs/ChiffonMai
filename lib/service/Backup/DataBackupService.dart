@@ -143,6 +143,8 @@ class DataBackupService {
   static const Set<String> _neverBackupKeys = {
     CacheKeyConstant.awmcToken,
     CacheKeyConstant.awmcAuditLog,
+    CacheKeyConstant.awmcLookupQQ,
+    CacheKeyConstant.awmcNetSyncQQ,
   };
 
   /// 该键是否属于「绝不备份」的敏感状态。

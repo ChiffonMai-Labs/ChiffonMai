@@ -315,6 +315,10 @@ class CacheKeyConstant {
   static const String awmcLookupQQ = 'awmc_lookup_qq';
   static const String awmcNetSyncQQ = 'awmc_net_sync_qq';
 
+  /// AWMC 论坛 OAuth 授权后由服务端签发的会话令牌与已核验 QQ（保存于安全存储）。
+  static const String awmcOAuthToken = 'awmc_oauth_token';
+  static const String awmcOAuthVerifiedQq = 'awmc_oauth_verified_qq';
+
   // ===== 同步成绩的线路选择 =====
   // 0 = 线路2 maimai Score Hub（原有流程），1 = 线路1 AWMC 网关
   // 整数值沿用历史命名不换（详见 SyncRouteStore 顶部注释）。

@@ -1,7 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../api/ApiUrls.dart';
+import '../../constant/CacheKeyConstant.dart';
+import '../../service/Account/AccountAuthorizationStore.dart';
 import '../../utils/ApiClient.dart';
+import '../../utils/SecureCredentialStore.dart';
 
 /// 一次 AWMC 论坛 OAuth 登录事务（由服务端签发 state 与 PKCE）。
 class AwmcForumOAuthSession {
@@ -28,6 +32,8 @@ class AwmcForumOAuthPollResult {
   final String qq;
   final String username;
   final String xfUserId;
+  final String authToken;
+  final int? tokenExpiresAt;
   final String? error;
 
   const AwmcForumOAuthPollResult({
@@ -35,6 +41,8 @@ class AwmcForumOAuthPollResult {
     this.qq = '',
     this.username = '',
     this.xfUserId = '',
+    this.authToken = '',
+    this.tokenExpiresAt,
     this.error,
   });
 }
@@ -43,11 +51,68 @@ class AwmcForumOAuthPollResult {
 ///
 /// 流程：App 调用后端 `/api/awmc/oauth/start` 取得授权链接 → 系统浏览器完成论坛授权并回调至
 /// `https://chiffonmai.cloud/api/awmc/oauth/callback` → 后端换票并提取 `数字@qq.com` 对应 QQ
-/// → App 轮询 `/api/awmc/oauth/status` 获取绑定 QQ（论坛 token 仅在后端瞬时使用，不落盘）。
+/// 及服务端签发的会话令牌 → App 轮询 `/api/awmc/oauth/status` 获取绑定 QQ 与令牌并存入安全存储
+/// （论坛 access_token 仅在后端瞬时使用，不落盘）。
 class AwmcForumOAuthManager {
   AwmcForumOAuthManager._();
 
   static final AwmcForumOAuthManager instance = AwmcForumOAuthManager._();
+  static final RegExp _qqRe = RegExp(r'^[1-9]\d{4,11}$');
+
+  /// 保存论坛 OAuth 授权得到的查分 QQ 与服务端会话令牌。
+  static Future<void> saveAuthorizedSession({
+    required String qq,
+    required String authToken,
+  }) async {
+    final normalizedQq = qq.trim();
+    final normalizedToken = authToken.trim();
+    await AccountAuthorizationStore.saveAwmcQQ(normalizedQq);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(CacheKeyConstant.awmcNetSyncQQ, normalizedQq);
+    if (normalizedToken.isNotEmpty && _qqRe.hasMatch(normalizedQq)) {
+      await SecureCredentialStore.write(
+          CacheKeyConstant.awmcOAuthToken, normalizedToken);
+      await SecureCredentialStore.write(
+          CacheKeyConstant.awmcOAuthVerifiedQq, normalizedQq);
+      AccountAuthorizationStore.setAwmcOAuthAuthorized(true);
+    } else {
+      await clearAuthorizedSession();
+    }
+  }
+
+  /// 读取本机安全存储中的 AWMC OAuth 会话令牌；校验与目标 QQ 一致。
+  static Future<String?> readAuthToken({String? expectedQq}) async {
+    try {
+      final token =
+          (await SecureCredentialStore.read(CacheKeyConstant.awmcOAuthToken))
+                  ?.trim() ??
+              '';
+      if (token.isEmpty) return null;
+      final verifiedQq = (await SecureCredentialStore.read(
+                  CacheKeyConstant.awmcOAuthVerifiedQq))
+              ?.trim() ??
+          '';
+      final expected = expectedQq?.trim() ?? '';
+      if (expected.isNotEmpty && verifiedQq != expected) {
+        return null;
+      }
+      return token;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<bool> hasValidOAuthSession({String? expectedQq}) async =>
+      (await readAuthToken(expectedQq: expectedQq)) != null;
+
+  /// 清除本机安全存储中的 AWMC OAuth 会话令牌与已验证 QQ 标记。
+  static Future<void> clearAuthorizedSession() async {
+    try {
+      await SecureCredentialStore.delete(CacheKeyConstant.awmcOAuthToken);
+      await SecureCredentialStore.delete(CacheKeyConstant.awmcOAuthVerifiedQq);
+    } catch (_) {}
+    AccountAuthorizationStore.setAwmcOAuthAuthorized(false);
+  }
 
   Future<({AwmcForumOAuthSession? session, String? error})>
       startSession() async {
@@ -104,12 +169,16 @@ class AwmcForumOAuthManager {
           final qq = (data['qq'] as String?)?.trim() ?? '';
           final username = (data['username'] as String?)?.trim() ?? '';
           final xfUserId = (data['xfUserId'] as String?)?.trim() ?? '';
+          final authToken = (data['authToken'] as String?)?.trim() ?? '';
+          final tokenExpiresAt = (data['tokenExpiresAt'] as num?)?.toInt();
           if (RegExp(r'^\d{5,12}$').hasMatch(qq)) {
             return AwmcForumOAuthPollResult(
               status: AwmcForumOAuthPollStatus.completed,
               qq: qq,
               username: username,
               xfUserId: xfUserId,
+              authToken: authToken,
+              tokenExpiresAt: tokenExpiresAt,
             );
           }
           return const AwmcForumOAuthPollResult(
