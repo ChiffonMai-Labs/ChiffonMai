@@ -246,7 +246,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   ///
   /// 刻意**不 await**：检查要联网，不能拖慢启动。
   void _checkUpdateForBadge() {
-    if (LZYCheckUpdateManager.usesTestFlight) return;
+    if (LZYCheckUpdateManager.usesAppStore) return;
     unawaited(() async {
       try {
         final info = await LZYCheckUpdateManager().checkUpdate();

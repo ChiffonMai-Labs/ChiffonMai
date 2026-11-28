@@ -119,7 +119,6 @@ class _AppShellState extends State<AppShell> {
       HomePage(
         key: _homePageKey,
         activeTask: _activeFeatureTask,
-        onLibraryTap: () => _selectIndex(1),
         onEntertainmentTap: () {
           _selectIndex(_playZoneIndex);
           _playZoneKey.currentState?.showSection(1);

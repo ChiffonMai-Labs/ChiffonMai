@@ -188,7 +188,7 @@ android:launchMode="singleTask"   <!-- 全局单实例，后续启动走 onNewIn
 
 Android 的更新版本、构建号、更新日志和下载页以 `app_version.json` 的 `version` / `buildNumber` / `updateLog` / `downloadUrl` 为准；配置获取失败就报告检查失败，不用 GitHub 发布内容或 APK 清单覆盖。GitHub 只在用户选择 App 内下载后，根据配置的 `githubReleaseTag`（未配置时取 `v<version>`）提供对应 APK 附件和下载分流；安装时必须匹配配置中的构建号，不得自动套用 GitHub 包的版本号。版本先按语义比较，同版本才比较构建号；恢复后台任务时也会取消低于当前版本的过期任务。
 
-iOS 的更新由 TestFlight 管理。App 不在启动时检查更新或提示新版本，手动入口打开 `AppLinks.testFlightUrl`。
+iOS 的更新由 App Store 管理。App 不在启动时检查更新或提示新版本，手动入口打开 `AppLinks.appStoreUrl`。
 
 可选 `githubProxyPrefixes` 为 HTTPS 加速节点根地址数组：未配置时使用 `https://gh-proxy.com/`，空数组禁用加速，下载失败后回退 GitHub 直连。APK 附件必须带 GitHub 提供的 SHA-256 `digest`；缺少校验值或版本、签名不匹配时保留网页下载入口，不绕过校验。
 

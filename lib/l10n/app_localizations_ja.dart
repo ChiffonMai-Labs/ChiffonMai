@@ -26,7 +26,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get qqPlayerIntro =>
-      'QQでスコアを表示できます。Botに記録があればBest 50を、初回はプレイヤーQRコードから読み込めます。';
+      'AWMC フォーラム（bbs.wmc.pub）の OAuth 2.0 認証でアカウントを連携します。既存のスコアがあればすぐに Best 50 を表示でき、初回は QR コードから取り込めます。';
 
   @override
   String get qqPlayerLibrary => '楽曲を見る';
@@ -35,7 +35,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get qqPlayerBest => 'Best50 を見る';
 
   @override
-  String get qqPlayerSend => '確認コードを送信';
+  String get qqPlayerSend => 'AWMC フォーラムで認証';
 
   @override
   String get qqPlayerCode => 'メール確認コード';
@@ -44,7 +44,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get qqPlayerVerified => '自分の成績を表示';
 
   @override
-  String get qqPlayerSwitch => '別の QQ を使う';
+  String get qqPlayerSwitch => '別のアカウントに切替';
 
   @override
   String get qqPlayerImport => 'プレイヤー QR コードから取込';
@@ -71,7 +71,17 @@ class AppLocalizationsJa extends AppLocalizations {
   String get qqPlayerLimited => '時間をおいてからお試しください。';
 
   @override
-  String get qqPlayerExpired => '連携の期限が切れました。QQ を再確認してください。';
+  String get qqPlayerExpired => '認証の有効期限が切れました。AWMC フォーラムで再認証してください。';
+
+  @override
+  String get qqPlayerOAuthWaiting =>
+      'AWMC フォーラムの認証完了を待っています…承認後にアプリへ戻ると自動的に続行します。';
+
+  @override
+  String get qqPlayerOAuthReopen => '認証ページをもう一度開く';
+
+  @override
+  String get qqPlayerOAuthCancel => '認証をキャンセル';
 
   @override
   String get qqPlayerQrError => '読み取れませんでした。新しいプレイヤー QR コードをお試しください。';
@@ -1313,7 +1323,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get featureCheckForANewerAppVersion => 'アプリの新しいバージョンを確認';
 
   @override
-  String get featureTestFlightUpdateSubtitle => 'TestFlight でアプリのアップデートを管理';
+  String get featureAppStoreUpdateSubtitle => 'App Store でアプリのアップデートを管理';
 
   @override
   String get featureAboutTheApp => 'アプリについて';
@@ -3225,7 +3235,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get flowAWMCNETIsAThirdPartyScore =>
-      'AWMC NET は QQ 番号で公開成績を照会する外部サービスです。ログインや認証は不要です。\nnet.wmc.pub で QQ を連携し成績を送信済みである必要があります。未登録の場合はデータが見つかりません。';
+      'AWMC NET（net.wmc.pub）は外部スコア管理サービスです。QQ メール（数字@qq.com）を連携済みの AWMC フォーラムアカウントで OAuth 2.0 認証を行ってください。\n初回でプロフィールやスコアがない場合も、認証後に QR 同期で自動作成するか、連携済みの水魚 / 落雪のスコアからワンタップで初期化できます。';
 
   @override
   String get flowLinkQQUploadScoresOnAWMCNET => 'AWMC NET で連携・成績送信';
@@ -10334,15 +10344,15 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
-  String get flowAgreementsAndPermissions => '規約と権限';
+  String get flowAgreementsAndPermissions => '利用規約とプライバシー';
 
   @override
   String get flowAgreeToTheDocumentsFirstYouCan =>
-      '先に規約への同意が必要です。権限は今許可することも、機能の利用時に許可することもできます。';
+      '規約に同意すると続行できます。写真・カメラ・位置情報・通知などの権限は、対応する機能を使う際に必要なタイミングでのみ確認します。';
 
   @override
   String get flowTheSystemManagesNetworkAccessBackgroundPlayback =>
-      'ネットワーク・バックグラウンド再生・安全な保存はシステムが管理するため、ここで個別に許可する必要はありません。';
+      '許可した権限はいつでも端末の設定から管理・取り消しできます。';
 
   @override
   String get flowIHaveReadAndAgreeTo => '読み、同意します：';
@@ -14022,7 +14032,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get svcAddYourAWMCNETQQNumberIn =>
-      '先に「連携と認証の管理」でAWMC NETのQQ番号を連携してください';
+      '先に「連携と認証の管理」でAWMCフォーラムOAuth連携を完了してください';
 
   @override
   String get svcSignInToYourLXNSAccountFirst => '先に落雪アカウントにログインしてください';
@@ -14649,7 +14659,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get accountAuthorizeLXNSSubtitle => 'LXNS の成績読み取り認証を管理';
 
   @override
-  String get accountLinkAWMCSubtitle => 'AWMC NET の成績照会用 QQ ID を設定';
+  String get accountLinkAWMCSubtitle => 'AWMC フォーラム OAuth でスコア照会アカウントを連携';
 
   @override
   String get accountCabinetIdentitySubtitle => 'クイック同期で共有する筐体 ID を連携';
@@ -15580,11 +15590,11 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
-  String get flowEnterAWMCNETQQNoTokenTitle => 'AWMC NET 紐付け QQ を入力（Token 不要）';
+  String get flowEnterAWMCNETQQNoTokenTitle => 'AWMC フォーラム OAuth で連携（Token 不要）';
 
   @override
   String get flowAWMCNETQQNoTokenHint =>
-      'net.wmc.pub に紐付け済みの QQ 番号を入力してください。インポート Token は不要です。';
+      'QQ メールを登録済みの AWMC フォーラムアカウントで認可すると自動連携されます。QQ 番号の手動入力やインポート Token は不要です。';
 
   @override
   String get flowQQSaved => 'QQ 番号を保存しました';
@@ -16036,7 +16046,8 @@ class AppLocalizationsJa extends AppLocalizations {
   String get firstBindNeedAuth => 'ログイン済・要認可';
 
   @override
-  String get firstBindAwmcDesc => '連携済みの QQ 番号を入力するだけで成績を取得できます（パスワード不要）。';
+  String get firstBindAwmcDesc =>
+      'AWMC フォーラムの OAuth 認可で登録済みの QQ メールを自動認識し、成績を取得・同期できます。';
 
   @override
   String get firstBindFishDesc => 'Diving-Fish にログインし、ブラウザで認可すると成績の取得と同期ができます。';

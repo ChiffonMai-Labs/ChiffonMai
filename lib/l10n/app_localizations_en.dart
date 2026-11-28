@@ -26,7 +26,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get qqPlayerIntro =>
-      'Use QQ to find your scores. Open your existing Best 50 or scan your player QR code to import scores.';
+      'Authorize via AWMC Forum (bbs.wmc.pub) OAuth 2.0 to connect your account. View your Best 50 immediately or import scores with your player QR code.';
 
   @override
   String get qqPlayerLibrary => 'Browse songs';
@@ -35,7 +35,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get qqPlayerBest => 'View Best50';
 
   @override
-  String get qqPlayerSend => 'Send email code';
+  String get qqPlayerSend => 'Authorize with AWMC Forum';
 
   @override
   String get qqPlayerCode => 'Email code';
@@ -44,7 +44,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get qqPlayerVerified => 'Load my scores';
 
   @override
-  String get qqPlayerSwitch => 'Use another QQ';
+  String get qqPlayerSwitch => 'Switch account';
 
   @override
   String get qqPlayerImport => 'Import player QR code';
@@ -73,7 +73,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get qqPlayerLimited => 'Too many attempts. Try again later.';
 
   @override
-  String get qqPlayerExpired => 'Your session expired. Verify your QQ again.';
+  String get qqPlayerExpired =>
+      'Authorization expired. Please authorize again via AWMC Forum.';
+
+  @override
+  String get qqPlayerOAuthWaiting =>
+      'Waiting for AWMC Forum authorization… Return to the app after approving to continue automatically.';
+
+  @override
+  String get qqPlayerOAuthReopen => 'Reopen authorization page';
+
+  @override
+  String get qqPlayerOAuthCancel => 'Cancel authorization';
 
   @override
   String get qqPlayerQrError =>
@@ -1426,8 +1437,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get featureCheckForANewerAppVersion => 'Check for a newer app version';
 
   @override
-  String get featureTestFlightUpdateSubtitle =>
-      'Manage app updates in TestFlight';
+  String get featureAppStoreUpdateSubtitle =>
+      'Manage app updates in the App Store';
 
   @override
   String get featureAboutTheApp => 'About the app';
@@ -3398,7 +3409,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get flowAWMCNETIsAThirdPartyScore =>
-      'AWMC NET is a third-party score tracker with public QQ-based lookup. No sign-in or authorization is needed.\nThe QQ must already be linked and have uploaded scores on net.wmc.pub, or no data will be found.';
+      'AWMC NET (net.wmc.pub) is a third-party score tracker. Sign in via OAuth 2.0 using an AWMC Forum account linked to a QQ email (digits@qq.com).\nIf you don\'t have a profile yet, you can auto-create one via QR sync after authorizing, or initialize it in one tap from your linked Diving-Fish / LXNS scores.';
 
   @override
   String get flowLinkQQUploadScoresOnAWMCNET =>
@@ -10678,15 +10689,15 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get flowAgreementsAndPermissions => 'Agreements and permissions';
+  String get flowAgreementsAndPermissions => 'Agreements & privacy';
 
   @override
   String get flowAgreeToTheDocumentsFirstYouCan =>
-      'Agree to the documents first. You can grant permissions now or when a feature needs them.';
+      'Agree to the documents to continue. Permissions such as Photos, Camera, Location, and Notifications are requested only when you use those features.';
 
   @override
   String get flowTheSystemManagesNetworkAccessBackgroundPlayback =>
-      'The system manages network access, background playback and secure storage automatically; no separate authorization is needed here.';
+      'You can manage or revoke granted permissions at any time in system settings.';
 
   @override
   String get flowIHaveReadAndAgreeTo => 'I have read and agree to';
@@ -14526,7 +14537,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get svcAddYourAWMCNETQQNumberIn =>
-      'Link your AWMC NET QQ number in Links & authorization first';
+      'Link your AWMC NET account via AWMC Forum OAuth in Links & authorization first';
 
   @override
   String get svcSignInToYourLXNSAccountFirst =>
@@ -15185,7 +15196,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get accountLinkAWMCSubtitle =>
-      'Set the QQ ID for AWMC NET score lookup';
+      'Link your AWMC NET account via AWMC Forum OAuth';
 
   @override
   String get accountCabinetIdentitySubtitle =>
@@ -16164,11 +16175,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get flowEnterAWMCNETQQNoTokenTitle =>
-      'Enter AWMC NET QQ ID (No Import-Token)';
+      'Link via AWMC Forum OAuth (No Import-Token)';
 
   @override
   String get flowAWMCNETQQNoTokenHint =>
-      'Enter the QQ ID linked to your profile on net.wmc.pub. No import token is needed.';
+      'Sign in to your AWMC Forum account linked with a QQ email to authorize automatically. Manual QQ input and import tokens are no longer required.';
 
   @override
   String get flowQQSaved => 'QQ ID saved';
@@ -16664,7 +16675,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get firstBindAwmcDesc =>
-      'Enter your linked QQ number to fetch scores directly—no password required.';
+      'Sign in via AWMC Forum OAuth to detect your linked QQ email automatically and sync scores.';
 
   @override
   String get firstBindFishDesc =>

@@ -25,7 +25,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get qqPlayerConnect => '连接我的舞萌';
 
   @override
-  String get qqPlayerIntro => '用 QQ 连接成绩。已有 Bot 档案可直接查看 Best 50，第一次连接可扫码导入。';
+  String get qqPlayerIntro =>
+      '通过 AWMC 论坛（bbs.wmc.pub）OAuth 2.0 授权绑定账号。已有成绩可直接查看 Best 50，首次连接可扫码导入。';
 
   @override
   String get qqPlayerLibrary => '浏览曲库';
@@ -34,7 +35,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get qqPlayerBest => '查看 Best50';
 
   @override
-  String get qqPlayerSend => '发送邮箱验证码';
+  String get qqPlayerSend => '前往 AWMC 论坛授权';
 
   @override
   String get qqPlayerCode => '邮箱验证码';
@@ -43,7 +44,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get qqPlayerVerified => '读取我的成绩';
 
   @override
-  String get qqPlayerSwitch => '更换 QQ';
+  String get qqPlayerSwitch => '切换授权账号';
 
   @override
   String get qqPlayerImport => '从舞萌二维码导入';
@@ -70,7 +71,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get qqPlayerLimited => '操作过于频繁，请稍后重试。';
 
   @override
-  String get qqPlayerExpired => '连接已过期，请重新验证 QQ。';
+  String get qqPlayerExpired => '授权已过期，请重新通过 AWMC 论坛授权。';
+
+  @override
+  String get qqPlayerOAuthWaiting => '正在等待 AWMC 论坛授权完成…完成授权后返回本应用即可自动继续。';
+
+  @override
+  String get qqPlayerOAuthReopen => '重新打开授权页面';
+
+  @override
+  String get qqPlayerOAuthCancel => '取消本次授权';
 
   @override
   String get qqPlayerQrError => '二维码读取失败，请使用新的舞萌二维码。';
@@ -1287,7 +1297,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get featureCheckForANewerAppVersion => '检查应用是否有新版本';
 
   @override
-  String get featureTestFlightUpdateSubtitle => '在 TestFlight 中管理应用更新';
+  String get featureAppStoreUpdateSubtitle => '在 App Store 中管理应用更新';
 
   @override
   String get featureAboutTheApp => '关于 APP';
@@ -3162,7 +3172,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get flowAWMCNETIsAThirdPartyScore =>
-      'AWMC NET 是第三方查分器，按 QQ 号公开查询成绩，不用登录、也不用授权。\n前提是该 QQ 已在 net.wmc.pub 绑定并上传过成绩，否则会提示「没有该 QQ 的数据」。';
+      'AWMC NET（net.wmc.pub）是第三方查分器，需通过绑定了 QQ 邮箱（数字@qq.com）的 AWMC 论坛账号完成 OAuth 2.0 授权绑定。\n首次使用若尚无档案或成绩，授权后可直接扫码同步自动建档，也可用已绑定的水鱼/落雪成绩一键初始化档案。';
 
   @override
   String get flowLinkQQUploadScoresOnAWMCNET => '去 AWMC NET 绑定 / 上传成绩';
@@ -10195,15 +10205,15 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get flowAgreementsAndPermissions => '协议与权限';
+  String get flowAgreementsAndPermissions => '用户协议与隐私';
 
   @override
   String get flowAgreeToTheDocumentsFirstYouCan =>
-      '先确认协议才能继续。权限可以现在允许，也可以等用到时再说。';
+      '先确认协议即可继续。相册、相机、位置、通知等权限会在用到对应功能时再按需弹窗询问。';
 
   @override
   String get flowTheSystemManagesNetworkAccessBackgroundPlayback =>
-      '网络、后台播放和安全存储由系统自动管理，不需要在这里单独授权。';
+      '你可以随时在系统设置中管理或撤回已授予的权限。';
 
   @override
   String get flowIHaveReadAndAgreeTo => '我已阅读并同意';
@@ -13749,7 +13759,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get svcNoPlayDataWasFoundForThis => '未找到该好友的游玩数据，请检查 QQ 号是否正确';
 
   @override
-  String get svcAddYourAWMCNETQQNumberIn => '请先在「绑定与授权管理」里绑定 AWMC NET 的 QQ';
+  String get svcAddYourAWMCNETQQNumberIn => '请先在「绑定与授权管理」里通过 AWMC 论坛授权绑定账号';
 
   @override
   String get svcSignInToYourLXNSAccountFirst => '请先登录落雪账号';
@@ -14344,7 +14354,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get accountAuthorizeLXNSSubtitle => '管理落雪成绩读取授权';
 
   @override
-  String get accountLinkAWMCSubtitle => '设置 AWMC NET 成绩查询 QQ';
+  String get accountLinkAWMCSubtitle => '通过 AWMC 论坛 OAuth 授权绑定查分账号';
 
   @override
   String get accountCabinetIdentitySubtitle => '绑定快速同步共用的机台身份';
@@ -15267,11 +15277,11 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get flowEnterAWMCNETQQNoTokenTitle => '填写 AWMC NET 关联 QQ（免导入 Token）';
+  String get flowEnterAWMCNETQQNoTokenTitle => '通过 AWMC 论坛授权绑定（免导入 Token）';
 
   @override
   String get flowAWMCNETQQNoTokenHint =>
-      '请输入已在 net.wmc.pub 关联过档案的 QQ 号，无需再填写成绩导入 Token。';
+      '请登录已绑定 QQ 邮箱的 AWMC 论坛账号完成 OAuth 授权，无需再手动输入 QQ 号或导入 Token。';
 
   @override
   String get flowQQSaved => 'QQ 号已保存';
@@ -15711,7 +15721,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get firstBindNeedAuth => '已登录 · 待授权';
 
   @override
-  String get firstBindAwmcDesc => '输入已绑定的 QQ 号即可直接查询成绩，无需登录密码。';
+  String get firstBindAwmcDesc => '通过 AWMC 论坛 OAuth 授权自动识别绑定的 QQ 邮箱即可查询与同步成绩。';
 
   @override
   String get firstBindFishDesc => '登录水鱼账号并完成浏览器授权，即可拉取与同步成绩。';
@@ -15943,7 +15953,8 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get qqPlayerConnect => '連接我的舞萌';
 
   @override
-  String get qqPlayerIntro => '用 QQ 連接成績。已有 Bot 檔案可直接查看 Best 50，第一次連接可掃碼匯入。';
+  String get qqPlayerIntro =>
+      '透過 AWMC 論壇（bbs.wmc.pub）OAuth 2.0 授權綁定帳號。已有成績可直接查看 Best 50，首次連接可掃碼匯入。';
 
   @override
   String get qqPlayerLibrary => '瀏覽曲庫';
@@ -15952,7 +15963,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get qqPlayerBest => '查看 Best50';
 
   @override
-  String get qqPlayerSend => '傳送信箱驗證碼';
+  String get qqPlayerSend => '前往 AWMC 論壇授權';
 
   @override
   String get qqPlayerCode => '信箱驗證碼';
@@ -15961,7 +15972,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get qqPlayerVerified => '讀取我的成績';
 
   @override
-  String get qqPlayerSwitch => '更換 QQ';
+  String get qqPlayerSwitch => '切換授權帳號';
 
   @override
   String get qqPlayerImport => '從舞萌 QR 碼匯入';
@@ -15988,7 +15999,16 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get qqPlayerLimited => '操作過於頻繁，請稍後重試。';
 
   @override
-  String get qqPlayerExpired => '連接已過期，請重新驗證 QQ。';
+  String get qqPlayerExpired => '授權已過期，請重新透過 AWMC 論壇授權。';
+
+  @override
+  String get qqPlayerOAuthWaiting => '正在等待 AWMC 論壇授權完成…完成授權後返回本應用程式即可自動繼續。';
+
+  @override
+  String get qqPlayerOAuthReopen => '重新開啟授權頁面';
+
+  @override
+  String get qqPlayerOAuthCancel => '取消本次授權';
 
   @override
   String get qqPlayerQrError => 'QR 碼讀取失敗，請使用新的舞萌 QR 碼。';
@@ -17205,7 +17225,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get featureCheckForANewerAppVersion => '檢查應用是否有新版本';
 
   @override
-  String get featureTestFlightUpdateSubtitle => '在 TestFlight 中管理 App 更新';
+  String get featureAppStoreUpdateSubtitle => '在 App Store 中管理 App 更新';
 
   @override
   String get featureAboutTheApp => '關於 APP';
@@ -19080,7 +19100,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get flowAWMCNETIsAThirdPartyScore =>
-      'AWMC NET 是第三方查分器，按 QQ 號公開查詢成績，不用登錄、也不用授權。\n前提是該 QQ 已在 net.wmc.pub 綁定並上傳過成績，否則會提示「沒有該 QQ 的數據」。';
+      'AWMC NET（net.wmc.pub）是第三方查分器，需透過綁定了 QQ 信箱（數字@qq.com）的 AWMC 論壇帳號完成 OAuth 2.0 授權綁定。\n首次使用若尚無檔案或成績，授權後可直接掃碼同步自動建檔，也可用已綁定的水魚/落雪成績一鍵初始化檔案。';
 
   @override
   String get flowLinkQQUploadScoresOnAWMCNET => '去 AWMC NET 綁定 / 上傳成績';
@@ -26113,15 +26133,15 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
-  String get flowAgreementsAndPermissions => '協議與權限';
+  String get flowAgreementsAndPermissions => '使用者協議與隱私';
 
   @override
   String get flowAgreeToTheDocumentsFirstYouCan =>
-      '先確認協議才能繼續。權限可以現在允許，也可以等用到時再說。';
+      '先確認協議即可繼續。相簿、相機、位置、通知等權限會在用到對應功能時再按需彈窗詢問。';
 
   @override
   String get flowTheSystemManagesNetworkAccessBackgroundPlayback =>
-      '網絡、後臺播放和安全存儲由系統自動管理，不需要在這裏單獨授權。';
+      '你可以隨時在系統設定中管理或撤回已授予的權限。';
 
   @override
   String get flowIHaveReadAndAgreeTo => '我已閱讀並同意';
@@ -29668,7 +29688,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get svcNoPlayDataWasFoundForThis => '未找到該好友的遊玩資料，請檢查 QQ 號是否正確';
 
   @override
-  String get svcAddYourAWMCNETQQNumberIn => '請先在「綁定與授權管理」裡綁定 AWMC NET 的 QQ';
+  String get svcAddYourAWMCNETQQNumberIn => '請先在「綁定與授權管理」裡透過 AWMC 論壇授權綁定帳號';
 
   @override
   String get svcSignInToYourLXNSAccountFirst => '請先登入落雪帳號';
@@ -30264,7 +30284,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get accountAuthorizeLXNSSubtitle => '管理落雪成績讀取授權';
 
   @override
-  String get accountLinkAWMCSubtitle => '設定 AWMC NET 成績查詢 QQ';
+  String get accountLinkAWMCSubtitle => '透過 AWMC 論壇 OAuth 授權綁定查分帳號';
 
   @override
   String get accountCabinetIdentitySubtitle => '綁定快速同步共用的機台身分';
@@ -31187,11 +31207,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
-  String get flowEnterAWMCNETQQNoTokenTitle => '填寫 AWMC NET 關聯 QQ（免導入 Token）';
+  String get flowEnterAWMCNETQQNoTokenTitle => '透過 AWMC 論壇授權綁定（免導入 Token）';
 
   @override
   String get flowAWMCNETQQNoTokenHint =>
-      '請輸入已在 net.wmc.pub 關聯過檔案的 QQ 號，無需再填寫成績導入 Token。';
+      '請登入已綁定 QQ 信箱的 AWMC 論壇帳號完成 OAuth 授權，無需再手動輸入 QQ 號或導入 Token。';
 
   @override
   String get flowQQSaved => 'QQ 號已保存';
@@ -31631,7 +31651,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get firstBindNeedAuth => '已登入 · 待授權';
 
   @override
-  String get firstBindAwmcDesc => '輸入已綁定的 QQ 號即可直接查詢成績，無需登入密碼。';
+  String get firstBindAwmcDesc => '透過 AWMC 論壇 OAuth 授權自動識別綁定的 QQ 信箱即可查詢與同步成績。';
 
   @override
   String get firstBindFishDesc => '登入水魚帳號並完成瀏覽器授權，即可拉取與同步成績。';

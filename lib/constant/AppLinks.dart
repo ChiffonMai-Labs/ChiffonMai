@@ -49,9 +49,9 @@ class AppLinks {
   /// 问卷。
   static const String surveyUrl = 'https://wj.qq.com/s2/26540572/7828/';
 
-  /// iOS 安装和更新使用的 TestFlight 邀请页。
-  static const String testFlightUrl =
-      'https://testflight.apple.com/join/MB5CGtv4';
+  /// iOS 安装和更新使用的 App Store 页面。
+  static const String appStoreUrl =
+      'https://apps.apple.com/cn/app/chiffonmai/id6832199686';
 
   /// 最新的 GitHub Releases。
   static const String githubRepository = 'ChiffonMai-Labs/ChiffonMai';

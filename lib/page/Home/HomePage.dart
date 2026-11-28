@@ -1,5 +1,3 @@
-import 'package:flutter/cupertino.dart' as ios;
-import '../AwmcNet/PlayerConnectionPage.dart';
 import '../../l10n/LocalizationsExtension.dart';
 import '../../widgets/AccountAuthorizationStatus.dart';
 import '../Library/CustomTagsPage.dart';
@@ -251,7 +249,6 @@ class HomeGreetingText extends StatelessWidget {
 /// 首页组件：有状态组件，包含所有页面元素和业务数据
 class HomePage extends StatefulWidget {
   final VoidCallback? onFirstFrameRendered;
-  final VoidCallback? onLibraryTap;
   final VoidCallback? onEntertainmentTap;
   final Future<void> Function(ButtonItem)? onSystemFeatureTap;
   final ValueListenable<FeatureTask?> activeTask;
@@ -260,7 +257,6 @@ class HomePage extends StatefulWidget {
       {super.key,
       required this.activeTask,
       this.onFirstFrameRendered,
-      this.onLibraryTap,
       this.onEntertainmentTap,
       this.onSystemFeatureTap});
 
@@ -349,7 +345,6 @@ class HomePageState extends State<HomePage> {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
     setState(() {
-      _homePrefs = prefs;
       _userNickname = prefs.getString('userNickname') ?? '';
       // 0 表示尚未拉到真实数据，UI 显示为 "-"
       _best50TotalRA = prefs.getInt('best50TotalRA') ?? 0;
@@ -639,21 +634,17 @@ class HomePageState extends State<HomePage> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         _buildDashboardSummary(context, brightness),
-                        if (Theme.of(context).platform == TargetPlatform.iOS)
-                          _applePlayerActions(context),
                         if (_refreshText.isNotEmpty) ...[
                           const SizedBox(height: 12),
                           _buildRefreshProgress(context),
                         ],
-                        if (!isSimple) ...[
-                          const SizedBox(height: 20),
-                          EntranceAnimation(
-                            duration: const Duration(milliseconds: 500),
-                            baseDelay: const Duration(milliseconds: 120),
-                            offset: const Offset(0, 12),
-                            child: _buildStatusWidgets(),
-                          ),
-                        ],
+                        SizedBox(height: isSimple ? 14 : 20),
+                        EntranceAnimation(
+                          duration: const Duration(milliseconds: 500),
+                          baseDelay: const Duration(milliseconds: 120),
+                          offset: const Offset(0, 12),
+                          child: _buildStatusWidgets(),
+                        ),
                       ],
                     ),
             ),
@@ -693,50 +684,6 @@ class HomePageState extends State<HomePage> {
           ],
         ),
       ),
-    );
-  }
-
-  SharedPreferences? _homePrefs;
-
-  bool get _hasPlayerScores {
-    final qq = UserProfileNotifier.instance.value.cachedQQ;
-    final prefs = _homePrefs;
-    return qq.isNotEmpty &&
-        prefs != null &&
-        prefs.getString(CacheKeyConstant.cachedQQ) == qq &&
-        (prefs.containsKey(CacheKeyConstant.userPlayData) ||
-            (prefs.getString('last_used_qq') == qq &&
-                prefs.containsKey('best50_data_$qq')));
-  }
-
-  Widget _applePlayerActions(BuildContext context) {
-    return ListenableBuilder(
-      listenable: Listenable.merge(
-          [UserBest50Manager.dataRevision, UserProfileNotifier.instance]),
-      builder: (context, _) {
-        final hasScores = _hasPlayerScores;
-        final l = context.l10n;
-        return Padding(
-          padding: const EdgeInsets.only(top: 12),
-          child: Wrap(alignment: WrapAlignment.spaceBetween, children: [
-            ios.CupertinoButton.filled(
-              onPressed: anyBusy
-                  ? null
-                  : () {
-                      if (hasScores) {
-                        Navigator.of(context).push<void>(ios.CupertinoPageRoute(
-                            builder: (_) => const B50Page()));
-                      } else {
-                        PlayerConnectionPage.open(context);
-                      }
-                    },
-              child: Text(hasScores ? l.qqPlayerBest : l.qqPlayerConnect),
-            ),
-            ios.CupertinoButton(
-                onPressed: widget.onLibraryTap, child: Text(l.qqPlayerLibrary)),
-          ]),
-        );
-      },
     );
   }
 
@@ -1179,8 +1126,6 @@ class HomePageState extends State<HomePage> {
   /// 点右下角数据源胶囊切换 水鱼 / 落雪 / AWMC NET 账号（使用缓存，不联网）。
   Widget _buildDashboardSummary(BuildContext context, Brightness brightness) {
     final scheme = Theme.of(context).colorScheme;
-    final connectFirst =
-        Theme.of(context).platform == TargetPlatform.iOS && !_hasPlayerScores;
     final isSimple = AppModeScope.isSimpleOf(context);
     final total = _best50TotalRA;
     final tier = AppColors.ratingTier(total);
@@ -1203,17 +1148,11 @@ class HomePageState extends State<HomePage> {
           // 大数字 → 「拉取成绩并更新数据」
           Semantics(
             button: true,
-            label: connectFirst
-                ? context.l10n.qqPlayerConnect
-                : context.l10n.homeTotalRatingAction(_displayBest50RA()),
+            label: context.l10n.homeTotalRatingAction(_displayBest50RA()),
             excludeSemantics: true,
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: anyBusy
-                  ? null
-                  : (connectFirst
-                      ? () => PlayerConnectionPage.open(context)
-                      : _openRefreshData),
+              onTap: anyBusy ? null : _openRefreshData,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -2980,7 +2919,7 @@ class HomePageState extends State<HomePage> {
     }
     if (item.title == '检查更新') {
       final updateManager = LZYCheckUpdateManager();
-      if (LZYCheckUpdateManager.usesTestFlight) {
+      if (LZYCheckUpdateManager.usesAppStore) {
         await updateManager.showUpdateDialog(context, force: true);
         return;
       }

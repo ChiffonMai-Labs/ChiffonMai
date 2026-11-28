@@ -44,7 +44,7 @@ class NavigationPreferences extends ChangeNotifier {
   bool _immersiveStatusBarEnabled = false;
   bool _gameplayStatusBarHidden = false;
   bool _pvFullscreen = false;
-  bool _pvOverlaysHidden = false;
+  bool _iosOverlaysCustom = false;
   bool _busyHintEnabled = false;
   bool _loaded = false;
   Future<void>? _loading;
@@ -202,10 +202,18 @@ class NavigationPreferences extends ChangeNotifier {
     if (kIsWeb) return;
     try {
       if (defaultTargetPlatform == TargetPlatform.iOS) {
-        if (!_pvFullscreen && !_pvOverlaysHidden) return;
-        _pvOverlaysHidden = _pvFullscreen;
+        final hideStatusBar =
+            _immersiveStatusBarEnabled || _gameplayStatusBarHidden;
+        final custom = _pvFullscreen || hideStatusBar;
+        if (!custom && !_iosOverlaysCustom) return;
+        _iosOverlaysCustom = custom;
+        final overlays = _pvFullscreen
+            ? const <SystemUiOverlay>[]
+            : hideStatusBar
+                ? const <SystemUiOverlay>[SystemUiOverlay.bottom]
+                : SystemUiOverlay.values;
         await SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual,
-            overlays: _pvFullscreen ? [] : SystemUiOverlay.values);
+            overlays: overlays);
         return;
       }
       if (defaultTargetPlatform != TargetPlatform.android) return;

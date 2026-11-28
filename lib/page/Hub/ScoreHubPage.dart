@@ -1,5 +1,3 @@
-import 'package:flutter/cupertino.dart' as ios;
-import '../AwmcNet/PlayerConnectionPage.dart';
 import '../../l10n/LocalizationsExtension.dart';
 import '../../l10n/FeatureLocalizations.dart';
 import 'package:flutter/material.dart';
@@ -740,14 +738,6 @@ class _ScoreHubPageState extends State<ScoreHubPage> {
         subtitle: '查成绩、看提升、比排名与追踪进度',
         icon: Icons.analytics_rounded,
         children: [
-          if (Theme.of(context).platform == TargetPlatform.iOS) ...[
-            ios.CupertinoListTile(
-                leading: const Icon(ios.CupertinoIcons.link),
-                title: Text(context.l10n.qqPlayerConnect),
-                trailing: const ios.CupertinoListTileChevron(),
-                onTap: () => PlayerConnectionPage.open(context)),
-            const SizedBox(height: AppDesignTokens.cardGap),
-          ],
           _buildOverview(context),
         ],
       );

@@ -128,7 +128,7 @@ abstract class AppLocalizations {
   /// No description provided for @qqPlayerIntro.
   ///
   /// In zh, this message translates to:
-  /// **'用 QQ 连接成绩。已有 Bot 档案可直接查看 Best 50，第一次连接可扫码导入。'**
+  /// **'通过 AWMC 论坛（bbs.wmc.pub）OAuth 2.0 授权绑定账号。已有成绩可直接查看 Best 50，首次连接可扫码导入。'**
   String get qqPlayerIntro;
 
   /// No description provided for @qqPlayerLibrary.
@@ -146,7 +146,7 @@ abstract class AppLocalizations {
   /// No description provided for @qqPlayerSend.
   ///
   /// In zh, this message translates to:
-  /// **'发送邮箱验证码'**
+  /// **'前往 AWMC 论坛授权'**
   String get qqPlayerSend;
 
   /// No description provided for @qqPlayerCode.
@@ -164,7 +164,7 @@ abstract class AppLocalizations {
   /// No description provided for @qqPlayerSwitch.
   ///
   /// In zh, this message translates to:
-  /// **'更换 QQ'**
+  /// **'切换授权账号'**
   String get qqPlayerSwitch;
 
   /// No description provided for @qqPlayerImport.
@@ -218,8 +218,26 @@ abstract class AppLocalizations {
   /// No description provided for @qqPlayerExpired.
   ///
   /// In zh, this message translates to:
-  /// **'连接已过期，请重新验证 QQ。'**
+  /// **'授权已过期，请重新通过 AWMC 论坛授权。'**
   String get qqPlayerExpired;
+
+  /// No description provided for @qqPlayerOAuthWaiting.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在等待 AWMC 论坛授权完成…完成授权后返回本应用即可自动继续。'**
+  String get qqPlayerOAuthWaiting;
+
+  /// No description provided for @qqPlayerOAuthReopen.
+  ///
+  /// In zh, this message translates to:
+  /// **'重新打开授权页面'**
+  String get qqPlayerOAuthReopen;
+
+  /// No description provided for @qqPlayerOAuthCancel.
+  ///
+  /// In zh, this message translates to:
+  /// **'取消本次授权'**
+  String get qqPlayerOAuthCancel;
 
   /// No description provided for @qqPlayerQrError.
   ///
@@ -2573,11 +2591,11 @@ abstract class AppLocalizations {
   /// **'检查应用是否有新版本'**
   String get featureCheckForANewerAppVersion;
 
-  /// No description provided for @featureTestFlightUpdateSubtitle.
+  /// No description provided for @featureAppStoreUpdateSubtitle.
   ///
   /// In zh, this message translates to:
-  /// **'在 TestFlight 中管理应用更新'**
-  String get featureTestFlightUpdateSubtitle;
+  /// **'在 App Store 中管理应用更新'**
+  String get featureAppStoreUpdateSubtitle;
 
   /// No description provided for @featureAboutTheApp.
   ///
@@ -5798,7 +5816,7 @@ abstract class AppLocalizations {
   /// No description provided for @flowAWMCNETIsAThirdPartyScore.
   ///
   /// In zh, this message translates to:
-  /// **'AWMC NET 是第三方查分器，按 QQ 号公开查询成绩，不用登录、也不用授权。\n前提是该 QQ 已在 net.wmc.pub 绑定并上传过成绩，否则会提示「没有该 QQ 的数据」。'**
+  /// **'AWMC NET（net.wmc.pub）是第三方查分器，需通过绑定了 QQ 邮箱（数字@qq.com）的 AWMC 论坛账号完成 OAuth 2.0 授权绑定。\n首次使用若尚无档案或成绩，授权后可直接扫码同步自动建档，也可用已绑定的水鱼/落雪成绩一键初始化档案。'**
   String get flowAWMCNETIsAThirdPartyScore;
 
   /// No description provided for @flowLinkQQUploadScoresOnAWMCNET.
@@ -17774,19 +17792,19 @@ abstract class AppLocalizations {
   /// No description provided for @flowAgreementsAndPermissions.
   ///
   /// In zh, this message translates to:
-  /// **'协议与权限'**
+  /// **'用户协议与隐私'**
   String get flowAgreementsAndPermissions;
 
   /// No description provided for @flowAgreeToTheDocumentsFirstYouCan.
   ///
   /// In zh, this message translates to:
-  /// **'先确认协议才能继续。权限可以现在允许，也可以等用到时再说。'**
+  /// **'先确认协议即可继续。相册、相机、位置、通知等权限会在用到对应功能时再按需弹窗询问。'**
   String get flowAgreeToTheDocumentsFirstYouCan;
 
   /// No description provided for @flowTheSystemManagesNetworkAccessBackgroundPlayback.
   ///
   /// In zh, this message translates to:
-  /// **'网络、后台播放和安全存储由系统自动管理，不需要在这里单独授权。'**
+  /// **'你可以随时在系统设置中管理或撤回已授予的权限。'**
   String get flowTheSystemManagesNetworkAccessBackgroundPlayback;
 
   /// No description provided for @flowIHaveReadAndAgreeTo.
@@ -24015,7 +24033,7 @@ abstract class AppLocalizations {
   /// No description provided for @svcAddYourAWMCNETQQNumberIn.
   ///
   /// In zh, this message translates to:
-  /// **'请先在「绑定与授权管理」里绑定 AWMC NET 的 QQ'**
+  /// **'请先在「绑定与授权管理」里通过 AWMC 论坛授权绑定账号'**
   String get svcAddYourAWMCNETQQNumberIn;
 
   /// No description provided for @svcSignInToYourLXNSAccountFirst.
@@ -24953,7 +24971,7 @@ abstract class AppLocalizations {
   /// No description provided for @accountLinkAWMCSubtitle.
   ///
   /// In zh, this message translates to:
-  /// **'设置 AWMC NET 成绩查询 QQ'**
+  /// **'通过 AWMC 论坛 OAuth 授权绑定查分账号'**
   String get accountLinkAWMCSubtitle;
 
   /// No description provided for @accountCabinetIdentitySubtitle.
@@ -26675,13 +26693,13 @@ abstract class AppLocalizations {
   /// No description provided for @flowEnterAWMCNETQQNoTokenTitle.
   ///
   /// In zh, this message translates to:
-  /// **'填写 AWMC NET 关联 QQ（免导入 Token）'**
+  /// **'通过 AWMC 论坛授权绑定（免导入 Token）'**
   String get flowEnterAWMCNETQQNoTokenTitle;
 
   /// No description provided for @flowAWMCNETQQNoTokenHint.
   ///
   /// In zh, this message translates to:
-  /// **'请输入已在 net.wmc.pub 关联过档案的 QQ 号，无需再填写成绩导入 Token。'**
+  /// **'请登录已绑定 QQ 邮箱的 AWMC 论坛账号完成 OAuth 授权，无需再手动输入 QQ 号或导入 Token。'**
   String get flowAWMCNETQQNoTokenHint;
 
   /// No description provided for @flowQQSaved.
@@ -27517,7 +27535,7 @@ abstract class AppLocalizations {
   /// No description provided for @firstBindAwmcDesc.
   ///
   /// In zh, this message translates to:
-  /// **'输入已绑定的 QQ 号即可直接查询成绩，无需登录密码。'**
+  /// **'通过 AWMC 论坛 OAuth 授权自动识别绑定的 QQ 邮箱即可查询与同步成绩。'**
   String get firstBindAwmcDesc;
 
   /// No description provided for @firstBindFishDesc.

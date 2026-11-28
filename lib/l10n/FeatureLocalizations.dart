@@ -272,9 +272,9 @@ String localizeFeatureText(AppLocalizations l10n, String source) =>
       "最近评分" => l10n.featureRecentRatings,
       "查看社区最近评分" => l10n.featureViewRecentCommunityRatings,
       "检查更新" when defaultTargetPlatform == TargetPlatform.iOS =>
-        'TestFlight',
+        'App Store',
       "检查应用是否有新版本" when defaultTargetPlatform == TargetPlatform.iOS =>
-        l10n.featureTestFlightUpdateSubtitle,
+        l10n.featureAppStoreUpdateSubtitle,
       "检查更新" => l10n.featureCheckForUpdates,
       "检查应用是否有新版本" => l10n.featureCheckForANewerAppVersion,
       "关于 APP" => l10n.featureAboutTheApp,

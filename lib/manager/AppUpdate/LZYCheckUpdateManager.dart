@@ -49,7 +49,7 @@ class LZYCheckUpdateManager {
   static const String defaultDownloadUrl =
       'https://wward.lanzouw.com/chiffonmai';
 
-  static bool get usesTestFlight => defaultTargetPlatform == TargetPlatform.iOS;
+  static bool get usesAppStore => defaultTargetPlatform == TargetPlatform.iOS;
   // ======================================================
 
   /// 正常发布从 app_version.json 读取版本、构建号、日志和下载配置。
@@ -209,7 +209,7 @@ class LZYCheckUpdateManager {
   /// 启动时的更新按钮状态与更新提示共用同一次网络请求。
   /// 同一次检查结果在 [checkUpdateCooldown] 内复用。
   Future<Map<String, dynamic>> checkUpdate({bool force = false}) async {
-    if (usesTestFlight) return {'hasUpdate': false};
+    if (usesAppStore) return {'hasUpdate': false};
     if (!force) {
       final cached = _cachedResult;
       final at = _cachedAt;
@@ -373,7 +373,7 @@ class LZYCheckUpdateManager {
   }
 
   Future<bool> shouldShowUpdateDialog() async {
-    if (usesTestFlight) return false;
+    if (usesAppStore) return false;
     final prefs = await SharedPreferences.getInstance();
     final lastDismissTime = prefs.getInt('lastUpdateDismissTime');
     if (lastDismissTime != null) {
@@ -493,13 +493,13 @@ class LZYCheckUpdateManager {
   /// [force] 为 true 时强制显示，忽略3天内不提示的设置
   Future<void> showUpdateDialog(BuildContext context,
       {bool force = false}) async {
-    if (usesTestFlight) {
+    if (usesAppStore) {
       if (force &&
-          !await ExternalLaunchUtil.openString(AppLinks.testFlightUrl) &&
+          !await ExternalLaunchUtil.openString(AppLinks.appStoreUrl) &&
           context.mounted) {
         await ExternalLaunchUtil.copyFallback(
           context,
-          AppLinks.testFlightUrl,
+          AppLinks.appStoreUrl,
           message: context.l10n.flowCouldNotOpenTheLinkCopiedTo,
         );
       }

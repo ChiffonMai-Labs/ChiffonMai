@@ -1,10 +1,8 @@
-import 'package:flutter/cupertino.dart' as ios;
 import 'package:my_first_flutter_app/l10n/FeatureLocalizations.dart';
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart' show SystemNavigator;
-import 'package:permission_handler/permission_handler.dart';
 
 import '../../service/System/OnboardingStateStore.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
@@ -32,16 +30,12 @@ class _OnboardingPageState extends State<OnboardingPage> {
   int _page = 0;
   bool _closing = false;
   bool _changingPage = false;
-  bool _requestingPermission = false;
   bool _hasAgreed = false;
   bool _guardianConsent = false;
   DateTime? _agreedAt;
   late final TapGestureRecognizer _agreementTap;
   late final TapGestureRecognizer _privacyTap;
   DateTime? _lastBack;
-  bool _permissionsLoading = true;
-  bool _permissionStatusesRequested = false;
-  final Map<_OnboardingPermission, PermissionStatus> _permissionStatuses = {};
 
   static const _steps = <_OnboardingStepData>[
     _OnboardingStepData(
@@ -79,45 +73,11 @@ class _OnboardingPageState extends State<OnboardingPage> {
     ),
   ];
 
-  static const _permissions = <_OnboardingPermissionData>[
-    _OnboardingPermissionData(
-      permission: _OnboardingPermission.media,
-      icon: Icons.photo_library_outlined,
-      title: '相册与媒体',
-      description: '用于选择曲绘、保存导出的歌曲信息和成绩图片。',
-      fullAccessHint: true,
-    ),
-    _OnboardingPermissionData(
-      permission: _OnboardingPermission.camera,
-      icon: Icons.camera_alt_outlined,
-      title: '相机',
-      description: '用于拍摄曲绘或成绩截图进行识别。',
-    ),
-    _OnboardingPermissionData(
-      permission: _OnboardingPermission.location,
-      icon: Icons.location_on_outlined,
-      title: '位置',
-      description: '用于全球机厅地图中的位置服务。',
-    ),
-    _OnboardingPermissionData(
-      permission: _OnboardingPermission.notifications,
-      icon: Icons.notifications_none,
-      title: '通知',
-      description: '用于随身听后台播放时显示通知栏控制。',
-    ),
-  ];
-
   int get _pageCount => _steps.length + 3;
-  bool get _appleWelcome =>
-      widget.onCompleted != null &&
-      Theme.of(context).platform == TargetPlatform.iOS;
-  bool get _isLastPage => _appleWelcome || _page == _pageCount - 1;
+  bool get _isLastPage => _page == _pageCount - 1;
   bool get _isConsentPage => _page == _pageCount - 2;
   bool get _canProceed =>
-      !_closing &&
-      !_changingPage &&
-      !_requestingPermission &&
-      (!(_isConsentPage || _isLastPage) || _hasAgreed);
+      !_closing && !_changingPage && (!(_isConsentPage || _isLastPage) || _hasAgreed);
 
   @override
   void initState() {
@@ -199,7 +159,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
   }
 
   Future<void> _showGuardianConsent() async {
-    if (_requestingPermission) return;
     _setAgreement(false);
     var confirmed = false;
     final agreed = await showDialog<bool>(
@@ -254,41 +213,11 @@ class _OnboardingPageState extends State<OnboardingPage> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    if (_appleWelcome) {
-      return Scaffold(
-          backgroundColor: scheme.surface,
-          body: SafeArea(
-              child: Center(
-                  child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 540),
-                      child: ListView(
-                          shrinkWrap: true,
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 24, vertical: 32),
-                          children: [
-                            Semantics(
-                                header: true,
-                                child: Text('ChiffonMai',
-                                    style: ios.CupertinoTheme.of(context)
-                                        .textTheme
-                                        .navLargeTitleTextStyle)),
-                            const SizedBox(height: 12),
-                            Text(context.l10n.qqPlayerConsent),
-                            const SizedBox(height: 24),
-                            _buildAgreementSection(context),
-                            const SizedBox(height: 24),
-                            ios.CupertinoButton.filled(
-                                onPressed:
-                                    _hasAgreed && !_closing ? _finish : null,
-                                child: Text(context.l10n.flowStartExploring)),
-                          ])))));
-    }
     final safeBottom = MediaQuery.paddingOf(context).bottom;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (didPop || _closing || _changingPage || _requestingPermission)
-          return;
+        if (didPop || _closing || _changingPage) return;
         if (_page > 0) {
           _goToPage(_page - 1);
           return;
@@ -345,11 +274,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 itemCount: _pageCount,
                 onPageChanged: (value) {
                   setState(() => _page = value);
-                  // 权限状态只在用户进入权限页时查询，不挤占欢迎页的首帧。
-                  if (value == _steps.length + 1 &&
-                      !_permissionStatusesRequested) {
-                    _refreshPermissionStatuses();
-                  }
                 },
                 itemBuilder: (context, index) {
                   if (index == 0) return _buildWelcomeStep(context);
@@ -357,7 +281,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                     return _buildStep(context, _steps[index - 1]);
                   }
                   if (index == _steps.length + 1) {
-                    return _buildPermissionStep(context);
+                    return _buildAgreementStep(context);
                   }
                   return _buildCompletionStep(context);
                 },
@@ -485,104 +409,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
     );
   }
 
-  Future<void> _refreshPermissionStatuses() async {
-    _permissionStatusesRequested = true;
-    final statuses = <_OnboardingPermission, PermissionStatus>{};
-    for (final item in _permissions) {
-      statuses[item.permission] = await _statusFor(item.permission);
-    }
-    if (!mounted) return;
-    setState(() {
-      _permissionStatuses
-        ..clear()
-        ..addAll(statuses);
-      _permissionsLoading = false;
-    });
-  }
-
-  Future<PermissionStatus> _statusFor(_OnboardingPermission permission) async {
-    try {
-      switch (permission) {
-        case _OnboardingPermission.media:
-          final statuses = await Future.wait([
-            Permission.storage.status,
-            Permission.photos.status,
-            Permission.videos.status,
-          ]);
-          return _combineMediaStatuses(statuses);
-        case _OnboardingPermission.camera:
-          return await Permission.camera.status;
-        case _OnboardingPermission.location:
-          return await Permission.locationWhenInUse.status;
-        case _OnboardingPermission.notifications:
-          return await Permission.notification.status;
-      }
-    } catch (_) {
-      // 测试环境或不支持该平台时没有原生权限插件，按未授权展示即可。
-      return PermissionStatus.denied;
-    }
-  }
-
-  PermissionStatus _combineMediaStatuses(List<PermissionStatus> statuses) {
-    if (statuses.any((status) => status.isLimited)) {
-      return PermissionStatus.limited;
-    }
-    if (statuses.any((status) => status.isGranted)) {
-      return PermissionStatus.granted;
-    }
-    if (statuses.any((status) => status.isPermanentlyDenied)) {
-      return PermissionStatus.permanentlyDenied;
-    }
-    if (statuses.any((status) => status.isRestricted)) {
-      return PermissionStatus.restricted;
-    }
-    return PermissionStatus.denied;
-  }
-
-  Future<void> _requestPermission(_OnboardingPermission permission) async {
-    if (!_hasAgreed || _requestingPermission) return;
-    setState(() => _requestingPermission = true);
-    try {
-      final current = _permissionStatuses[permission];
-      if (current?.isLimited == true ||
-          current?.isPermanentlyDenied == true ||
-          current?.isRestricted == true) {
-        await openAppSettings();
-      } else {
-        switch (permission) {
-          case _OnboardingPermission.media:
-            // 同时覆盖 Android 旧版存储、Android 13+ 图片/视频和 iOS 相册。
-            await [
-              Permission.storage,
-              Permission.photos,
-              Permission.videos,
-            ].request();
-          case _OnboardingPermission.camera:
-            await Permission.camera.request();
-          case _OnboardingPermission.location:
-            await Permission.locationWhenInUse.request();
-          case _OnboardingPermission.notifications:
-            await Permission.notification.request();
-        }
-      }
-      await _refreshPermissionStatuses();
-    } catch (error) {
-      if (!mounted) return;
-      AppToast.show(context.l10n.flowCouldNotRequestPermissionP0((error).toString()), tone: AppToastTone.error);
-    } finally {
-      if (mounted) setState(() => _requestingPermission = false);
-    }
-  }
-
-  String _permissionStatusLabel(PermissionStatus? status) {
-    if (_permissionsLoading || status == null) return context.l10n.flowChecking;
-    if (status.isGranted) return context.l10n.flowAllowed;
-    if (status.isLimited) return context.l10n.flowLimitedAccess;
-    if (status.isPermanentlyDenied || status.isRestricted) return context.l10n.flowOpenSettings3;
-    return context.l10n.flowNotAllowed;
-  }
-
-  Widget _buildPermissionStep(BuildContext context) {
+  Widget _buildAgreementStep(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(
@@ -607,15 +434,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
           ),
           const SizedBox(height: 16),
           _buildAgreementSection(context),
-          const SizedBox(height: 16),
-          for (final (index, item) in _permissions.indexed)
-            EntranceAnimation(
-              index: index,
-              offset: const Offset(0, 8),
-              duration: const Duration(milliseconds: 300),
-              child: _buildPermissionTile(context, item),
-            ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 12),
           Text(
             context.l10n.flowTheSystemManagesNetworkAccessBackgroundPlayback,
             style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
@@ -640,9 +459,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
             children: [
               Checkbox(
                 value: _hasAgreed,
-                onChanged: _requestingPermission
-                    ? null
-                    : (value) => _setAgreement(value == true),
+                onChanged: (value) => _setAgreement(value == true),
                 semanticLabel: context.l10n.flowIHaveReadAndAgreeToThe,
               ),
               Expanded(
@@ -690,8 +507,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                     minimumSize: const Size(0, 36),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
-                  onPressed:
-                      _requestingPermission ? null : _showGuardianConsent,
+                  onPressed: _showGuardianConsent,
                   child:
                       Text(_guardianConsent ? context.l10n.flowGuardianHasGivenSeparateConsent : context.l10n.flowUnder14GuardianMustProvideConsent),
                 ),
@@ -701,110 +517,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
         ],
       ),
     );
-  }
-
-  Widget _buildPermissionTile(
-    BuildContext context,
-    _OnboardingPermissionData item,
-  ) {
-    final scheme = Theme.of(context).colorScheme;
-    final status = _permissionStatuses[item.permission];
-    final needsSettings = status?.isLimited == true ||
-        status?.isPermanentlyDenied == true ||
-        status?.isRestricted == true;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: AppCard(
-        radius: AppDesignTokens.radiusMedium,
-        padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: scheme.primary.withValues(alpha: 0.12),
-                borderRadius:
-                    BorderRadius.circular(AppDesignTokens.radiusSmall),
-              ),
-              child: Icon(item.icon, size: 20, color: scheme.primary),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        context.featureText(item.title),
-                        style: TextStyle(
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.w700,
-                          color: scheme.onSurface,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        _permissionStatusLabel(status),
-                        style: TextStyle(
-                          color: _permissionStatusColor(status, scheme),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    item.fullAccessHint
-                        ? context.l10n.flowP0SelectAllowFullAccessInThe(context.featureText(item.description))
-                        : context.featureText(item.description),
-                    style: TextStyle(
-                        fontSize: 12.5,
-                        height: 1.45,
-                        color: scheme.onSurfaceVariant),
-                  ),
-                  if (needsSettings)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        item.fullAccessHint && status?.isLimited == true
-                            ? context.l10n.flowAccessIsCurrentlyLimitedChangeToAllow
-                            : context.l10n.flowNotAuthorizedYetPermissionWillBeRequested,
-                        style: TextStyle(fontSize: 12.5, color: scheme.error),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            TextButton(
-              onPressed:
-                  !_hasAgreed || _permissionsLoading || _requestingPermission
-                      ? null
-                      : () => _requestPermission(item.permission),
-              child: Text(needsSettings ? context.l10n.flowOpenSettings : context.l10n.flowAllow),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Color _permissionStatusColor(
-    PermissionStatus? status,
-    ColorScheme scheme,
-  ) {
-    if (status?.isGranted == true) {
-      return AppColors.successForeground(Theme.of(context).brightness);
-    }
-    if (status?.isDenied == true ||
-        status?.isPermanentlyDenied == true ||
-        status?.isRestricted == true) {
-      return scheme.error;
-    }
-    return scheme.onSurfaceVariant;
   }
 
   /// 中间几页：插画和标题的位置每页都一样，功能卡片撑满剩下的高度，
@@ -1117,23 +829,5 @@ class _OnboardingStepData {
     required this.title,
     required this.description,
     required this.rows,
-  });
-}
-
-enum _OnboardingPermission { media, camera, location, notifications }
-
-class _OnboardingPermissionData {
-  final _OnboardingPermission permission;
-  final IconData icon;
-  final String title;
-  final String description;
-  final bool fullAccessHint;
-
-  const _OnboardingPermissionData({
-    required this.permission,
-    required this.icon,
-    required this.title,
-    required this.description,
-    this.fullAccessHint = false,
   });
 }

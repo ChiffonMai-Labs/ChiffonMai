@@ -1,5 +1,3 @@
-import 'package:flutter/cupertino.dart' as ios;
-import '../AwmcNet/PlayerConnectionPage.dart';
 import '../Awmc/AwmcCabinetPage.dart';
 import '../../widgets/AccountAuthorizationDialog.dart';
 import '../../widgets/AccountAuthorizationStatus.dart';
@@ -839,15 +837,6 @@ class SystemHubPageState extends State<SystemHubPage>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (Theme.of(context).platform == TargetPlatform.iOS) ...[
-          ios.CupertinoListTile(
-            leading: const Icon(ios.CupertinoIcons.link),
-            title: Text(context.l10n.qqPlayerConnect),
-            trailing: const ios.CupertinoListTileChevron(),
-            onTap: () => PlayerConnectionPage.open(context),
-          ),
-          const SizedBox(height: 8),
-        ],
         AppCard(
           radius: AppDesignTokens.radiusMedium,
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -1626,12 +1615,6 @@ class SystemHubPageState extends State<SystemHubPage>
       );
 
   Widget _buildStandardHero(BuildContext context) => Column(children: [
-        if (Theme.of(context).platform == TargetPlatform.iOS)
-          ios.CupertinoListTile(
-              leading: const Icon(ios.CupertinoIcons.link),
-              title: Text(context.l10n.qqPlayerConnect),
-              trailing: const ios.CupertinoListTileChevron(),
-              onTap: () => PlayerConnectionPage.open(context)),
         CommunityAppearanceBanner(
           appearance: CommunityAvatarStore.instance.value,
           nickname: _userNickname,
