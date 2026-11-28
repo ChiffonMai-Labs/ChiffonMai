@@ -382,6 +382,9 @@ class _ConfettiControlsState extends State<ConfettiControls> {
       listenable: confetti,
       builder: (context, _) {
         final scheme = Theme.of(context).colorScheme;
+        final enabled = confetti.enabled;
+        final duration =
+            AppDesignTokens.motion(context, AppDesignTokens.fastMotion);
         Widget heading(String text) => Padding(
               padding: const EdgeInsets.only(top: 12, bottom: 8),
               child: Text(text, style: const TextStyle(fontSize: 13.5)),
@@ -398,100 +401,130 @@ class _ConfettiControlsState extends State<ConfettiControls> {
               secondary:
                   Icon(Icons.celebration_outlined, color: scheme.primary),
             ),
-            AppSwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              value: confetti.gravityEnabled,
-              onChanged: confetti.setGravityEnabled,
-              title: Text(context.l10n.gravityEffect),
-              subtitle: Text(context.l10n.gravityEffectHint),
-              secondary: Icon(Icons.south_rounded, color: scheme.primary),
-            ),
-            heading(context.l10n.harmonyColor),
-            Wrap(
-              spacing: 10,
-              runSpacing: 8,
-              children: [
-                _HarmonyColorChoice(
-                  label: context.l10n.themeColor,
-                  color: scheme.primary,
-                  selected: confetti.harmonyColor == null,
-                  onTap: () => confetti.setHarmonyColor(null),
+            AnimatedOpacity(
+              duration: duration,
+              opacity: enabled ? 1.0 : 0.45,
+              child: AbsorbPointer(
+                absorbing: !enabled,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    AppSwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: confetti.gravityEnabled,
+                      onChanged: enabled ? confetti.setGravityEnabled : null,
+                      title: Text(context.l10n.gravityEffect),
+                      subtitle: Text(context.l10n.gravityEffectHint),
+                      secondary: Icon(
+                        Icons.south_rounded,
+                        color:
+                            enabled ? scheme.primary : scheme.onSurfaceVariant,
+                      ),
+                    ),
+                    heading(context.l10n.harmonyColor),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 8,
+                      children: [
+                        _HarmonyColorChoice(
+                          label: context.l10n.themeColor,
+                          color: scheme.primary,
+                          selected: confetti.harmonyColor == null,
+                          onTap: enabled
+                              ? () => confetti.setHarmonyColor(null)
+                              : null,
+                        ),
+                        for (final color in _harmonyPresetColors)
+                          _HarmonyColorChoice(
+                            label: '',
+                            color: color,
+                            selected: confetti.harmonyColor == color,
+                            onTap: enabled
+                                ? () => confetti.setHarmonyColor(color)
+                                : null,
+                          ),
+                        _HarmonyColorChoice(
+                          label: context.l10n.customColor,
+                          color: confetti.harmonyColor ?? scheme.primary,
+                          selected: confetti.harmonyColor != null &&
+                              !_harmonyPresetColors
+                                  .contains(confetti.harmonyColor),
+                          onTap: enabled ? _pickHarmonyColor : null,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    GuessSliderTile(
+                      label: context.l10n.harmonyLevel,
+                      valueText: '${(confetti.harmonyLevel * 100).round()}%',
+                      value: confetti.harmonyLevel,
+                      min: 0,
+                      max: 1,
+                      divisions: 20,
+                      onChanged: enabled ? confetti.setHarmonyLevel : null,
+                      hint: context.l10n.harmonyHint,
+                    ),
+                    heading(context.l10n.paperType),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final option in [
+                          (ConfettiPaperType.mixed, context.l10n.paperMixed),
+                          (ConfettiPaperType.square, context.l10n.paperSquare),
+                          (ConfettiPaperType.circle, context.l10n.paperCircle),
+                          (ConfettiPaperType.ribbon, context.l10n.paperRibbon),
+                        ])
+                          GuessChoicePill(
+                            label: option.$2,
+                            selected: confetti.paperType == option.$1,
+                            onTap: enabled
+                                ? () => confetti.setPaperType(option.$1)
+                                : null,
+                          ),
+                      ],
+                    ),
+                    heading(context.l10n.burstPosition),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final option in [
+                          (
+                            ConfettiBurstPosition.topBottom,
+                            context.l10n.burstTopBottom
+                          ),
+                          (
+                            ConfettiBurstPosition.leftRight,
+                            context.l10n.burstLeftRight
+                          ),
+                          (
+                            ConfettiBurstPosition.allEdges,
+                            context.l10n.burstAllEdges
+                          ),
+                        ])
+                          GuessChoicePill(
+                            label: option.$2,
+                            selected: confetti.position == option.$1,
+                            onTap: enabled
+                                ? () => confetti.setPosition(option.$1)
+                                : null,
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      height: 46,
+                      child: FilledButton.tonalIcon(
+                        onPressed: enabled
+                            ? () => ConfettiEffect.show(context, force: true)
+                            : null,
+                        icon: const Icon(Icons.play_arrow_rounded),
+                        label: Text(context.l10n.previewNow),
+                      ),
+                    ),
+                  ],
                 ),
-                for (final color in _harmonyPresetColors)
-                  _HarmonyColorChoice(
-                    label: '',
-                    color: color,
-                    selected: confetti.harmonyColor == color,
-                    onTap: () => confetti.setHarmonyColor(color),
-                  ),
-                _HarmonyColorChoice(
-                  label: context.l10n.customColor,
-                  color: confetti.harmonyColor ?? scheme.primary,
-                  selected: confetti.harmonyColor != null &&
-                      !_harmonyPresetColors.contains(confetti.harmonyColor),
-                  onTap: _pickHarmonyColor,
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            GuessSliderTile(
-              label: context.l10n.harmonyLevel,
-              valueText: '${(confetti.harmonyLevel * 100).round()}%',
-              value: confetti.harmonyLevel,
-              min: 0,
-              max: 1,
-              divisions: 20,
-              onChanged: confetti.setHarmonyLevel,
-              hint: context.l10n.harmonyHint,
-            ),
-            heading(context.l10n.paperType),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final option in [
-                  (ConfettiPaperType.mixed, context.l10n.paperMixed),
-                  (ConfettiPaperType.square, context.l10n.paperSquare),
-                  (ConfettiPaperType.circle, context.l10n.paperCircle),
-                  (ConfettiPaperType.ribbon, context.l10n.paperRibbon),
-                ])
-                  GuessChoicePill(
-                    label: option.$2,
-                    selected: confetti.paperType == option.$1,
-                    onTap: () => confetti.setPaperType(option.$1),
-                  ),
-              ],
-            ),
-            heading(context.l10n.burstPosition),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final option in [
-                  (
-                    ConfettiBurstPosition.topBottom,
-                    context.l10n.burstTopBottom
-                  ),
-                  (
-                    ConfettiBurstPosition.leftRight,
-                    context.l10n.burstLeftRight
-                  ),
-                  (ConfettiBurstPosition.allEdges, context.l10n.burstAllEdges),
-                ])
-                  GuessChoicePill(
-                    label: option.$2,
-                    selected: confetti.position == option.$1,
-                    onTap: () => confetti.setPosition(option.$1),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            SizedBox(
-              height: 46,
-              child: FilledButton.tonalIcon(
-                onPressed: () => ConfettiEffect.show(context, force: true),
-                icon: const Icon(Icons.play_arrow_rounded),
-                label: Text(context.l10n.previewNow),
               ),
             ),
           ],
@@ -505,7 +538,7 @@ class _HarmonyColorChoice extends StatelessWidget {
   final String label;
   final Color color;
   final bool selected;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const _HarmonyColorChoice({
     required this.label,

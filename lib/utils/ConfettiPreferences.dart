@@ -24,7 +24,7 @@ class ConfettiPreferences extends ChangeNotifier {
 
   static final ConfettiPreferences instance = ConfettiPreferences._();
 
-  bool _enabled = true;
+  bool _enabled = false;
   bool _gravityEnabled = true;
   Color? _harmonyColor;
   double _harmonyLevel = 0.35;
@@ -59,7 +59,7 @@ class ConfettiPreferences extends ChangeNotifier {
   Future<void> _loadInternal() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      _enabled = prefs.getBool(CacheKeyConstant.confettiEnabled) ?? true;
+      _enabled = prefs.getBool(CacheKeyConstant.confettiEnabled) ?? false;
       _gravityEnabled =
           prefs.getBool(CacheKeyConstant.confettiGravityEnabled) ?? true;
       final colorValue = prefs.getInt(CacheKeyConstant.confettiHarmonyColor);

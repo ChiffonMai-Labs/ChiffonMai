@@ -1706,7 +1706,7 @@ abstract class AppLocalizations {
   /// No description provided for @featurePhotographAResultScreenToReadScores.
   ///
   /// In zh, this message translates to:
-  /// **'拍摄机台结算画面，自动识别成绩'**
+  /// **'拍摄结算画面，自动识别成绩'**
   String get featurePhotographAResultScreenToReadScores;
 
   /// No description provided for @featureCollectibleLookup.
@@ -2078,7 +2078,7 @@ abstract class AppLocalizations {
   /// No description provided for @featureQueueSongsForYourNextArcadeVisit.
   ///
   /// In zh, this message translates to:
-  /// **'排好下次去机台想玩的歌曲'**
+  /// **'排好下次出勤想玩的歌曲'**
   String get featureQueueSongsForYourNextArcadeVisit;
 
   /// No description provided for @featureChinaRhythmGameMap.
@@ -2090,7 +2090,7 @@ abstract class AppLocalizations {
   /// No description provided for @featureFindArcadesWithTheGamesYouWant.
   ///
   /// In zh, this message translates to:
-  /// **'看看哪里有你想玩的机台'**
+  /// **'看看附近有哪些机厅与音游'**
   String get featureFindArcadesWithTheGamesYouWant;
 
   /// No description provided for @featureWorldwideArcadeMap.
@@ -6513,7 +6513,7 @@ abstract class AppLocalizations {
   /// No description provided for @flowPhotographTheCabinetResultScreen.
   ///
   /// In zh, this message translates to:
-  /// **'对着机台结算页面拍一张'**
+  /// **'对着结算页面拍一张'**
   String get flowPhotographTheCabinetResultScreen;
 
   /// No description provided for @flowChooseAPhotographedResultScreen.
@@ -6633,7 +6633,7 @@ abstract class AppLocalizations {
   /// No description provided for @flowPhotographACabinetResultScreen.
   ///
   /// In zh, this message translates to:
-  /// **'对着机台结算页面拍一张照片'**
+  /// **'对着结算页面拍一张照片'**
   String get flowPhotographACabinetResultScreen;
 
   /// No description provided for @flowRecognizesTitleAchievementDXScoreDifficultyAnd.
@@ -15386,12 +15386,6 @@ abstract class AppLocalizations {
   /// **'APP内播放谱面'**
   String get songChartPlaybackInApp;
 
-  /// No description provided for @songMoreActionsScroll.
-  ///
-  /// In zh, this message translates to:
-  /// **'下滑查看更多操作'**
-  String get songMoreActionsScroll;
-
   /// No description provided for @announcementCenter.
   ///
   /// In zh, this message translates to:
@@ -17468,7 +17462,7 @@ abstract class AppLocalizations {
   /// No description provided for @flowMachineFilters.
   ///
   /// In zh, this message translates to:
-  /// **'机台筛选'**
+  /// **'机种筛选'**
   String get flowMachineFilters;
 
   /// No description provided for @flowNoArcadeDataYet.
@@ -17480,7 +17474,7 @@ abstract class AppLocalizations {
   /// No description provided for @flowMachines.
   ///
   /// In zh, this message translates to:
-  /// **'🎮 机台:'**
+  /// **'🎮 机种:'**
   String get flowMachines;
 
   /// No description provided for @flowCouldNotOpenTheLinkTryAgain.
@@ -25553,7 +25547,7 @@ abstract class AppLocalizations {
   /// No description provided for @arcadeMachineCount.
   ///
   /// In zh, this message translates to:
-  /// **'机台'**
+  /// **'台数'**
   String get arcadeMachineCount;
 
   /// No description provided for @arcadeDownloadData.
@@ -25691,13 +25685,13 @@ abstract class AppLocalizations {
   /// No description provided for @arcadeFilterSearchHint.
   ///
   /// In zh, this message translates to:
-  /// **'搜索机台'**
+  /// **'搜索机种'**
   String get arcadeFilterSearchHint;
 
   /// No description provided for @arcadeFilterEmpty.
   ///
   /// In zh, this message translates to:
-  /// **'没有匹配的机台'**
+  /// **'没有匹配的机种'**
   String get arcadeFilterEmpty;
 
   /// No description provided for @arcadeChooseMapApp.
@@ -27487,7 +27481,7 @@ abstract class AppLocalizations {
   /// No description provided for @chartPlayLoadPvSubtitle.
   ///
   /// In zh, this message translates to:
-  /// **'有 PV 时裁剪为机台圆形背景播放'**
+  /// **'有 PV 时裁剪为圆形判定圈背景播放'**
   String get chartPlayLoadPvSubtitle;
 
   /// No description provided for @chartPlayDifficultySection.
@@ -27589,13 +27583,13 @@ abstract class AppLocalizations {
   /// No description provided for @firstBindSelectedForPull.
   ///
   /// In zh, this message translates to:
-  /// **'将从此平台拉取首次数据'**
+  /// **'已选拉取'**
   String get firstBindSelectedForPull;
 
   /// No description provided for @firstBindTapToSelectSource.
   ///
   /// In zh, this message translates to:
-  /// **'点击卡片可切换首次拉取的数据源'**
+  /// **'点击已绑定卡片可勾选或取消，支持一次拉取多个平台数据'**
   String get firstBindTapToSelectSource;
 
   /// No description provided for @firstBindNoAccountTitle.
@@ -27627,6 +27621,24 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'拉取 {source} 数据并进入'**
   String firstBindPullAndEnter(String source);
+
+  /// No description provided for @firstBindPullMultipleAndEnter.
+  ///
+  /// In zh, this message translates to:
+  /// **'一次拉取 {count} 个平台数据并进入'**
+  String firstBindPullMultipleAndEnter(int count);
+
+  /// No description provided for @firstBindSelectSourceToPull.
+  ///
+  /// In zh, this message translates to:
+  /// **'请至少勾选一个平台'**
+  String get firstBindSelectSourceToPull;
+
+  /// No description provided for @firstBindPartialFailure.
+  ///
+  /// In zh, this message translates to:
+  /// **'已完成 {succeeded}/{total} 个平台拉取，以下平台失败：{failed}'**
+  String firstBindPartialFailure(int succeeded, int total, String failed);
 
   /// No description provided for @firstBindSkipPullEnter.
   ///
@@ -27847,7 +27859,7 @@ abstract class AppLocalizations {
   /// No description provided for @favoriteReorderHint.
   ///
   /// In zh, this message translates to:
-  /// **'拖动左侧手柄、点击序号或使用右侧按钮调整顺序'**
+  /// **'拖动右侧手柄或长按卡片、点击序号、使用排序按钮调整顺序'**
   String get favoriteReorderHint;
 
   /// No description provided for @favoriteMoveUp.
@@ -27927,6 +27939,78 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'至少需要 2 项才能调整顺序'**
   String get favoriteReorderUnavailableEmpty;
+
+  /// No description provided for @flowPlateTargetGoal.
+  ///
+  /// In zh, this message translates to:
+  /// **'达成目标'**
+  String get flowPlateTargetGoal;
+
+  /// No description provided for @flowPlateRuleFullCombo.
+  ///
+  /// In zh, this message translates to:
+  /// **'全曲 FC 及以上'**
+  String get flowPlateRuleFullCombo;
+
+  /// No description provided for @flowPlateRuleAllPerfect.
+  ///
+  /// In zh, this message translates to:
+  /// **'全曲 AP 及以上'**
+  String get flowPlateRuleAllPerfect;
+
+  /// No description provided for @flowPlateRuleFullSyncDx.
+  ///
+  /// In zh, this message translates to:
+  /// **'全曲 FDX 及以上'**
+  String get flowPlateRuleFullSyncDx;
+
+  /// No description provided for @flowPlateRuleClear80.
+  ///
+  /// In zh, this message translates to:
+  /// **'CLEAR ≥ 80%'**
+  String get flowPlateRuleClear80;
+
+  /// No description provided for @flowPlateRuleAdvanced.
+  ///
+  /// In zh, this message translates to:
+  /// **'进阶目标'**
+  String get flowPlateRuleAdvanced;
+
+  /// No description provided for @flowPlateRuleUnofficialShin.
+  ///
+  /// In zh, this message translates to:
+  /// **'非官方牌子 · 沿用真神曲目'**
+  String get flowPlateRuleUnofficialShin;
+
+  /// No description provided for @flowViewPlateProgress.
+  ///
+  /// In zh, this message translates to:
+  /// **'查看牌子进度'**
+  String get flowViewPlateProgress;
+
+  /// No description provided for @flowPressBackAgainToExitApp.
+  ///
+  /// In zh, this message translates to:
+  /// **'再次返回退出 ChiffonMai'**
+  String get flowPressBackAgainToExitApp;
+
+  /// No description provided for @flowSwitchToUtage.
+  ///
+  /// In zh, this message translates to:
+  /// **'切换 UTAGE'**
+  String get flowSwitchToUtage;
+
+  /// No description provided for @flowSwitchChartVersion.
+  ///
+  /// In zh, this message translates to:
+  /// **'切换谱面版本'**
+  String get flowSwitchChartVersion;
+
+  /// No description provided for @flowCurrentChart.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前'**
+  String get flowCurrentChart;
 }
 
 class _AppLocalizationsDelegate

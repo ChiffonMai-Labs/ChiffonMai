@@ -62,7 +62,7 @@ void _showMapsSheet(BuildContext context) {
     itemsBuilder: (sheetContext) => [
       HubActionTile(
         title: '全国音游地图',
-        subtitle: '看看哪里有你想玩的机台',
+        subtitle: '看看附近有哪些机厅与音游',
         icon: Icons.map_rounded,
         isFavorited: _isAttendanceFavorited('全国音游地图'),
         onToggleFavorite: () => _toggleAttendanceFavorite('全国音游地图'),
@@ -189,7 +189,7 @@ List<Widget> buildAttendanceHubSections(BuildContext context) {
         ),
         HubActionTile(
           title: '下次想玩',
-          subtitle: '排好下次去机台想玩的歌曲',
+          subtitle: '排好下次出勤想玩的歌曲',
           icon: Icons.queue_music,
           isFavorited: _isAttendanceFavorited('下次想玩'),
           onToggleFavorite: () => _toggleAttendanceFavorite('下次想玩'),

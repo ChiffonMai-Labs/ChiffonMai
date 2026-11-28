@@ -2549,7 +2549,6 @@
   "flowSending": "送信中…",
   "songChartConfirmationBilibili": "Bilibiliで譜面確認動画を見る",
   "songChartPlaybackInApp": "アプリ内で譜面を再生",
-  "songMoreActionsScroll": "下にスクロールして他の操作を表示",
   "announcementCenter": "お知らせ",
   "announcementCenterSubtitle": "サービスやプロジェクトのお知らせを見る",
   "announcementDetail": "お知らせの詳細",
@@ -4602,8 +4601,8 @@
   "firstBindActionAuthorize": "認可する",
   "firstBindActionReauthorize": "再認可",
   "firstBindActionAuthStatus": "認可状況",
-  "firstBindSelectedForPull": "初回データ取得元に選択中",
-  "firstBindTapToSelectSource": "準備済みのカードをタップして取得元を切替",
+  "firstBindSelectedForPull": "取得対象に選択中",
+  "firstBindTapToSelectSource": "準備済みのカードをタップして選択切替（複数プラットフォームをまとめて取得できます）",
   "firstBindNoAccountTitle": "アカウントをお持ちでないですか？",
   "firstBindNoAccountSubtitle": "Diving-Fish・LXNS・AWMC NET の登録ガイドを見る",
   "firstBindLaterHint": "後から「マイページ → アカウント連携・認可管理」でいつでも設定できます。",
@@ -4612,6 +4611,29 @@
   "@firstBindPullAndEnter": {
     "placeholders": {
       "source": {
+        "type": "String"
+      }
+    }
+  },
+  "firstBindPullMultipleAndEnter": "{count} 件のプラットフォームを一括取得して開始",
+  "@firstBindPullMultipleAndEnter": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "firstBindSelectSourceToPull": "取得するプラットフォームを選択してください",
+  "firstBindPartialFailure": "{succeeded}/{total} 件の取得が完了しました。失敗：{failed}",
+  "@firstBindPartialFailure": {
+    "placeholders": {
+      "succeeded": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "failed": {
         "type": "String"
       }
     }
@@ -4659,7 +4681,7 @@
   "favoriteSortCustom": "カスタム順",
   "favoriteReorderMode": "並び替え",
   "favoriteReorderDone": "完了",
-  "favoriteReorderHint": "左のハンドルをドラッグ、番号をタップ、または右のボタンで順番を調整します",
+  "favoriteReorderHint": "右のハンドルをドラッグ・カードを長押し・番号をタップ・ボタンで順番を調整します",
   "favoriteMoveUp": "上へ",
   "favoriteMoveDown": "下へ",
   "favoriteMoveToTop": "先頭へ",
@@ -4693,5 +4715,17 @@
       }
     }
   },
-  "favoriteReorderUnavailableEmpty": "並び替えには2件以上の項目が必要です"
+  "favoriteReorderUnavailableEmpty": "並び替えには2件以上の項目が必要です",
+  "flowPlateTargetGoal": "達成目標",
+  "flowPlateRuleFullCombo": "全曲 FC 以上",
+  "flowPlateRuleAllPerfect": "全曲 AP 以上",
+  "flowPlateRuleFullSyncDx": "全曲 FDX 以上",
+  "flowPlateRuleClear80": "CLEAR ≥ 80%",
+  "flowPlateRuleAdvanced": "上位目標",
+  "flowPlateRuleUnofficialShin": "非公式プレート・真神の曲目を使用",
+  "flowViewPlateProgress": "プレート進捗を見る",
+  "flowPressBackAgainToExitApp": "もう一度戻ると ChiffonMai を終了します",
+  "flowSwitchToUtage": "UTAGEに切替",
+  "flowSwitchChartVersion": "譜面バージョンを切替",
+  "flowCurrentChart": "現在"
 }

@@ -121,7 +121,9 @@ String localizeFeatureText(AppLocalizations l10n, String source) =>
       "曲绘识别" => l10n.featureCoverRecognition,
       "用相机或图片快速找歌" => l10n.featureFindSongsUsingYourCameraOrAn,
       "结算画面识别" => l10n.featureResultScreenRecognition,
-      "拍摄机台结算画面，自动识别成绩" => l10n.featurePhotographAResultScreenToReadScores,
+      "拍摄机台结算画面，自动识别成绩" ||
+      "拍摄结算画面，自动识别成绩" =>
+        l10n.featurePhotographAResultScreenToReadScores,
       "收藏品查询" => l10n.featureCollectibleLookup,
       "查看头像、姓名框等收藏品" => l10n.featureViewIconsNameplatesAndOtherCollectibles,
       "成绩查询" => l10n.featureScoreLookup,
@@ -185,9 +187,13 @@ String localizeFeatureText(AppLocalizations l10n, String source) =>
       "收藏夹" => l10n.featureFavoriteFolders,
       "管理你收藏的谱面" => l10n.featureManageYourFavoriteCharts,
       "下次想玩" => l10n.featurePlayNext,
-      "排好下次去机台想玩的歌曲" => l10n.featureQueueSongsForYourNextArcadeVisit,
+      "排好下次去机台想玩的歌曲" ||
+      "排好下次出勤想玩的歌曲" =>
+        l10n.featureQueueSongsForYourNextArcadeVisit,
       "全国音游地图" => l10n.featureChinaRhythmGameMap,
-      "看看哪里有你想玩的机台" => l10n.featureFindArcadesWithTheGamesYouWant,
+      "看看哪里有你想玩的机台" ||
+      "看看附近有哪些机厅与音游" =>
+        l10n.featureFindArcadesWithTheGamesYouWant,
       "全球音游街机地图" => l10n.featureWorldwideArcadeMap,
       "查看 NearCade 全球街机店铺" => l10n.featureBrowseArcadesWorldwideOnNearCade,
       "单人猜歌游戏设置" => l10n.featureSoloSongGameSettings,
@@ -987,7 +993,9 @@ String localizeFeatureText(AppLocalizations l10n, String source) =>
         l10n.flowNoDivingFishImportTokenSignIn,
       "无法解析曲目 ID，不能同步到落雪" => l10n.flowCannotParseSongIDForLXNSSync,
       "还没有落雪个人 API 密钥，请先到「成绩导入凭据」填写" => l10n.flowNoLXNSPersonalAPIKeySetIt,
-      "对着机台结算页面拍一张" => l10n.flowPhotographTheCabinetResultScreen,
+      "对着机台结算页面拍一张" ||
+      "对着结算页面拍一张" =>
+        l10n.flowPhotographTheCabinetResultScreen,
       "选取已经拍好的结算画面" => l10n.flowChooseAPhotographedResultScreen,
       "没有识别出成绩，可裁剪得更贴近结算区域后重试" => l10n.flowNoScoreRecognizedCropCloserToThe,
       "修正识别结果" => l10n.flowCorrectRecognitionResults,
@@ -1007,7 +1015,9 @@ String localizeFeatureText(AppLocalizations l10n, String source) =>
       "未找到匹配的歌曲" => l10n.flowNoMatchingSong,
       "正在识别成绩" => l10n.flowRecognizingScores,
       "曲绘 + 标题双路匹配，通常需要几秒" => l10n.flowMatchingCoverArtAndTitlesUsuallyTakes,
-      "对着机台结算页面拍一张照片" => l10n.flowPhotographACabinetResultScreen,
+      "对着机台结算页面拍一张照片" ||
+      "对着结算页面拍一张照片" =>
+        l10n.flowPhotographACabinetResultScreen,
       "自动识别曲名、达成率、DX 分数、难度与 FC/FS" =>
         l10n.flowRecognizesTitleAchievementDXScoreDifficultyAnd,
       "图片已就绪，点击下方「开始识别」" => l10n.flowImageReadyTapStartRecognitionBelow,
@@ -2480,9 +2490,9 @@ String localizeFeatureText(AppLocalizations l10n, String source) =>
       "设备暂时未返回当前位置，请稍后重试。" => l10n.flowCouldNotGetYourLocationCheckThat,
       " (筛选)" => l10n.flowFiltered,
       "搜索店名或地址" => l10n.flowSearchArcadeNameOrAddress,
-      "机台筛选" => l10n.flowMachineFilters,
+      "机台筛选" || "机种筛选" => l10n.flowMachineFilters,
       "暂无店铺数据" => l10n.flowNoArcadeDataYet,
-      "🎮 机台:" => l10n.flowMachines,
+      "🎮 机台:" || "🎮 机种:" => l10n.flowMachines,
       "无法打开链接，请稍后重试" => l10n.flowCouldNotOpenTheLinkTryAgain,
       "文档读取失败，点击重试" => l10n.flowCouldNotLoadDocumentTapToRetry,
       "上传语录到云端" => l10n.flowSubmitALoadingQuote,

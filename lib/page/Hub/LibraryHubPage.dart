@@ -315,7 +315,7 @@ class _LibraryHubPageState extends State<LibraryHubPage> {
                 ),
                 HubActionTile(
                   title: '结算画面识别',
-                  subtitle: '拍摄机台结算画面，自动识别成绩',
+                  subtitle: '拍摄结算画面，自动识别成绩',
                   icon: Icons.document_scanner_outlined,
                   isFavorited: _isFavorited('结算画面识别'),
                   onToggleFavorite: () => _toggleFavorite('结算画面识别'),

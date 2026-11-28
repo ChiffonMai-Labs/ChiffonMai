@@ -2549,7 +2549,6 @@
   "flowSending": "Sending…",
   "songChartConfirmationBilibili": "View chart preview on Bilibili",
   "songChartPlaybackInApp": "Play chart in app",
-  "songMoreActionsScroll": "Scroll for more actions",
   "announcementCenter": "Announcement Center",
   "announcementCenterSubtitle": "Read service notices and project news",
   "announcementDetail": "Announcement",
@@ -4602,8 +4601,8 @@
   "firstBindActionAuthorize": "Authorize",
   "firstBindActionReauthorize": "Reauthorize",
   "firstBindActionAuthStatus": "Auth status",
-  "firstBindSelectedForPull": "Will fetch initial data from here",
-  "firstBindTapToSelectSource": "Tap a ready card to choose which source to fetch",
+  "firstBindSelectedForPull": "Selected for fetch",
+  "firstBindTapToSelectSource": "Tap ready cards to toggle selection — you can fetch multiple platforms at once",
   "firstBindNoAccountTitle": "Don't have an account yet?",
   "firstBindNoAccountSubtitle": "View setup guides for Diving-Fish, LXNS, and AWMC NET",
   "firstBindLaterHint": "You can manage more accounts or cabinet identity anytime in Me → Account & Auth.",
@@ -4612,6 +4611,29 @@
   "@firstBindPullAndEnter": {
     "placeholders": {
       "source": {
+        "type": "String"
+      }
+    }
+  },
+  "firstBindPullMultipleAndEnter": "Fetch {count} platforms & start",
+  "@firstBindPullMultipleAndEnter": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "firstBindSelectSourceToPull": "Select at least one platform",
+  "firstBindPartialFailure": "Fetched {succeeded}/{total} platforms. Failed: {failed}",
+  "@firstBindPartialFailure": {
+    "placeholders": {
+      "succeeded": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "failed": {
         "type": "String"
       }
     }
@@ -4659,7 +4681,7 @@
   "favoriteSortCustom": "Custom order",
   "favoriteReorderMode": "Reorder",
   "favoriteReorderDone": "Done",
-  "favoriteReorderHint": "Drag handle, tap index, or use action buttons to reorder",
+  "favoriteReorderHint": "Drag the right handle or long-press a card, tap index, or use buttons to reorder",
   "favoriteMoveUp": "Move up",
   "favoriteMoveDown": "Move down",
   "favoriteMoveToTop": "Move to top",
@@ -4693,5 +4715,17 @@
       }
     }
   },
-  "favoriteReorderUnavailableEmpty": "At least 2 items are required to reorder"
+  "favoriteReorderUnavailableEmpty": "At least 2 items are required to reorder",
+  "flowPlateTargetGoal": "Goal",
+  "flowPlateRuleFullCombo": "All charts FC+",
+  "flowPlateRuleAllPerfect": "All charts AP+",
+  "flowPlateRuleFullSyncDx": "All charts FDX+",
+  "flowPlateRuleClear80": "CLEAR ≥ 80%",
+  "flowPlateRuleAdvanced": "Stretch goal",
+  "flowPlateRuleUnofficialShin": "Unofficial plate · uses 真神 chart list",
+  "flowViewPlateProgress": "View plate progress",
+  "flowPressBackAgainToExitApp": "Press back again to exit ChiffonMai",
+  "flowSwitchToUtage": "Switch to UTAGE",
+  "flowSwitchChartVersion": "Switch chart version",
+  "flowCurrentChart": "Current"
 }

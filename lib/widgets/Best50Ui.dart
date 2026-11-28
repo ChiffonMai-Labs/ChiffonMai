@@ -2136,6 +2136,13 @@ Future<Set<String>?> showBest50TieSelectionDialog(
                                 horizontal: 10, vertical: 8),
                             child: Row(
                               children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(
+                                      AppDesignTokens.radiusSmall),
+                                  child: CoverUtil.buildCoverWidgetWithContext(
+                                      ctx, songId, 44),
+                                ),
+                                const SizedBox(width: 10),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment:
@@ -2164,7 +2171,11 @@ Future<Set<String>?> showBest50TieSelectionDialog(
                                         ],
                                       ),
                                       const SizedBox(height: 4),
-                                      Row(
+                                      Wrap(
+                                        spacing: 6,
+                                        runSpacing: 4,
+                                        crossAxisAlignment:
+                                            WrapCrossAlignment.center,
                                         children: [
                                           ChartDifficultyBadge(
                                             levelIndex: data.levelIndex,
@@ -2172,7 +2183,6 @@ Future<Set<String>?> showBest50TieSelectionDialog(
                                             label: data.dsText,
                                             fontSize: 10,
                                           ),
-                                          const SizedBox(width: 8),
                                           Text(
                                             data.achievementText,
                                             maxLines: 1,
@@ -2182,6 +2192,11 @@ Future<Set<String>?> showBest50TieSelectionDialog(
                                               color: scheme.onSurface,
                                             ),
                                           ),
+                                          if (data.stars.isNotEmpty)
+                                            StarBadge(
+                                              stars: data.stars,
+                                              fontSize: 10,
+                                            ),
                                         ],
                                       ),
                                     ],

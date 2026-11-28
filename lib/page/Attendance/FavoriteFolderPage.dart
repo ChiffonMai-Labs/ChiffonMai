@@ -380,107 +380,131 @@ class _FavoriteFolderPageState extends State<FavoriteFolderPage> {
         _isReorderMode && _isSwapMode && _swapFirstIndex == index;
     final scheme = Theme.of(context).colorScheme;
 
-    return Card(
-      margin: EdgeInsets.zero,
-      elevation: 0,
-      color: isSwapSelected ? scheme.primaryContainer : AppSurfaces.card(context),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
-        side: isSwapSelected
-            ? BorderSide(color: scheme.primary, width: 1.5)
-            : BorderSide.none,
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
-        splashFactory: NoSplash.splashFactory,
-        highlightColor: Colors.transparent,
-        onTap: _isReorderMode
-            ? (_isSwapMode ? () => _handleSwapTap(index) : null)
-            : () => _viewFolder(folder),
-        child: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: _isReorderMode ? 10 : 16,
-            vertical: 14,
-          ),
-          child: Row(
-            children: [
-              if (_isReorderMode) ...[
-                _ReorderLeadingControls(
-                  index: index,
-                  isSelected: isSwapSelected,
-                  onTapIndex: () => _promptMoveFolderToIndex(index),
+    return ReorderableDelayedDragStartListener(
+      index: index,
+      enabled: _isReorderMode && !_isSwapMode,
+      child: Card(
+        margin: EdgeInsets.zero,
+        elevation: 0,
+        color:
+            isSwapSelected ? scheme.primaryContainer : AppSurfaces.card(context),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
+          side: isSwapSelected
+              ? BorderSide(color: scheme.primary, width: 1.5)
+              : BorderSide.none,
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusCard),
+          splashFactory: NoSplash.splashFactory,
+          highlightColor: Colors.transparent,
+          onTap: _isReorderMode
+              ? (_isSwapMode ? () => _handleSwapTap(index) : null)
+              : () => _viewFolder(folder),
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: _isReorderMode ? 10 : 16,
+              vertical: 14,
+            ),
+            child: Row(
+              children: [
+                if (_isReorderMode) ...[
+                  _ReorderIndexChip(
+                    index: index,
+                    isSelected: isSwapSelected,
+                    onTapIndex: () => _promptMoveFolderToIndex(index),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                Container(
+                  width: _isReorderMode ? 40 : 48,
+                  height: _isReorderMode ? 40 : 48,
+                  decoration: BoxDecoration(
+                    color: scheme.primaryContainer,
+                    borderRadius:
+                        BorderRadius.circular(AppDesignTokens.radiusSmall),
+                  ),
+                  child: Icon(Icons.star_rounded,
+                      color: scheme.onPrimaryContainer,
+                      size: _isReorderMode ? 24 : 28),
                 ),
-                const SizedBox(width: 8),
-              ],
-              Container(
-                width: _isReorderMode ? 40 : 48,
-                height: _isReorderMode ? 40 : 48,
-                decoration: BoxDecoration(
-                  color: scheme.primaryContainer,
-                  borderRadius:
-                      BorderRadius.circular(AppDesignTokens.radiusSmall),
+                SizedBox(width: _isReorderMode ? 10 : 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        folder.name,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        context.l10n.flowP0Charts((chartCount).toString()),
+                        style: TextStyle(
+                            fontSize: 13, color: scheme.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
                 ),
-                child: Icon(Icons.star_rounded,
-                    color: scheme.onPrimaryContainer,
-                    size: _isReorderMode ? 24 : 28),
-              ),
-              SizedBox(width: _isReorderMode ? 10 : 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      folder.name,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                if (_isReorderMode) ...[
+                  _ReorderTrailingControls(
+                    index: index,
+                    totalCount: _folders.length,
+                    onMoveUp: () => _moveFolderTo(index, index - 1),
+                    onMoveDown: () => _moveFolderTo(index, index + 1),
+                    onMoveToTop: () => _moveFolderTo(index, 0),
+                    onMoveToBottom: () =>
+                        _moveFolderTo(index, _folders.length - 1),
+                    onMoveToIndex: () => _promptMoveFolderToIndex(index),
+                    onSwap: () => _startSwapFromItem(index),
+                  ),
+                  const SizedBox(width: 2),
+                  ReorderableDragStartListener(
+                    index: index,
+                    enabled: !_isSwapMode,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 8,
+                      ),
+                      child: Icon(
+                        Icons.drag_handle_rounded,
+                        size: 20,
+                        color: _isSwapMode
+                            ? scheme.onSurfaceVariant.withValues(alpha: 0.35)
+                            : scheme.onSurfaceVariant,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      context.l10n.flowP0Charts((chartCount).toString()),
-                      style: TextStyle(
-                          fontSize: 13, color: scheme.onSurfaceVariant),
-                    ),
-                  ],
-                ),
-              ),
-              if (_isReorderMode)
-                _ReorderTrailingControls(
-                  index: index,
-                  totalCount: _folders.length,
-                  onMoveUp: () => _moveFolderTo(index, index - 1),
-                  onMoveDown: () => _moveFolderTo(index, index + 1),
-                  onMoveToTop: () => _moveFolderTo(index, 0),
-                  onMoveToBottom: () =>
-                      _moveFolderTo(index, _folders.length - 1),
-                  onMoveToIndex: () => _promptMoveFolderToIndex(index),
-                  onSwap: () => _startSwapFromItem(index),
-                )
-              else
-                PopupMenuButton<String>(
-                  icon: Icon(Icons.more_vert, color: scheme.onSurfaceVariant),
-                  onSelected: (value) {
-                    switch (value) {
-                      case 'rename':
-                        _renameFolder(folder);
-                        break;
-                      case 'delete':
-                        _deleteFolder(folder);
-                        break;
-                    }
-                  },
-                  itemBuilder: (ctx) => [
-                    PopupMenuItem(
-                        value: 'rename', child: Text(context.l10n.flowRename)),
-                    PopupMenuItem(
-                      value: 'delete',
-                      child: Text(context.l10n.flowDelete,
-                          style: TextStyle(color: scheme.error)),
-                    ),
-                  ],
-                ),
-            ],
+                  ),
+                ] else
+                  PopupMenuButton<String>(
+                    icon: Icon(Icons.more_vert, color: scheme.onSurfaceVariant),
+                    onSelected: (value) {
+                      switch (value) {
+                        case 'rename':
+                          _renameFolder(folder);
+                          break;
+                        case 'delete':
+                          _deleteFolder(folder);
+                          break;
+                      }
+                    },
+                    itemBuilder: (ctx) => [
+                      PopupMenuItem(
+                          value: 'rename',
+                          child: Text(context.l10n.flowRename)),
+                      PopupMenuItem(
+                        value: 'delete',
+                        child: Text(context.l10n.flowDelete,
+                            style: TextStyle(color: scheme.error)),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1458,181 +1482,189 @@ class _FavoriteFolderDetailPageState extends State<_FavoriteFolderDetailPage> {
     final scheme = Theme.of(context).colorScheme;
     final isSwapSelected = _isSwapMode && _swapFirstIndex == index;
 
-    return Material(
-      color: isSwapSelected ? scheme.primaryContainer : AppSurfaces.card(context),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
-        side: isSwapSelected
-            ? BorderSide(color: scheme.primary, width: 1.5)
-            : BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.5)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        splashFactory: NoSplash.splashFactory,
-        highlightColor: Colors.transparent,
-        onTap: _isSwapMode ? () => _handleSwapTap(index) : null,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(6, 9, 12, 8),
-              child: Row(
-                children: [
-                  ReorderableDragStartListener(
-                    index: index,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 10,
-                      ),
-                      child: Icon(
-                        Icons.drag_handle_rounded,
-                        size: 20,
-                        color: scheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  _buildChartCover(context, chart.songId, diffBorderColor, 44),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          children: [
-                            SongTypeBadge(
-                              songId: chart.songId,
-                              type: songType,
-                              fontSize: 9.5,
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: MarqueeText(
-                                text: chart.songTitle,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 14.5,
-                                  color: scheme.onSurface,
-                                ),
+    return ReorderableDelayedDragStartListener(
+      index: index,
+      enabled: !_isSwapMode,
+      child: Material(
+        color:
+            isSwapSelected ? scheme.primaryContainer : AppSurfaces.card(context),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
+          side: isSwapSelected
+              ? BorderSide(color: scheme.primary, width: 1.5)
+              : BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.5)),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          splashFactory: NoSplash.splashFactory,
+          highlightColor: Colors.transparent,
+          onTap: _isSwapMode ? () => _handleSwapTap(index) : null,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 9, 6, 8),
+                child: Row(
+                  children: [
+                    _buildChartCover(context, chart.songId, diffBorderColor, 44),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            children: [
+                              SongTypeBadge(
+                                songId: chart.songId,
+                                type: songType,
+                                fontSize: 9.5,
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 5),
-                        Row(
-                          children: [
-                            ChartDifficultyBadge(
-                              levelIndex: chart.levelIndex,
-                              songId: chart.songId,
-                              label:
-                                  '$levelName ${chart.ds.toStringAsFixed(1)}',
-                              fontSize: 10,
-                            ),
-                            if (achievement != null) ...[
                               const SizedBox(width: 6),
-                              Flexible(
-                                child: Text(
-                                  '${achievement.toStringAsFixed(4)}%',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: AppTheme.number(
-                                    fontSize: 13,
+                              Expanded(
+                                child: MarqueeText(
+                                  text: chart.songTitle,
+                                  style: TextStyle(
                                     fontWeight: FontWeight.w700,
+                                    fontSize: 14.5,
                                     color: scheme.onSurface,
                                   ),
                                 ),
                               ),
                             ],
-                            if (record != null && record.ra > 0) ...[
-                              const SizedBox(width: 6),
-                              Text(
-                                'RA ${record.ra}',
-                                maxLines: 1,
-                                style: AppTheme.number(
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: scheme.onSurfaceVariant,
-                                ),
+                          ),
+                          const SizedBox(height: 5),
+                          Row(
+                            children: [
+                              ChartDifficultyBadge(
+                                levelIndex: chart.levelIndex,
+                                songId: chart.songId,
+                                label:
+                                    '$levelName ${chart.ds.toStringAsFixed(1)}',
+                                fontSize: 10,
                               ),
+                              if (achievement != null) ...[
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: Text(
+                                    '${achievement.toStringAsFixed(4)}%',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppTheme.number(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: scheme.onSurface,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                              if (record != null && record.ra > 0) ...[
+                                const SizedBox(width: 6),
+                                Text(
+                                  'RA ${record.ra}',
+                                  maxLines: 1,
+                                  style: AppTheme.number(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: scheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
                             ],
-                          ],
-                        ),
-                      ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 4),
+                    ReorderableDragStartListener(
+                      index: index,
+                      enabled: !_isSwapMode,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 10,
+                        ),
+                        child: Icon(
+                          Icons.drag_handle_rounded,
+                          size: 20,
+                          color: _isSwapMode
+                              ? scheme.onSurfaceVariant.withValues(alpha: 0.35)
+                              : scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            Divider(
-              height: 1,
-              thickness: 0.5,
-              color: AppSurfaces.hairline(context),
-            ),
-            Container(
-              color: isSwapSelected
-                  ? scheme.primary.withValues(alpha: 0.08)
-                  : AppSurfaces.inset(context).withValues(alpha: 0.55),
-              padding: const EdgeInsets.fromLTRB(10, 4, 4, 4),
-              child: Row(
-                children: [
-                  Material(
-                    color: isSwapSelected
-                        ? scheme.primary
-                        : AppSurfaces.card(context),
-                    borderRadius:
-                        BorderRadius.circular(AppDesignTokens.radiusPill),
-                    child: InkWell(
+              Divider(
+                height: 1,
+                thickness: 0.5,
+                color: AppSurfaces.hairline(context),
+              ),
+              Container(
+                color: isSwapSelected
+                    ? scheme.primary.withValues(alpha: 0.08)
+                    : AppSurfaces.inset(context).withValues(alpha: 0.55),
+                padding: const EdgeInsets.fromLTRB(10, 4, 4, 4),
+                child: Row(
+                  children: [
+                    Material(
+                      color: isSwapSelected
+                          ? scheme.primary
+                          : AppSurfaces.card(context),
                       borderRadius:
                           BorderRadius.circular(AppDesignTokens.radiusPill),
-                      splashFactory: NoSplash.splashFactory,
-                      highlightColor: Colors.transparent,
-                      onTap: () => _promptMoveChartToIndex(index),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(
-                            AppDesignTokens.radiusPill,
+                      child: InkWell(
+                        borderRadius:
+                            BorderRadius.circular(AppDesignTokens.radiusPill),
+                        splashFactory: NoSplash.splashFactory,
+                        highlightColor: Colors.transparent,
+                        onTap: () => _promptMoveChartToIndex(index),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
                           ),
-                          border: Border.all(
-                            color: isSwapSelected
-                                ? scheme.primary
-                                : scheme.outlineVariant,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(
+                              AppDesignTokens.radiusPill,
+                            ),
+                            border: Border.all(
+                              color: isSwapSelected
+                                  ? scheme.primary
+                                  : scheme.outlineVariant,
+                            ),
                           ),
-                        ),
-                        child: Text(
-                          '#${index + 1}',
-                          style: AppTheme.number(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: isSwapSelected
-                                ? scheme.onPrimary
-                                : scheme.onSurface,
+                          child: Text(
+                            '#${index + 1}',
+                            style: AppTheme.number(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: isSwapSelected
+                                  ? scheme.onPrimary
+                                  : scheme.onSurface,
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                  const Spacer(),
-                  _ReorderTrailingControls(
-                    index: index,
-                    totalCount: _sortedCharts.length,
-                    onMoveUp: () => _moveChartTo(index, index - 1),
-                    onMoveDown: () => _moveChartTo(index, index + 1),
-                    onMoveToTop: () => _moveChartTo(index, 0),
-                    onMoveToBottom: () =>
-                        _moveChartTo(index, _sortedCharts.length - 1),
-                    onMoveToIndex: () => _promptMoveChartToIndex(index),
-                    onSwap: () => _startSwapFromItem(index),
-                  ),
-                ],
+                    const Spacer(),
+                    _ReorderTrailingControls(
+                      index: index,
+                      totalCount: _sortedCharts.length,
+                      onMoveUp: () => _moveChartTo(index, index - 1),
+                      onMoveDown: () => _moveChartTo(index, index + 1),
+                      onMoveToTop: () => _moveChartTo(index, 0),
+                      onMoveToBottom: () =>
+                          _moveChartTo(index, _sortedCharts.length - 1),
+                      onMoveToIndex: () => _promptMoveChartToIndex(index),
+                      onSwap: () => _startSwapFromItem(index),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -2065,9 +2097,9 @@ class _ReorderBanner extends StatelessWidget {
   }
 }
 
-/// 排序模式列表左侧控制区：拖拽手柄 + 可点击序号胶囊 `#1`
-class _ReorderLeadingControls extends StatelessWidget {
-  const _ReorderLeadingControls({
+/// 排序模式列表左侧可点击序号胶囊 `#1`
+class _ReorderIndexChip extends StatelessWidget {
+  const _ReorderIndexChip({
     required this.index,
     required this.isSelected,
     required this.onTapIndex,
@@ -2080,49 +2112,32 @@ class _ReorderLeadingControls extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        ReorderableDragStartListener(
-          index: index,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
-            child: Icon(
-              Icons.drag_handle_rounded,
-              size: 20,
-              color: scheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-        const SizedBox(width: 2),
-        Material(
-          color: isSelected ? scheme.primary : AppSurfaces.inset(context),
-          borderRadius: BorderRadius.circular(AppDesignTokens.radiusPill),
-          child: InkWell(
+    return Material(
+      color: isSelected ? scheme.primary : AppSurfaces.inset(context),
+      borderRadius: BorderRadius.circular(AppDesignTokens.radiusPill),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusPill),
+        splashFactory: NoSplash.splashFactory,
+        highlightColor: Colors.transparent,
+        onTap: onTapIndex,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+          decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppDesignTokens.radiusPill),
-            splashFactory: NoSplash.splashFactory,
-            highlightColor: Colors.transparent,
-            onTap: onTapIndex,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(AppDesignTokens.radiusPill),
-                border: Border.all(
-                  color: isSelected ? scheme.primary : scheme.outlineVariant,
-                ),
-              ),
-              child: Text(
-                '#${index + 1}',
-                style: AppTheme.number(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: isSelected ? scheme.onPrimary : scheme.onSurface,
-                ),
-              ),
+            border: Border.all(
+              color: isSelected ? scheme.primary : scheme.outlineVariant,
+            ),
+          ),
+          child: Text(
+            '#${index + 1}',
+            style: AppTheme.number(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: isSelected ? scheme.onPrimary : scheme.onSurface,
             ),
           ),
         ),
-      ],
+      ),
     );
   }
 }

@@ -27,6 +27,28 @@ class PaiziProgressService {
       _patterns.any((pattern) => pattern.hasMatch(collection.name)) ||
       collection.name == '真大将';
 
+  /// 从收藏品详情解析跳往牌子进度页的初始首字与称号类型，不支持则返回 null。
+  ({String firstChar, String titleType})? resolveProgressSelection(
+      Collection collection) {
+    if (collection.id == 6148) {
+      return (firstChar: '舞', titleType: '霸者');
+    }
+    if (collection.name == '真大将') {
+      return (firstChar: '真', titleType: '大将');
+    }
+    final parts = extractNameParts(collection.name);
+    if (parts == null) return null;
+    final firstChar = parts['firstChar'];
+    final titleType = parts['titleType'];
+    if (firstChar == null ||
+        firstChar.isEmpty ||
+        titleType == null ||
+        titleType.isEmpty) {
+      return null;
+    }
+    return (firstChar: firstChar, titleType: titleType);
+  }
+
   // 获取所有符合条件的姓名框收藏品
   Future<List<Collection>> getMatchingPlates() async {
     try {

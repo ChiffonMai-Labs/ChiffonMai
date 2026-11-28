@@ -1,12 +1,15 @@
 import 'package:flutter/cupertino.dart' as ios;
 import '../../l10n/FeatureLocalizations.dart';
+import '../../l10n/LocalizationsExtension.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../entity/Home/FeatureModels.dart';
 import '../../utils/AppDesignTokens.dart';
 import '../../utils/AppModePreferences.dart';
 import '../../utils/NavigationPreferences.dart';
+import '../../widgets/AppToast.dart';
 import '../../widgets/LiquidGlassNavigationBar.dart';
 import '../../widgets/ExpandingPillNavigationBar.dart';
 import '../../widgets/MainNavigationViewport.dart';
@@ -55,6 +58,7 @@ class _AppShellState extends State<AppShell> {
   double _horizontalDragDistance = 0;
   Timer? _navSelectionDebounce;
   int? _pendingIndex;
+  DateTime? _lastBackAt;
   late final Listenable _navBarListenable = Listenable.merge([
     NavigationPreferences.instance.barStyleListenable,
     NavigationPreferences.instance.transitionEnabledListenable,
@@ -174,6 +178,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   void _selectIndex(int index) {
+    _lastBackAt = null;
     // 离开当前 Hub 时清理输入框焦点，避免返回首页后输入法重新拉起。
     FocusManager.instance.primaryFocus?.unfocus();
     final next = index.clamp(0, _tabs.length - 1);
@@ -213,6 +218,23 @@ class _AppShellState extends State<AppShell> {
     _horizontalDragDistance = 0;
   }
 
+  void _handleRootBack(bool didPop, Object? _) {
+    if (didPop) return;
+    final now = DateTime.now();
+    if (_lastBackAt != null &&
+        now.difference(_lastBackAt!) < const Duration(seconds: 2)) {
+      _lastBackAt = null;
+      AppToast.hide();
+      SystemNavigator.pop();
+      return;
+    }
+    _lastBackAt = now;
+    AppToast.show(
+      context.l10n.flowPressBackAgainToExitApp,
+      duration: const Duration(seconds: 2),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -230,8 +252,11 @@ class _AppShellState extends State<AppShell> {
     final navigationReserve = systemBottomInset +
         contentBottomGap +
         (appleBar ? 50.0 : barH + navigationBottomGap);
-    return Scaffold(
-      extendBody: true,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: _handleRootBack,
+      child: Scaffold(
+        extendBody: true,
       resizeToAvoidBottomInset: false,
       // 随身听悬浮球**不在这里** —— 它挂在 main.dart 的 MaterialApp.builder 上，
       // 这样才盖得住 push 出来的各个功能页（详见那边的注释）。
@@ -319,6 +344,7 @@ class _AppShellState extends State<AppShell> {
           ),
         ],
       ),
+    ),
     );
   }
 

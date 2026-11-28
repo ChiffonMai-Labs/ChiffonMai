@@ -8922,9 +8922,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get songChartPlaybackInApp => 'アプリ内で譜面を再生';
 
   @override
-  String get songMoreActionsScroll => '下にスクロールして他の操作を表示';
-
-  @override
   String get announcementCenter => 'お知らせ';
 
   @override
@@ -16074,10 +16071,11 @@ class AppLocalizationsJa extends AppLocalizations {
   String get firstBindActionAuthStatus => '認可状況';
 
   @override
-  String get firstBindSelectedForPull => '初回データ取得元に選択中';
+  String get firstBindSelectedForPull => '取得対象に選択中';
 
   @override
-  String get firstBindTapToSelectSource => '準備済みのカードをタップして取得元を切替';
+  String get firstBindTapToSelectSource =>
+      '準備済みのカードをタップして選択切替（複数プラットフォームをまとめて取得できます）';
 
   @override
   String get firstBindNoAccountTitle => 'アカウントをお持ちでないですか？';
@@ -16096,6 +16094,19 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String firstBindPullAndEnter(String source) {
     return '$source のデータを取得して開始';
+  }
+
+  @override
+  String firstBindPullMultipleAndEnter(int count) {
+    return '$count 件のプラットフォームを一括取得して開始';
+  }
+
+  @override
+  String get firstBindSelectSourceToPull => '取得するプラットフォームを選択してください';
+
+  @override
+  String firstBindPartialFailure(int succeeded, int total, String failed) {
+    return '$succeeded/$total 件の取得が完了しました。失敗：$failed';
   }
 
   @override
@@ -16214,7 +16225,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get favoriteReorderDone => '完了';
 
   @override
-  String get favoriteReorderHint => '左のハンドルをドラッグ、番号をタップ、または右のボタンで順番を調整します';
+  String get favoriteReorderHint => '右のハンドルをドラッグ・カードを長押し・番号をタップ・ボタンで順番を調整します';
 
   @override
   String get favoriteMoveUp => '上へ';
@@ -16260,4 +16271,40 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get favoriteReorderUnavailableEmpty => '並び替えには2件以上の項目が必要です';
+
+  @override
+  String get flowPlateTargetGoal => '達成目標';
+
+  @override
+  String get flowPlateRuleFullCombo => '全曲 FC 以上';
+
+  @override
+  String get flowPlateRuleAllPerfect => '全曲 AP 以上';
+
+  @override
+  String get flowPlateRuleFullSyncDx => '全曲 FDX 以上';
+
+  @override
+  String get flowPlateRuleClear80 => 'CLEAR ≥ 80%';
+
+  @override
+  String get flowPlateRuleAdvanced => '上位目標';
+
+  @override
+  String get flowPlateRuleUnofficialShin => '非公式プレート・真神の曲目を使用';
+
+  @override
+  String get flowViewPlateProgress => 'プレート進捗を見る';
+
+  @override
+  String get flowPressBackAgainToExitApp => 'もう一度戻ると ChiffonMai を終了します';
+
+  @override
+  String get flowSwitchToUtage => 'UTAGEに切替';
+
+  @override
+  String get flowSwitchChartVersion => '譜面バージョンを切替';
+
+  @override
+  String get flowCurrentChart => '現在';
 }

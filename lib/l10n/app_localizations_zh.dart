@@ -843,7 +843,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get featureResultScreenRecognition => '结算画面识别';
 
   @override
-  String get featurePhotographAResultScreenToReadScores => '拍摄机台结算画面，自动识别成绩';
+  String get featurePhotographAResultScreenToReadScores => '拍摄结算画面，自动识别成绩';
 
   @override
   String get featureCollectibleLookup => '收藏品查询';
@@ -1032,13 +1032,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get featurePlayNext => '下次想玩';
 
   @override
-  String get featureQueueSongsForYourNextArcadeVisit => '排好下次去机台想玩的歌曲';
+  String get featureQueueSongsForYourNextArcadeVisit => '排好下次出勤想玩的歌曲';
 
   @override
   String get featureChinaRhythmGameMap => '全国音游地图';
 
   @override
-  String get featureFindArcadesWithTheGamesYouWant => '看看哪里有你想玩的机台';
+  String get featureFindArcadesWithTheGamesYouWant => '看看附近有哪些机厅与音游';
 
   @override
   String get featureWorldwideArcadeMap => '全球音游街机地图';
@@ -3574,7 +3574,7 @@ class AppLocalizationsZh extends AppLocalizations {
       '尚未授权落雪账号，请先到「绑定与授权管理」完成落雪 OAuth 授权';
 
   @override
-  String get flowPhotographTheCabinetResultScreen => '对着机台结算页面拍一张';
+  String get flowPhotographTheCabinetResultScreen => '对着结算页面拍一张';
 
   @override
   String get flowChooseAPhotographedResultScreen => '选取已经拍好的结算画面';
@@ -3640,7 +3640,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get flowMatchingCoverArtAndTitlesUsuallyTakes => '曲绘 + 标题双路匹配，通常需要几秒';
 
   @override
-  String get flowPhotographACabinetResultScreen => '对着机台结算页面拍一张照片';
+  String get flowPhotographACabinetResultScreen => '对着结算页面拍一张照片';
 
   @override
   String get flowRecognizesTitleAchievementDXScoreDifficultyAnd =>
@@ -8800,9 +8800,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get songChartPlaybackInApp => 'APP内播放谱面';
 
   @override
-  String get songMoreActionsScroll => '下滑查看更多操作';
-
-  @override
   String get announcementCenter => '公告中心';
 
   @override
@@ -10027,13 +10024,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get flowSearchArcadeNameOrAddress => '搜索店名或地址';
 
   @override
-  String get flowMachineFilters => '机台筛选';
+  String get flowMachineFilters => '机种筛选';
 
   @override
   String get flowNoArcadeDataYet => '暂无店铺数据';
 
   @override
-  String get flowMachines => '🎮 机台:';
+  String get flowMachines => '🎮 机种:';
 
   @override
   String get flowCouldNotOpenTheLinkTryAgain => '无法打开链接，请稍后重试';
@@ -14664,7 +14661,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get arcadeShopCount => '机厅';
 
   @override
-  String get arcadeMachineCount => '机台';
+  String get arcadeMachineCount => '台数';
 
   @override
   String get arcadeDownloadData => '下载机厅数据';
@@ -14741,10 +14738,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get arcadeFilterAction => '筛选';
 
   @override
-  String get arcadeFilterSearchHint => '搜索机台';
+  String get arcadeFilterSearchHint => '搜索机种';
 
   @override
-  String get arcadeFilterEmpty => '没有匹配的机台';
+  String get arcadeFilterEmpty => '没有匹配的机种';
 
   @override
   String get arcadeChooseMapApp => '选择地图应用';
@@ -15697,7 +15694,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chartPlayLoadPv => '加载 PV 背景';
 
   @override
-  String get chartPlayLoadPvSubtitle => '有 PV 时裁剪为机台圆形背景播放';
+  String get chartPlayLoadPvSubtitle => '有 PV 时裁剪为圆形判定圈背景播放';
 
   @override
   String get chartPlayDifficultySection => '选择谱面难度';
@@ -15748,10 +15745,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get firstBindActionAuthStatus => '授权状态';
 
   @override
-  String get firstBindSelectedForPull => '将从此平台拉取首次数据';
+  String get firstBindSelectedForPull => '已选拉取';
 
   @override
-  String get firstBindTapToSelectSource => '点击卡片可切换首次拉取的数据源';
+  String get firstBindTapToSelectSource => '点击已绑定卡片可勾选或取消，支持一次拉取多个平台数据';
 
   @override
   String get firstBindNoAccountTitle => '还没有查分器账号？';
@@ -15768,6 +15765,19 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String firstBindPullAndEnter(String source) {
     return '拉取 $source 数据并进入';
+  }
+
+  @override
+  String firstBindPullMultipleAndEnter(int count) {
+    return '一次拉取 $count 个平台数据并进入';
+  }
+
+  @override
+  String get firstBindSelectSourceToPull => '请至少勾选一个平台';
+
+  @override
+  String firstBindPartialFailure(int succeeded, int total, String failed) {
+    return '已完成 $succeeded/$total 个平台拉取，以下平台失败：$failed';
   }
 
   @override
@@ -15884,7 +15894,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get favoriteReorderDone => '完成';
 
   @override
-  String get favoriteReorderHint => '拖动左侧手柄、点击序号或使用右侧按钮调整顺序';
+  String get favoriteReorderHint => '拖动右侧手柄或长按卡片、点击序号、使用排序按钮调整顺序';
 
   @override
   String get favoriteMoveUp => '上移';
@@ -15930,6 +15940,42 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get favoriteReorderUnavailableEmpty => '至少需要 2 项才能调整顺序';
+
+  @override
+  String get flowPlateTargetGoal => '达成目标';
+
+  @override
+  String get flowPlateRuleFullCombo => '全曲 FC 及以上';
+
+  @override
+  String get flowPlateRuleAllPerfect => '全曲 AP 及以上';
+
+  @override
+  String get flowPlateRuleFullSyncDx => '全曲 FDX 及以上';
+
+  @override
+  String get flowPlateRuleClear80 => 'CLEAR ≥ 80%';
+
+  @override
+  String get flowPlateRuleAdvanced => '进阶目标';
+
+  @override
+  String get flowPlateRuleUnofficialShin => '非官方牌子 · 沿用真神曲目';
+
+  @override
+  String get flowViewPlateProgress => '查看牌子进度';
+
+  @override
+  String get flowPressBackAgainToExitApp => '再次返回退出 ChiffonMai';
+
+  @override
+  String get flowSwitchToUtage => '切换 UTAGE';
+
+  @override
+  String get flowSwitchChartVersion => '切换谱面版本';
+
+  @override
+  String get flowCurrentChart => '当前';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -16771,7 +16817,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get featureResultScreenRecognition => '結算畫面識別';
 
   @override
-  String get featurePhotographAResultScreenToReadScores => '拍攝機臺結算畫面，自動識別成績';
+  String get featurePhotographAResultScreenToReadScores => '拍攝結算畫面，自動辨識成績';
 
   @override
   String get featureCollectibleLookup => '收藏品查詢';
@@ -16960,13 +17006,13 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get featurePlayNext => '下次想玩';
 
   @override
-  String get featureQueueSongsForYourNextArcadeVisit => '排好下次去機臺想玩的歌曲';
+  String get featureQueueSongsForYourNextArcadeVisit => '排好下次出勤想玩的歌曲';
 
   @override
   String get featureChinaRhythmGameMap => '全國音遊地圖';
 
   @override
-  String get featureFindArcadesWithTheGamesYouWant => '看看哪裏有你想玩的機臺';
+  String get featureFindArcadesWithTheGamesYouWant => '看看附近有哪些機廳與音遊';
 
   @override
   String get featureWorldwideArcadeMap => '全球音遊街機地圖';
@@ -19502,7 +19548,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
       '尚未授權落雪帳號，請先到「綁定與授權管理」完成落雪 OAuth 授權';
 
   @override
-  String get flowPhotographTheCabinetResultScreen => '對着機臺結算頁面拍一張';
+  String get flowPhotographTheCabinetResultScreen => '對著結算頁面拍一張';
 
   @override
   String get flowChooseAPhotographedResultScreen => '選取已經拍好的結算畫面';
@@ -19568,7 +19614,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get flowMatchingCoverArtAndTitlesUsuallyTakes => '曲繪 + 標題雙路匹配，通常需要幾秒';
 
   @override
-  String get flowPhotographACabinetResultScreen => '對着機臺結算頁面拍一張照片';
+  String get flowPhotographACabinetResultScreen => '對著結算頁面拍一張照片';
 
   @override
   String get flowRecognizesTitleAchievementDXScoreDifficultyAnd =>
@@ -24728,9 +24774,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get songChartPlaybackInApp => '在 APP 內播放譜面';
 
   @override
-  String get songMoreActionsScroll => '向下滑動查看更多操作';
-
-  @override
   String get announcementCenter => '公告中心';
 
   @override
@@ -25955,13 +25998,13 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get flowSearchArcadeNameOrAddress => '搜索店名或地址';
 
   @override
-  String get flowMachineFilters => '機臺篩選';
+  String get flowMachineFilters => '機種篩選';
 
   @override
   String get flowNoArcadeDataYet => '暫無店鋪數據';
 
   @override
-  String get flowMachines => '🎮 機臺:';
+  String get flowMachines => '🎮 機種:';
 
   @override
   String get flowCouldNotOpenTheLinkTryAgain => '無法打開鏈接，請稍後重試';
@@ -30594,7 +30637,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get arcadeShopCount => '機廳';
 
   @override
-  String get arcadeMachineCount => '機台';
+  String get arcadeMachineCount => '台數';
 
   @override
   String get arcadeDownloadData => '下載機廳資料';
@@ -30671,10 +30714,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get arcadeFilterAction => '篩選';
 
   @override
-  String get arcadeFilterSearchHint => '搜尋機台';
+  String get arcadeFilterSearchHint => '搜尋機種';
 
   @override
-  String get arcadeFilterEmpty => '沒有符合的機台';
+  String get arcadeFilterEmpty => '沒有符合的機種';
 
   @override
   String get arcadeChooseMapApp => '選擇地圖應用';
@@ -31627,7 +31670,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get chartPlayLoadPv => '載入 PV 背景';
 
   @override
-  String get chartPlayLoadPvSubtitle => '有 PV 時裁切為機台圓形背景播放';
+  String get chartPlayLoadPvSubtitle => '有 PV 時裁切為圓形判定圈背景播放';
 
   @override
   String get chartPlayDifficultySection => '選擇譜面難度';
@@ -31678,10 +31721,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get firstBindActionAuthStatus => '授權狀態';
 
   @override
-  String get firstBindSelectedForPull => '將從此平台拉取首次資料';
+  String get firstBindSelectedForPull => '已選拉取';
 
   @override
-  String get firstBindTapToSelectSource => '點擊卡片可切換首次拉取的資料來源';
+  String get firstBindTapToSelectSource => '點擊已綁定卡片可勾選或取消，支援一次拉取多個平台資料';
 
   @override
   String get firstBindNoAccountTitle => '還沒有查分器帳號？';
@@ -31698,6 +31741,19 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   @override
   String firstBindPullAndEnter(String source) {
     return '拉取 $source 資料並進入';
+  }
+
+  @override
+  String firstBindPullMultipleAndEnter(int count) {
+    return '一次拉取 $count 個平台資料並進入';
+  }
+
+  @override
+  String get firstBindSelectSourceToPull => '請至少勾選一個平台';
+
+  @override
+  String firstBindPartialFailure(int succeeded, int total, String failed) {
+    return '已完成 $succeeded/$total 個平台拉取，以下平台失敗：$failed';
   }
 
   @override
@@ -31814,7 +31870,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get favoriteReorderDone => '完成';
 
   @override
-  String get favoriteReorderHint => '拖曳左側控制柄、點擊序號或使用右側按鈕調整順序';
+  String get favoriteReorderHint => '拖曳右側控制柄或長按卡片、點擊序號、使用排序按鈕調整順序';
 
   @override
   String get favoriteMoveUp => '上移';
@@ -31860,4 +31916,40 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get favoriteReorderUnavailableEmpty => '至少需要 2 項才能調整順序';
+
+  @override
+  String get flowPlateTargetGoal => '達成目標';
+
+  @override
+  String get flowPlateRuleFullCombo => '全曲 FC 及以上';
+
+  @override
+  String get flowPlateRuleAllPerfect => '全曲 AP 及以上';
+
+  @override
+  String get flowPlateRuleFullSyncDx => '全曲 FDX 及以上';
+
+  @override
+  String get flowPlateRuleClear80 => 'CLEAR ≥ 80%';
+
+  @override
+  String get flowPlateRuleAdvanced => '進階目標';
+
+  @override
+  String get flowPlateRuleUnofficialShin => '非官方牌子 · 沿用真神曲目';
+
+  @override
+  String get flowViewPlateProgress => '查看牌子進度';
+
+  @override
+  String get flowPressBackAgainToExitApp => '再次返回退出 ChiffonMai';
+
+  @override
+  String get flowSwitchToUtage => '切換 UTAGE';
+
+  @override
+  String get flowSwitchChartVersion => '切換譜面版本';
+
+  @override
+  String get flowCurrentChart => '目前';
 }

@@ -55,7 +55,16 @@ const List<String> _firstCharOrder = [
 ];
 
 class PaiziProgressPage extends StatefulWidget {
-  const PaiziProgressPage({super.key});
+  final String? initialFirstChar;
+  final String? initialTitleType;
+  final int? initialDifficulty;
+
+  const PaiziProgressPage({
+    super.key,
+    this.initialFirstChar,
+    this.initialTitleType,
+    this.initialDifficulty,
+  });
 
   @override
   State<PaiziProgressPage> createState() => _PaiziProgressPageState();
@@ -138,14 +147,24 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
 
       // 获取保存的用户选项
       final savedOptions = await _service.getSavedOptions();
+      final hasInitialSelection = widget.initialFirstChar != null ||
+          widget.initialTitleType != null;
 
-      // 设置保存的选项，如果有效则使用，否则使用默认值
+      // 设置初始或保存的选项，如果有效则使用，否则使用默认值
       if (_firstCharOptions.isNotEmpty) {
+        final preferredFirstChar = widget.initialFirstChar;
         final savedFirstChar = savedOptions['firstChar'] as String;
-        _selectedFirstChar = _firstCharOptions.contains(savedFirstChar) &&
-                savedFirstChar.isNotEmpty
-            ? savedFirstChar
-            : (_firstCharOptions.contains('真') ? '真' : _firstCharOptions[0]);
+        if (preferredFirstChar != null &&
+            _firstCharOptions.contains(preferredFirstChar)) {
+          _selectedFirstChar = preferredFirstChar;
+        } else {
+          _selectedFirstChar = _firstCharOptions.contains(savedFirstChar) &&
+                  savedFirstChar.isNotEmpty
+              ? savedFirstChar
+              : (_firstCharOptions.contains('真')
+                  ? '真'
+                  : _firstCharOptions[0]);
+        }
       }
 
       // 根据选中的首字更新称号类型选项（确保正确显示霸者按钮）
@@ -153,19 +172,31 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
           _service.getTitleTypeOptions(firstChar: _selectedFirstChar);
 
       if (_titleTypeOptions.isNotEmpty) {
+        final preferredTitleType = widget.initialTitleType;
         final savedTitleType = savedOptions['titleType'] as String;
-        _selectedTitleType = _titleTypeOptions.contains(savedTitleType) &&
-                savedTitleType.isNotEmpty
-            ? savedTitleType
-            : _titleTypeOptions[0];
+        if (preferredTitleType != null &&
+            _titleTypeOptions.contains(preferredTitleType)) {
+          _selectedTitleType = preferredTitleType;
+        } else {
+          _selectedTitleType = _titleTypeOptions.contains(savedTitleType) &&
+                  savedTitleType.isNotEmpty
+              ? savedTitleType
+              : _titleTypeOptions[0];
+        }
       }
 
       // 更新难度选项
       await _updateDifficultyOptions();
 
-      // 设置保存的难度选项
+      // 设置初始或保存的难度选项；外部带参跳转默认看 ALL 全难度进度
+      final preferredDifficulty = widget.initialDifficulty;
       final savedDifficulty = savedOptions['difficulty'] as int;
-      if (_difficultyOptions.contains(savedDifficulty)) {
+      if (preferredDifficulty != null &&
+          _difficultyOptions.contains(preferredDifficulty)) {
+        _selectedDifficulty = preferredDifficulty;
+      } else if (hasInitialSelection && _difficultyOptions.contains(-1)) {
+        _selectedDifficulty = -1;
+      } else if (_difficultyOptions.contains(savedDifficulty)) {
         _selectedDifficulty = savedDifficulty;
       }
 
@@ -723,6 +754,118 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
     ];
   }
 
+  /// 牌子卡片底部的简洁达成条件标签区（复用徽章组件，不直接照抄收藏品长段描述）。
+  Widget _buildPlateConditionBox(BuildContext context) {
+    final l10n = context.l10n;
+    final scheme = Theme.of(context).colorScheme;
+    final brightness = Theme.of(context).brightness;
+    final titleType = _selectedTitleType ?? '';
+
+    Widget ruleTag(
+      String text, {
+      bool numeric = false,
+      Color? accent,
+    }) {
+      return AppBadge(
+        text: text,
+        fontSize: 12,
+        numeric: numeric,
+        centered: !numeric,
+        background: accent != null
+            ? accent.withValues(alpha: 0.14)
+            : AppSurfaces.card(context),
+        foreground: accent ?? scheme.onSurface,
+      );
+    }
+
+    final orange = AppColors.warningOrange(brightness);
+    final red = AppColors.errorRed(brightness);
+    final goalBadges = <Widget>[
+      switch (titleType) {
+        '極' => ComboLabelBadge(raw: 'fc', fontSize: 12),
+        '将' => const RankBadge(rank: 'SSS', fontSize: 12),
+        '大将' => const RankBadge(rank: 'SSS+', fontSize: 12),
+        '神' => ComboLabelBadge(raw: 'ap', fontSize: 12),
+        '舞舞' => ComboLabelBadge(raw: 'fsd', fontSize: 12),
+        '霸者' => const RankBadge(rank: 'A', fontSize: 12),
+        _ => const SizedBox.shrink(),
+      },
+      switch (titleType) {
+        '極' => ruleTag(l10n.flowPlateRuleFullCombo),
+        '将' => ruleTag('≥ 100.0000%', numeric: true, accent: orange),
+        '大将' => ruleTag('≥ 100.5000%', numeric: true, accent: orange),
+        '神' => ruleTag(l10n.flowPlateRuleAllPerfect),
+        '舞舞' => ruleTag(l10n.flowPlateRuleFullSyncDx),
+        '霸者' => ruleTag(l10n.flowPlateRuleClear80, numeric: true, accent: red),
+        _ => const SizedBox.shrink(),
+      },
+      if (titleType == '大将') ruleTag(l10n.flowPlateRuleAdvanced),
+      if (_selectedFirstChar == '真' &&
+          (titleType == '将' || titleType == '大将'))
+        ruleTag(l10n.flowPlateRuleUnofficialShin),
+    ];
+
+    final difficulties = <int>{
+      for (final req in _currentPlate?.required ?? const <CollectionRequired>[])
+        ...?req.difficulties,
+    }.toList()
+      ..sort();
+
+    Widget row(String label, List<Widget> badges) => Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 72,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: badges,
+              ),
+            ),
+          ],
+        );
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppSurfaces.inset(context),
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusSmall),
+        border: Border.all(
+          color: scheme.outlineVariant.withValues(alpha: 0.65),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          row(l10n.flowPlateTargetGoal, goalBadges),
+          if (difficulties.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            row(l10n.flowRequiredDifficulty, [
+              for (final d in difficulties)
+                ChartDifficultyBadge(levelIndex: d, songId: '', fontSize: 12),
+            ]),
+          ],
+        ],
+      ),
+    );
+  }
+
   /// 牌子信息、统计和展示切换。加载中也留在原位，数字才能滚动变化。
   Widget _buildSummarySection() {
     final songsWithStatus =
@@ -800,6 +943,8 @@ class _PaiziProgressPageState extends State<PaiziProgressPage> {
                     color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
+                const SizedBox(height: 12),
+                _buildPlateConditionBox(context),
               ],
             ),
           ),

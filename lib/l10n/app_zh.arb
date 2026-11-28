@@ -327,7 +327,7 @@
   "featureCoverRecognition": "曲绘识别",
   "featureFindSongsUsingYourCameraOrAn": "用相机或图片快速找歌",
   "featureResultScreenRecognition": "结算画面识别",
-  "featurePhotographAResultScreenToReadScores": "拍摄机台结算画面，自动识别成绩",
+  "featurePhotographAResultScreenToReadScores": "拍摄结算画面，自动识别成绩",
   "featureCollectibleLookup": "收藏品查询",
   "featureViewIconsNameplatesAndOtherCollectibles": "查看头像、姓名框等收藏品",
   "featureScoreLookup": "成绩查询",
@@ -389,9 +389,9 @@
   "featureFavoriteFolders": "收藏夹",
   "featureManageYourFavoriteCharts": "管理你收藏的谱面",
   "featurePlayNext": "下次想玩",
-  "featureQueueSongsForYourNextArcadeVisit": "排好下次去机台想玩的歌曲",
+  "featureQueueSongsForYourNextArcadeVisit": "排好下次出勤想玩的歌曲",
   "featureChinaRhythmGameMap": "全国音游地图",
-  "featureFindArcadesWithTheGamesYouWant": "看看哪里有你想玩的机台",
+  "featureFindArcadesWithTheGamesYouWant": "看看附近有哪些机厅与音游",
   "featureWorldwideArcadeMap": "全球音游街机地图",
   "featureBrowseArcadesWorldwideOnNearCade": "查看 NearCade 全球街机店铺",
   "featureSoloSongGameSettings": "单人猜歌游戏设置",
@@ -1976,7 +1976,7 @@
   },
   "flowCannotParseSongIDForLXNSSync": "无法解析曲目 ID，不能同步到落雪",
   "flowNoLXNSPersonalAPIKeySetIt": "尚未授权落雪账号，请先到「绑定与授权管理」完成落雪 OAuth 授权",
-  "flowPhotographTheCabinetResultScreen": "对着机台结算页面拍一张",
+  "flowPhotographTheCabinetResultScreen": "对着结算页面拍一张",
   "flowChooseAPhotographedResultScreen": "选取已经拍好的结算画面",
   "flowNoScoreRecognizedCropCloserToThe": "没有识别出成绩，可裁剪得更贴近结算区域后重试",
   "flowCorrectRecognitionResults": "修正识别结果",
@@ -2010,7 +2010,7 @@
   "flowNoMatchingSong": "未找到匹配的歌曲",
   "flowRecognizingScores": "正在识别成绩",
   "flowMatchingCoverArtAndTitlesUsuallyTakes": "曲绘 + 标题双路匹配，通常需要几秒",
-  "flowPhotographACabinetResultScreen": "对着机台结算页面拍一张照片",
+  "flowPhotographACabinetResultScreen": "对着结算页面拍一张照片",
   "flowRecognizesTitleAchievementDXScoreDifficultyAnd": "自动识别曲名、达成率、DX 分数、难度与 FC/FS",
   "flowImageReadyTapStartRecognitionBelow": "图片已就绪，点击下方「开始识别」",
   "flowRecognitionCompleteP0P1Succeeded": "识别完成 · {p0}/{p1} 张成功",
@@ -6180,7 +6180,6 @@
   "flowSending": "发送中...",
   "songChartConfirmationBilibili": "跳转到B站查看谱面确认",
   "songChartPlaybackInApp": "APP内播放谱面",
-  "songMoreActionsScroll": "下滑查看更多操作",
   "announcementCenter": "公告中心",
   "announcementCenterSubtitle": "查看服务公告与项目动态",
   "announcementDetail": "公告详情",
@@ -7264,9 +7263,9 @@
     }
   },
   "flowSearchArcadeNameOrAddress": "搜索店名或地址",
-  "flowMachineFilters": "机台筛选",
+  "flowMachineFilters": "机种筛选",
   "flowNoArcadeDataYet": "暂无店铺数据",
-  "flowMachines": "🎮 机台:",
+  "flowMachines": "🎮 机种:",
   "flowCouldNotOpenTheLinkTryAgain": "无法打开链接，请稍后重试",
   "flowCouldNotLoadDocumentTapToRetry": "文档读取失败，点击重试",
   "flowSubmitALoadingQuote": "上传语录到云端",
@@ -10310,7 +10309,7 @@
   "arcadeRegions": "全球分布",
   "arcadeRegionCount": "国家和地区",
   "arcadeShopCount": "机厅",
-  "arcadeMachineCount": "机台",
+  "arcadeMachineCount": "台数",
   "arcadeDownloadData": "下载机厅数据",
   "arcadeNoDataHint": "下载后可以离线浏览机厅信息。",
   "arcadeUpdating": "正在更新 {p0} / {p1}",
@@ -10337,8 +10336,8 @@
   "arcadeFromYou": "距你 {p0}",
   "@arcadeFromYou": {"placeholders": {"p0": {"type": "String"}}},
   "arcadeFilterAction": "筛选",
-  "arcadeFilterSearchHint": "搜索机台",
-  "arcadeFilterEmpty": "没有匹配的机台",
+  "arcadeFilterSearchHint": "搜索机种",
+  "arcadeFilterEmpty": "没有匹配的机种",
   "arcadeChooseMapApp": "选择地图应用",
   "arcadeMapAmap": "高德地图",
   "arcadeMapBaidu": "百度地图",
@@ -10808,7 +10807,7 @@
     }
   },
   "chartPlayLoadPv": "加载 PV 背景",
-  "chartPlayLoadPvSubtitle": "有 PV 时裁剪为机台圆形背景播放",
+  "chartPlayLoadPvSubtitle": "有 PV 时裁剪为圆形判定圈背景播放",
   "chartPlayDifficultySection": "选择谱面难度",
   "chartPlayOptionsSection": "播放资源",
   "firstBindTitle": "快速绑定查分器账号",
@@ -10825,8 +10824,8 @@
   "firstBindActionAuthorize": "去授权",
   "firstBindActionReauthorize": "重新授权",
   "firstBindActionAuthStatus": "授权状态",
-  "firstBindSelectedForPull": "将从此平台拉取首次数据",
-  "firstBindTapToSelectSource": "点击卡片可切换首次拉取的数据源",
+  "firstBindSelectedForPull": "已选拉取",
+  "firstBindTapToSelectSource": "点击已绑定卡片可勾选或取消，支持一次拉取多个平台数据",
   "firstBindNoAccountTitle": "还没有查分器账号？",
   "firstBindNoAccountSubtitle": "查看水鱼、落雪与 AWMC NET 的注册与配置引导",
   "firstBindLaterHint": "之后可随时在「我的 → 绑定与授权管理」管理更多账号或机台身份。",
@@ -10835,6 +10834,29 @@
   "@firstBindPullAndEnter": {
     "placeholders": {
       "source": {
+        "type": "String"
+      }
+    }
+  },
+  "firstBindPullMultipleAndEnter": "一次拉取 {count} 个平台数据并进入",
+  "@firstBindPullMultipleAndEnter": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "firstBindSelectSourceToPull": "请至少勾选一个平台",
+  "firstBindPartialFailure": "已完成 {succeeded}/{total} 个平台拉取，以下平台失败：{failed}",
+  "@firstBindPartialFailure": {
+    "placeholders": {
+      "succeeded": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "failed": {
         "type": "String"
       }
     }
@@ -10882,7 +10904,7 @@
   "favoriteSortCustom": "自定义排序",
   "favoriteReorderMode": "排序",
   "favoriteReorderDone": "完成",
-  "favoriteReorderHint": "拖动左侧手柄、点击序号或使用右侧按钮调整顺序",
+  "favoriteReorderHint": "拖动右侧手柄或长按卡片、点击序号、使用排序按钮调整顺序",
   "favoriteMoveUp": "上移",
   "favoriteMoveDown": "下移",
   "favoriteMoveToTop": "置顶",
@@ -10916,5 +10938,17 @@
       }
     }
   },
-  "favoriteReorderUnavailableEmpty": "至少需要 2 项才能调整顺序"
+  "favoriteReorderUnavailableEmpty": "至少需要 2 项才能调整顺序",
+  "flowPlateTargetGoal": "达成目标",
+  "flowPlateRuleFullCombo": "全曲 FC 及以上",
+  "flowPlateRuleAllPerfect": "全曲 AP 及以上",
+  "flowPlateRuleFullSyncDx": "全曲 FDX 及以上",
+  "flowPlateRuleClear80": "CLEAR ≥ 80%",
+  "flowPlateRuleAdvanced": "进阶目标",
+  "flowPlateRuleUnofficialShin": "非官方牌子 · 沿用真神曲目",
+  "flowViewPlateProgress": "查看牌子进度",
+  "flowPressBackAgainToExitApp": "再次返回退出 ChiffonMai",
+  "flowSwitchToUtage": "切换 UTAGE",
+  "flowSwitchChartVersion": "切换谱面版本",
+  "flowCurrentChart": "当前"
 }

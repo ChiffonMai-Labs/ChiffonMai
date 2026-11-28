@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../service/Account/AccountStore.dart';
 import '../service/Account/AccountSwitchService.dart';
 import '../utils/AppError.dart';
+import '../utils/AppTheme.dart';
 import '../utils/CurrentDataSourceNotifier.dart';
 import 'FishIcon.dart';
 import 'MarqueeText.dart';
@@ -389,8 +390,9 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
     final String idLine = (meta?.id.isNotEmpty ?? false)
         ? '${source.idIsQQ ? 'QQ' : 'ID'} ${meta!.id}'
         : context.l10n.flowNotLinked;
-    final ratingLine =
-        'RA ${meta?.best50TotalRA ?? 0}  B35 ${meta?.best35TotalRA ?? 0}  B15 ${meta?.best15TotalRA ?? 0}';
+    final int totalRa = meta?.best50TotalRA ?? 0;
+    final int b35Ra = meta?.best35TotalRA ?? 0;
+    final int b15Ra = meta?.best15TotalRA ?? 0;
     final bool isSwitching = _switchingTo == source;
     final bool isClearing = _clearing == source;
 
@@ -400,7 +402,10 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
       highlightColor: Colors.transparent,
       onTap: _busy ? null : () => _onTapAccount(source),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: EdgeInsets.symmetric(
+          horizontal: widget.dialog ? 12 : 14,
+          vertical: widget.dialog ? 11 : 12,
+        ),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: scheme.outlineVariant),
@@ -412,7 +417,7 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
           children: [
             _sourceIcon(
                 source, isCurrent ? scheme.primary : scheme.onSurfaceVariant),
-            const SizedBox(width: 12),
+            SizedBox(width: widget.dialog ? 10 : 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -444,17 +449,83 @@ class _AccountSwitchSheetState extends State<_AccountSwitchSheet> {
                   ]),
                   const SizedBox(height: 2),
                   Text(idLine,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                           fontSize: 12, color: scheme.onSurfaceVariant)),
-                  const SizedBox(height: 2),
-                  MarqueeText(
-                      text: ratingLine,
-                      style: TextStyle(
-                          fontSize: 12, color: scheme.onSurfaceVariant)),
+                  const SizedBox(height: 3),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'RA $totalRa',
+                            maxLines: 1,
+                            softWrap: false,
+                            style: AppTheme.number(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 5),
+                            child: Text(
+                              '·',
+                              maxLines: 1,
+                              softWrap: false,
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                color: scheme.outline,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            'B35 $b35Ra',
+                            maxLines: 1,
+                            softWrap: false,
+                            style: AppTheme.number(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w500,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 5),
+                            child: Text(
+                              '·',
+                              maxLines: 1,
+                              softWrap: false,
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                color: scheme.outline,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            'B15 $b15Ra',
+                            maxLines: 1,
+                            softWrap: false,
+                            style: AppTheme.number(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w500,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: widget.dialog ? 6 : 8),
             if (isSwitching || isClearing)
               SizedBox(
                 width: 18,

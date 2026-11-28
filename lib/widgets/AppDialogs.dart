@@ -22,6 +22,9 @@ class AppDialog extends StatelessWidget {
   /// 底部按钮，从左到右，每个按钮平分宽度。
   final List<Widget> actions;
 
+  /// 底部按钮每行几个，不传时自动决定一行还是竖排。
+  final int? actionColumns;
+
   const AppDialog({
     super.key,
     required this.title,
@@ -29,6 +32,7 @@ class AppDialog extends StatelessWidget {
     this.icon,
     this.tone = AppDialogTone.info,
     this.actions = const [],
+    this.actionColumns,
   });
 
   static Color toneColor(BuildContext context, AppDialogTone tone) {
@@ -56,6 +60,7 @@ class AppDialog extends StatelessWidget {
       content: content,
       scrollable: true,
       actions: actions,
+      actionColumns: actionColumns,
     );
   }
 }
@@ -408,8 +413,11 @@ class AppAlertDialog extends StatelessWidget {
       painter.dispose();
       return tooWide;
     });
-    // 放不下就竖排，主按钮在上；不要把「使用默认路径」挤成两行。
+    // 放不下就竖排，主按钮在上；带图标的三按钮无法量出文本宽度时也默认竖排防止挤成多行。
+    final hasUnmeasuredIconButtons =
+        items.length >= 3 && labels.any((label) => label == null);
     final stacked = (items.length > 1 && labelsTooWide) ||
+        hasUnmeasuredIconButtons ||
         items.length > 3 ||
         (items.length == 3 && longest > 3) ||
         (items.length == 2 && longest > 7);

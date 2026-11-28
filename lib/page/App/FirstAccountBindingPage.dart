@@ -25,7 +25,11 @@ import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/ConfettiEffect.dart';
 import '../../widgets/DivingFishAuthorizationDialog.dart';
 import '../../widgets/RefreshDataDialog.dart'
-    show RefreshDataRequest, RefreshDataSource, executeRefreshData;
+    show
+        RefreshDataRequest,
+        RefreshDataSource,
+        SharedRefreshData,
+        executeAdvancedRefreshData;
 import '../../widgets/SmoothLinearProgressIndicator.dart';
 import '../../widgets/SyncScoreDialogs.dart' show SyncCallbacks, SyncScoreDialogs;
 
@@ -39,7 +43,9 @@ class FirstAccountBindingPage extends StatefulWidget {
 }
 
 class _FirstAccountBindingPageState extends State<FirstAccountBindingPage> {
-  RefreshDataSource? _selectedSource;
+  final Set<RefreshDataSource> _selectedSources = <RefreshDataSource>{};
+  final Set<RefreshDataSource> _knownReadySources = <RefreshDataSource>{};
+  RefreshDataSource? _lastInteractedSource;
   bool _busyAction = false;
   bool _refreshing = false;
   double _refreshProgress = 0;
@@ -49,14 +55,26 @@ class _FirstAccountBindingPageState extends State<FirstAccountBindingPage> {
   @override
   void initState() {
     super.initState();
-    _syncDefaultSelection();
+    _syncSelectionWithReady();
+    accountBindingChanges.addListener(_onBindingsChanged);
     unawaited(_refreshBindingStatuses());
+  }
+
+  @override
+  void dispose() {
+    accountBindingChanges.removeListener(_onBindingsChanged);
+    super.dispose();
+  }
+
+  void _onBindingsChanged() {
+    if (!mounted) return;
+    setState(_syncSelectionWithReady);
   }
 
   Future<void> _refreshBindingStatuses() async {
     await AccountAuthorizationStatus.refresh();
     if (!mounted) return;
-    setState(_syncDefaultSelection);
+    setState(_syncSelectionWithReady);
   }
 
   bool _isSourceReady(RefreshDataSource source) => switch (source) {
@@ -70,14 +88,33 @@ class _FirstAccountBindingPageState extends State<FirstAccountBindingPage> {
           if (_isSourceReady(source)) source,
       ];
 
-  void _syncDefaultSelection() {
-    final ready = _readySources;
-    if (ready.isEmpty) {
-      _selectedSource = null;
-      return;
+  /// 同步已就绪平台集合：新就绪的平台默认纳入批量拉取，同时保留用户的手动取消勾选。
+  void _syncSelectionWithReady() {
+    final ready = _readySources.toSet();
+    _selectedSources.removeWhere((s) => !ready.contains(s));
+    for (final s in ready) {
+      if (!_knownReadySources.contains(s)) {
+        _selectedSources.add(s);
+      }
     }
-    if (_selectedSource == null || !ready.contains(_selectedSource)) {
-      _selectedSource = ready.first;
+    _knownReadySources
+      ..clear()
+      ..addAll(ready);
+  }
+
+  List<RefreshDataSource> _effectiveSelectedTargets(
+      List<RefreshDataSource> ready) {
+    return [
+      for (final source in ready)
+        if (_selectedSources.contains(source)) source,
+    ];
+  }
+
+  void _markNewlyBound(RefreshDataSource source) {
+    _syncSelectionWithReady();
+    if (_isSourceReady(source)) {
+      _selectedSources.add(source);
+      _lastInteractedSource = source;
     }
   }
 
@@ -105,6 +142,14 @@ class _FirstAccountBindingPageState extends State<FirstAccountBindingPage> {
     return (await DivingFishProbeManager().fetchBindQQ())?.trim() ?? '';
   }
 
+  Future<String> _resolveQqForSource(RefreshDataSource source) async =>
+      switch (source) {
+        RefreshDataSource.awmc =>
+          (await AccountAuthorizationStore.awmcQQ()).trim(),
+        RefreshDataSource.shuiyu => await _resolveDivingFishBindQQ(),
+        RefreshDataSource.luoxue => '',
+      };
+
   Future<void> _handleAwmcAction() async {
     if (_busyAction || _refreshing) return;
     setState(() => _busyAction = true);
@@ -112,11 +157,13 @@ class _FirstAccountBindingPageState extends State<FirstAccountBindingPage> {
       final outcome =
           await showAccountAuthorizationDialog(context, luoxue: false);
       if (!mounted) return;
-      if (outcome.saved && _isSourceReady(RefreshDataSource.awmc)) {
-        setState(() => _selectedSource = RefreshDataSource.awmc);
-      } else {
-        setState(_syncDefaultSelection);
-      }
+      setState(() {
+        if (outcome.saved && _isSourceReady(RefreshDataSource.awmc)) {
+          _markNewlyBound(RefreshDataSource.awmc);
+        } else {
+          _syncSelectionWithReady();
+        }
+      });
     } finally {
       if (mounted) setState(() => _busyAction = false);
     }
@@ -136,28 +183,32 @@ class _FirstAccountBindingPageState extends State<FirstAccountBindingPage> {
               await DivingFishOAuthManager().checkAuthorization(bindQQ);
           if (!mounted) return;
           if (authorized == true) {
-            setState(() => _selectedSource = RefreshDataSource.shuiyu);
+            setState(() => _markNewlyBound(RefreshDataSource.shuiyu));
             return;
           }
         }
         final becameAuthorized =
             await showDivingFishAuthorizationDialog(context);
         if (!mounted) return;
-        if (becameAuthorized || _isSourceReady(RefreshDataSource.shuiyu)) {
-          setState(() => _selectedSource = RefreshDataSource.shuiyu);
-        } else {
-          setState(_syncDefaultSelection);
-        }
+        setState(() {
+          if (becameAuthorized || _isSourceReady(RefreshDataSource.shuiyu)) {
+            _markNewlyBound(RefreshDataSource.shuiyu);
+          } else {
+            _syncSelectionWithReady();
+          }
+        });
         return;
       }
 
       final becameAuthorized = await showDivingFishAuthorizationDialog(context);
       if (!mounted) return;
-      if (becameAuthorized && _isSourceReady(RefreshDataSource.shuiyu)) {
-        setState(() => _selectedSource = RefreshDataSource.shuiyu);
-      } else {
-        setState(_syncDefaultSelection);
-      }
+      setState(() {
+        if (becameAuthorized && _isSourceReady(RefreshDataSource.shuiyu)) {
+          _markNewlyBound(RefreshDataSource.shuiyu);
+        } else {
+          _syncSelectionWithReady();
+        }
+      });
     } finally {
       if (mounted) setState(() => _busyAction = false);
     }
@@ -170,11 +221,13 @@ class _FirstAccountBindingPageState extends State<FirstAccountBindingPage> {
       final outcome =
           await showAccountAuthorizationDialog(context, luoxue: true);
       if (!mounted) return;
-      if (outcome.saved && _isSourceReady(RefreshDataSource.luoxue)) {
-        setState(() => _selectedSource = RefreshDataSource.luoxue);
-      } else {
-        setState(_syncDefaultSelection);
-      }
+      setState(() {
+        if (outcome.saved && _isSourceReady(RefreshDataSource.luoxue)) {
+          _markNewlyBound(RefreshDataSource.luoxue);
+        } else {
+          _syncSelectionWithReady();
+        }
+      });
     } finally {
       if (mounted) setState(() => _busyAction = false);
     }
@@ -192,10 +245,18 @@ class _FirstAccountBindingPageState extends State<FirstAccountBindingPage> {
 
   Future<void> _pullInitialDataAndFinish() async {
     final ready = _readySources;
-    if (_refreshing || _busyAction || _closing || ready.isEmpty) return;
-    final source = (_selectedSource != null && ready.contains(_selectedSource))
-        ? _selectedSource!
-        : ready.first;
+    final targets = _effectiveSelectedTargets(ready);
+    if (_refreshing || _busyAction || _closing || targets.isEmpty) return;
+
+    // 把用户最后交互过的平台放到末尾，拉取完成后它自然保留为首页当前活动源。
+    final orderedTargets = List<RefreshDataSource>.of(targets);
+    if (orderedTargets.length > 1 &&
+        _lastInteractedSource != null &&
+        orderedTargets.contains(_lastInteractedSource)) {
+      orderedTargets
+        ..remove(_lastInteractedSource!)
+        ..add(_lastInteractedSource!);
+    }
 
     FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
@@ -204,47 +265,102 @@ class _FirstAccountBindingPageState extends State<FirstAccountBindingPage> {
       _refreshText = context.l10n.flowRefreshingData;
     });
     HomeRefreshNotifier.setBusy(true);
-    var qq = '';
+
+    // 多个平台共享同一份公共曲库与定数刷新任务，避免重复请求公共数据源。
+    final shared = SharedRefreshData(forceSourceIds: const {});
+    final succeeded = <RefreshDataSource>[];
+    final failures = <({RefreshDataSource source, Object error, String qq})>[];
+
     try {
-      qq = switch (source) {
-        RefreshDataSource.awmc =>
-          (await AccountAuthorizationStore.awmcQQ()).trim(),
-        RefreshDataSource.shuiyu => await _resolveDivingFishBindQQ(),
-        RefreshDataSource.luoxue => '',
-      };
-      final request = RefreshDataRequest(
-        dataSource: source,
-        qq: qq,
-        authCode: '',
-        participateRankings: false,
-        showNickname: false,
-        showBriefProfile: false,
-        forceFullRefresh: false,
-        useSavedAuthorization: source == RefreshDataSource.luoxue,
-      );
-      await AppTaskActivity.run(
-        () => executeRefreshData(
-          request,
-          onProgress: (progress, text) {
-            if (!mounted) return;
-            setState(() {
-              _refreshProgress = (progress / 100).clamp(0.0, 1.0);
-              _refreshText = '$text $progress%';
-            });
-          },
-        ),
-      );
+      await AppTaskActivity.run(() async {
+        final total = orderedTargets.length;
+        for (var i = 0; i < total; i++) {
+          final source = orderedTargets[i];
+          var qq = '';
+          try {
+            qq = await _resolveQqForSource(source);
+            final request = RefreshDataRequest(
+              dataSource: source,
+              qq: qq,
+              authCode: '',
+              participateRankings: false,
+              showNickname: false,
+              showBriefProfile: false,
+              forceFullRefresh: false,
+              forceSourceIds: const {},
+              useSavedAuthorization: source == RefreshDataSource.luoxue,
+            );
+            await executeAdvancedRefreshData(
+              request,
+              sharedRefresh: shared,
+              onProgress: (progress, text) {
+                if (!mounted) return;
+                final combined = ((i * 100 + progress) / (total * 100))
+                    .clamp(0.0, 1.0);
+                setState(() {
+                  _refreshProgress = combined;
+                  _refreshText = total > 1
+                      ? '[${i + 1}/$total ${source.displayName}] $text $progress%'
+                      : '$text $progress%';
+                });
+              },
+            );
+            succeeded.add(source);
+          } catch (e) {
+            failures.add((source: source, error: e, qq: qq));
+          }
+        }
+      });
+
       if (!mounted) return;
-      ConfettiEffect.show(context);
-      AppToast.show(context.l10n.flowDataRefreshed, tone: AppToastTone.success);
-      _closing = true;
-      await OnboardingStateStore.instance.markAccountBindingGuideCompleted();
-      if (mounted) {
-        Navigator.of(context).pop();
+      if (failures.isEmpty) {
+        ConfettiEffect.show(context);
+        AppToast.show(context.l10n.flowDataRefreshed,
+            tone: AppToastTone.success);
+        _closing = true;
+        await OnboardingStateStore.instance.markAccountBindingGuideCompleted();
+        if (mounted) {
+          Navigator.of(context).pop();
+        }
+        return;
       }
-    } catch (e) {
-      if (mounted) {
-        await presentRefreshError(context, e, qq: qq);
+
+      if (succeeded.isNotEmpty) {
+        // 已拉取成功的平台取消勾选，方便用户只针对失败平台重试或直接跳过进入首页。
+        setState(() {
+          for (final done in succeeded) {
+            _selectedSources.remove(done);
+          }
+        });
+        final failedNames =
+            failures.map((f) => f.source.displayName).join('、');
+        AppToast.show(
+          context.l10n.firstBindPartialFailure(
+            succeeded.length,
+            orderedTargets.length,
+            failedNames,
+          ),
+          tone: AppToastTone.warning,
+        );
+        return;
+      }
+
+      await presentRefreshError(
+        context,
+        failures.first.error,
+        qq: failures.first.qq,
+      );
+      if (mounted && failures.length > 1) {
+        final failedNames =
+            failures.map((f) => f.source.displayName).join('、');
+        AppToast.show(
+          context.l10n.firstBindPartialFailure(
+            0,
+            orderedTargets.length,
+            failedNames,
+          ),
+          tone: AppToastTone.warning,
+        );
       }
     } finally {
       HomeRefreshNotifier.setBusy(false);
@@ -283,10 +399,7 @@ class _FirstAccountBindingPageState extends State<FirstAccountBindingPage> {
           listenable: accountBindingChanges,
           builder: (context, _) {
             final readySources = _readySources;
-            final activeSource =
-                (_selectedSource != null && readySources.contains(_selectedSource))
-                    ? _selectedSource
-                    : (readySources.isNotEmpty ? readySources.first : null);
+            final selectedTargets = _effectiveSelectedTargets(readySources);
             final fishLoggedIn = LoginStateNotifier.instance.value;
             final fishReady = _isSourceReady(RefreshDataSource.shuiyu);
             final showFishAuthPrompt =
@@ -295,16 +408,49 @@ class _FirstAccountBindingPageState extends State<FirstAccountBindingPage> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                SizedBox(height: topInset + 8),
+                SizedBox(height: topInset + 10),
                 Padding(
                   padding: const EdgeInsets.symmetric(
                       horizontal: AppDesignTokens.gutter),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      const Spacer(),
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: scheme.primary.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(
+                              AppDesignTokens.radiusSmall),
+                        ),
+                        alignment: Alignment.center,
+                        child: Icon(
+                          Icons.link_rounded,
+                          size: 22,
+                          color: scheme.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Semantics(
+                          header: true,
+                          child: Text(
+                            l10n.firstBindTitle,
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              height: 1.2,
+                              color: scheme.onSurface,
+                            ),
+                          ),
+                        ),
+                      ),
                       TextButton(
                         onPressed:
                             _refreshing || _busyAction ? null : _skipAndClose,
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                        ),
                         child: Text(l10n.flowSkip),
                       ),
                     ],
@@ -313,70 +459,35 @@ class _FirstAccountBindingPageState extends State<FirstAccountBindingPage> {
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.fromLTRB(
-                        AppDesignTokens.gutter, 4, AppDesignTokens.gutter, 16),
+                        AppDesignTokens.gutter, 8, AppDesignTokens.gutter, 16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         EntranceAnimation(
-                          offset: const Offset(0, 12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                width: 48,
-                                height: 48,
-                                decoration: BoxDecoration(
-                                  color: scheme.primary.withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(
-                                      AppDesignTokens.radiusMedium),
-                                ),
-                                alignment: Alignment.center,
-                                child: Icon(
-                                  Icons.link_rounded,
-                                  size: 26,
-                                  color: scheme.primary,
-                                ),
-                              ),
-                              const SizedBox(height: 14),
-                              Semantics(
-                                header: true,
-                                child: Text(
-                                  l10n.firstBindTitle,
-                                  style: TextStyle(
-                                    fontSize: 26,
-                                    fontWeight: FontWeight.w800,
-                                    height: 1.25,
-                                    color: scheme.onSurface,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                l10n.firstBindSubtitle,
-                                style: TextStyle(
-                                  fontSize: 14.5,
-                                  height: 1.5,
-                                  color: scheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
+                          offset: const Offset(0, 8),
+                          child: Text(
+                            l10n.firstBindSubtitle,
+                            style: TextStyle(
+                              fontSize: 14,
+                              height: 1.45,
+                              color: scheme.onSurfaceVariant,
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 18),
+                        const SizedBox(height: 14),
                         for (final (index, source)
                             in RefreshDataSource.values.indexed)
                           Padding(
                             padding: const EdgeInsets.only(bottom: 10),
                             child: EntranceAnimation(
                               index: index,
-                              baseDelay: const Duration(milliseconds: 80),
+                              baseDelay: const Duration(milliseconds: 60),
                               offset: const Offset(0, 8),
-                              duration: const Duration(milliseconds: 300),
+                              duration: const Duration(milliseconds: 280),
                               child: _buildSourceCard(
                                 context,
                                 source: source,
                                 readySources: readySources,
-                                activeSource: activeSource,
                               ),
                             ),
                           ),
@@ -391,9 +502,9 @@ class _FirstAccountBindingPageState extends State<FirstAccountBindingPage> {
                               ),
                             ),
                           ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 2),
                         EntranceAnimation(
-                          baseDelay: const Duration(milliseconds: 200),
+                          baseDelay: const Duration(milliseconds: 180),
                           offset: const Offset(0, 8),
                           child: AppCard(
                             radius: AppDesignTokens.radiusMedium,
@@ -476,7 +587,8 @@ class _FirstAccountBindingPageState extends State<FirstAccountBindingPage> {
                       AppDesignTokens.gutter, 16 + safeBottom),
                   child: _buildBottomActionArea(
                     context,
-                    activeSource: activeSource,
+                    readySources: readySources,
+                    selectedTargets: selectedTargets,
                     showFishAuthPrompt: showFishAuthPrompt,
                   ),
                 ),
@@ -492,15 +604,14 @@ class _FirstAccountBindingPageState extends State<FirstAccountBindingPage> {
     BuildContext context, {
     required RefreshDataSource source,
     required List<RefreshDataSource> readySources,
-    required RefreshDataSource? activeSource,
   }) {
     final l10n = context.l10n;
     final scheme = Theme.of(context).colorScheme;
     final brightness = Theme.of(context).brightness;
 
     final ready = _isSourceReady(source);
-    final selected = ready && activeSource == source;
-    final canSwitch = ready && !_refreshing && !_busyAction;
+    final selected = ready && _selectedSources.contains(source);
+    final canToggle = ready && readySources.length > 1 && !_refreshing && !_busyAction;
 
     final IconData icon;
     final String title;
@@ -634,7 +745,34 @@ class _FirstAccountBindingPageState extends State<FirstAccountBindingPage> {
                           text: statusText,
                           highlighted: selected,
                         ),
-                        if (selected)
+                        if (ready && readySources.length > 1)
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                selected
+                                    ? Icons.check_circle_rounded
+                                    : Icons.radio_button_unchecked_rounded,
+                                size: 15,
+                                color: selected
+                                    ? scheme.primary
+                                    : scheme.onSurfaceVariant,
+                              ),
+                              if (selected) ...[
+                                const SizedBox(width: 3),
+                                Text(
+                                  l10n.firstBindSelectedForPull,
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    color:
+                                        AppColors.successForeground(brightness),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          )
+                        else if (selected)
                           Text(
                             l10n.firstBindSelectedForPull,
                             style: TextStyle(
@@ -670,8 +808,15 @@ class _FirstAccountBindingPageState extends State<FirstAccountBindingPage> {
     return AppCard(
       radius: AppDesignTokens.radiusMedium,
       padding: EdgeInsets.zero,
-      onTap: canSwitch && readySources.length > 1
-          ? () => setState(() => _selectedSource = source)
+      onTap: canToggle
+          ? () => setState(() {
+                if (_selectedSources.contains(source)) {
+                  _selectedSources.remove(source);
+                } else {
+                  _selectedSources.add(source);
+                  _lastInteractedSource = source;
+                }
+              })
           : null,
       child: cardContent,
     );
@@ -679,7 +824,8 @@ class _FirstAccountBindingPageState extends State<FirstAccountBindingPage> {
 
   Widget _buildBottomActionArea(
     BuildContext context, {
-    required RefreshDataSource? activeSource,
+    required List<RefreshDataSource> readySources,
+    required List<RefreshDataSource> selectedTargets,
     required bool showFishAuthPrompt,
   }) {
     final l10n = context.l10n;
@@ -709,7 +855,12 @@ class _FirstAccountBindingPageState extends State<FirstAccountBindingPage> {
       );
     }
 
-    if (activeSource != null) {
+    if (readySources.isNotEmpty) {
+      final buttonLabel = switch (selectedTargets.length) {
+        0 => l10n.firstBindSelectSourceToPull,
+        1 => l10n.firstBindPullAndEnter(selectedTargets.first.displayName),
+        final count => l10n.firstBindPullMultipleAndEnter(count),
+      };
       return Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -717,10 +868,10 @@ class _FirstAccountBindingPageState extends State<FirstAccountBindingPage> {
           PressScale(
             scale: 0.98,
             child: FilledButton(
-              onPressed: _busyAction ? null : _pullInitialDataAndFinish,
-              child: Text(
-                l10n.firstBindPullAndEnter(activeSource.displayName),
-              ),
+              onPressed: (_busyAction || selectedTargets.isEmpty)
+                  ? null
+                  : _pullInitialDataAndFinish,
+              child: Text(buttonLabel),
             ),
           ),
           const SizedBox(height: 6),

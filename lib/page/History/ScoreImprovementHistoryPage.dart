@@ -240,7 +240,7 @@ class _ScoreImprovementHistoryPageState
         .where((entry) => entry.status == ScoreChangeStatus.improvement)
         .length;
     return AppCard(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -264,7 +264,7 @@ class _ScoreImprovementHistoryPageState
             style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
           ),
           if (dayEntries.isNotEmpty) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             Row(
               children: [
                 Expanded(
@@ -295,6 +295,37 @@ class _ScoreImprovementHistoryPageState
           ],
         ],
       ),
+    );
+  }
+
+  /// 日期筛选栏：把「日期范围」选择与横向单日胶囊合并为紧凑一行，避免挤占下方列表空间。
+  Widget _buildDateBar(List<String> days, DateTimeRange? range) {
+    if (range != null) {
+      return HistoryDateRangeFilter(
+        range: range,
+        onPick: () => _pickDateRange(days),
+        onClear: () => setState(() {
+          _dateRange = null;
+          _limit = 60;
+        }),
+      );
+    }
+    return Row(
+      children: [
+        FilterPill(
+          label: context.l10n.historyDateRange,
+          selected: null,
+          onTap: () => _pickDateRange(days),
+        ),
+        if (days.isNotEmpty) ...[
+          const SizedBox(width: 8),
+          Expanded(
+            child: ClipRect(
+              child: _buildDayPills(days),
+            ),
+          ),
+        ],
+      ],
     );
   }
 
@@ -402,113 +433,109 @@ class _ScoreImprovementHistoryPageState
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 760),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
+          child: CustomScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            slivers: [
+              SliverPadding(
                 padding: const EdgeInsets.fromLTRB(AppDesignTokens.gutter, 4,
                     AppDesignTokens.gutter, AppDesignTokens.cardGap),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildOverview(rangeEntries),
-                    if (days.isNotEmpty || range != null) ...[
-                      const SizedBox(height: 6),
-                      HistoryDateRangeFilter(
-                        range: range,
-                        onPick: () => _pickDateRange(days),
-                        onClear: () => setState(() {
-                          _dateRange = null;
-                          _limit = 60;
-                        }),
-                      ),
+                sliver: SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildOverview(rangeEntries),
+                      if (days.isNotEmpty || range != null) ...[
+                        const SizedBox(height: 8),
+                        _buildDateBar(days, range),
+                      ],
+                      const SizedBox(height: 8),
+                      _buildSearchEntry(),
                     ],
-                    if (range == null && days.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      _buildDayPills(days),
-                    ],
-                    const SizedBox(height: 10),
-                    _buildSearchEntry(),
-                  ],
+                  ),
                 ),
               ),
-              Expanded(
-                child: _loading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _error != null || _searchError != null
-                        ? _buildStateMessage(
-                            null, (_error ?? _searchError)!, null,
-                            onRetry: _error != null
-                                ? _load
-                                : () => _submitSearch(_search.text))
-                        : filtered.isEmpty
-                            ? _buildStateMessage(
-                                Icons.auto_graph_rounded,
-                                _entries.isEmpty
-                                    ? context
-                                        .l10n.flowNoScoreImprovementRecordsYet
-                                    : context.l10n.flowNoMatchingRecords,
-                                _entries.isEmpty
-                                    ? context.l10n
-                                        .flowBestScoresThatChangeAfterASuccessful
-                                    : context.l10n.flowTryAnotherKeywordOrDate)
-                            : ListView.builder(
-                                key: ValueKey(range ?? _selectedDay),
-                                keyboardDismissBehavior:
-                                    ScrollViewKeyboardDismissBehavior.onDrag,
-                                padding: EdgeInsets.fromLTRB(
-                                    AppDesignTokens.gutter,
-                                    0,
-                                    AppDesignTokens.gutter,
-                                    AppDesignTokens.gutter +
-                                        MediaQuery.paddingOf(context).bottom),
-                                itemCount: shown.length +
-                                    (filtered.length > _limit ? 1 : 0),
-                                itemBuilder: (context, index) {
-                                  if (index == shown.length) {
-                                    return TextButton(
-                                        onPressed: () =>
-                                            setState(() => _limit += 60),
-                                        child: Text(range == null
-                                            ? context.l10n
-                                                .flowLoadMoreFromThisDayP0Charts(
-                                                    '${filtered.length - _limit}')
-                                            : context.l10n.flowLoadMoreP0P1(
-                                                '${shown.length}',
-                                                '${filtered.length}')));
-                                  }
-                                  final entry = shown[index];
-                                  return Padding(
-                                    padding: const EdgeInsets.only(
-                                        bottom: AppDesignTokens.cardGap),
-                                    child: _entrance.wrap(
-                                      (range, _selectedDay, query),
-                                      index,
-                                      ScoreImprovementCard(
-                                          entry: entry,
-                                          showDate: range != null,
-                                          onOpen: () {
-                                            FocusManager.instance.primaryFocus
-                                                ?.unfocus();
-                                            Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                    builder: (_) =>
-                                                        SongInfoPage(
-                                                          songId: entry
-                                                              .after.songId
-                                                              .toString(),
-                                                          initialLevelIndex:
-                                                              entry.after
-                                                                  .levelIndex,
-                                                        )));
-                                          }),
-                                      maxAnimatedIndex: 8,
-                                    ),
-                                  );
-                                },
-                              ),
-              ),
+              if (_loading)
+                const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (_error != null || _searchError != null)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: _buildStateMessage(
+                    null,
+                    (_error ?? _searchError)!,
+                    null,
+                    onRetry: _error != null
+                        ? _load
+                        : () => _submitSearch(_search.text),
+                  ),
+                )
+              else if (filtered.isEmpty)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: _buildStateMessage(
+                    Icons.auto_graph_rounded,
+                    _entries.isEmpty
+                        ? context.l10n.flowNoScoreImprovementRecordsYet
+                        : context.l10n.flowNoMatchingRecords,
+                    _entries.isEmpty
+                        ? context.l10n.flowBestScoresThatChangeAfterASuccessful
+                        : context.l10n.flowTryAnotherKeywordOrDate,
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: EdgeInsets.fromLTRB(
+                    AppDesignTokens.gutter,
+                    0,
+                    AppDesignTokens.gutter,
+                    AppDesignTokens.gutter +
+                        MediaQuery.paddingOf(context).bottom,
+                  ),
+                  sliver: SliverList.builder(
+                    itemCount:
+                        shown.length + (filtered.length > _limit ? 1 : 0),
+                    itemBuilder: (context, index) {
+                      if (index == shown.length) {
+                        return TextButton(
+                          onPressed: () => setState(() => _limit += 60),
+                          child: Text(range == null
+                              ? context.l10n.flowLoadMoreFromThisDayP0Charts(
+                                  '${filtered.length - _limit}')
+                              : context.l10n.flowLoadMoreP0P1(
+                                  '${shown.length}', '${filtered.length}')),
+                        );
+                      }
+                      final entry = shown[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(
+                            bottom: AppDesignTokens.cardGap),
+                        child: _entrance.wrap(
+                          (range, _selectedDay, query),
+                          index,
+                          ScoreImprovementCard(
+                            entry: entry,
+                            showDate: range != null,
+                            onOpen: () {
+                              FocusManager.instance.primaryFocus?.unfocus();
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => SongInfoPage(
+                                    songId: entry.after.songId.toString(),
+                                    initialLevelIndex: entry.after.levelIndex,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          maxAnimatedIndex: 8,
+                        ),
+                      );
+                    },
+                  ),
+                ),
             ],
           ),
         ),

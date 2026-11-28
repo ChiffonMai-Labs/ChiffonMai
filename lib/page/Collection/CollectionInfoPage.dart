@@ -18,6 +18,7 @@ import '../../utils/CoverUtil.dart';
 import '../../utils/StringUtil.dart';
 import '../../utils/TranslationUtil.dart';
 import '../../utils/AppTheme.dart';
+import '../Score/PaiziProgressPage.dart';
 import '../song_info/SongInfoPage.dart';
 import '../../widgets/BackgroundPageScaffold.dart';
 import '../../widgets/LxnsAssetImage.dart';
@@ -787,6 +788,9 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
     final descriptionNeedsTranslation = collection.description != null &&
         _isEnglishOrJapanese(collection.description!);
     final isTrophy = widget.collectionType == 'trophies';
+    final plateSelection = widget.collectionType == 'plates'
+        ? PaiziProgressService().resolveProgressSelection(collection)
+        : null;
     final requiredList = collection.required;
     final mergedConditions = requiredList != null && requiredList.isNotEmpty
         ? _getMergedRequiredConditions(requiredList)
@@ -905,6 +909,25 @@ class _CollectionInfoPageState extends State<CollectionInfoPage> {
                     ),
                   ],
                 ),
+                if (plateSelection != null) ...[
+                  const SizedBox(height: 8),
+                  FilledButton.tonalIcon(
+                    onPressed: () {
+                      FocusManager.instance.primaryFocus?.unfocus();
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => PaiziProgressPage(
+                            initialFirstChar: plateSelection.firstChar,
+                            initialTitleType: plateSelection.titleType,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.wysiwyg_rounded, size: 18),
+                    label: Text(context.l10n.flowViewPlateProgress),
+                  ),
+                ],
               ],
             ],
           ),

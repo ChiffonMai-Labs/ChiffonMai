@@ -9239,9 +9239,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get songChartPlaybackInApp => 'Play chart in app';
 
   @override
-  String get songMoreActionsScroll => 'Scroll for more actions';
-
-  @override
   String get announcementCenter => 'Announcement Center';
 
   @override
@@ -16704,11 +16701,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get firstBindActionAuthStatus => 'Auth status';
 
   @override
-  String get firstBindSelectedForPull => 'Will fetch initial data from here';
+  String get firstBindSelectedForPull => 'Selected for fetch';
 
   @override
   String get firstBindTapToSelectSource =>
-      'Tap a ready card to choose which source to fetch';
+      'Tap ready cards to toggle selection — you can fetch multiple platforms at once';
 
   @override
   String get firstBindNoAccountTitle => 'Don\'t have an account yet?';
@@ -16728,6 +16725,19 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String firstBindPullAndEnter(String source) {
     return 'Fetch $source data & start';
+  }
+
+  @override
+  String firstBindPullMultipleAndEnter(int count) {
+    return 'Fetch $count platforms & start';
+  }
+
+  @override
+  String get firstBindSelectSourceToPull => 'Select at least one platform';
+
+  @override
+  String firstBindPartialFailure(int succeeded, int total, String failed) {
+    return 'Fetched $succeeded/$total platforms. Failed: $failed';
   }
 
   @override
@@ -16850,7 +16860,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get favoriteReorderHint =>
-      'Drag handle, tap index, or use action buttons to reorder';
+      'Drag the right handle or long-press a card, tap index, or use buttons to reorder';
 
   @override
   String get favoriteMoveUp => 'Move up';
@@ -16897,4 +16907,42 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get favoriteReorderUnavailableEmpty =>
       'At least 2 items are required to reorder';
+
+  @override
+  String get flowPlateTargetGoal => 'Goal';
+
+  @override
+  String get flowPlateRuleFullCombo => 'All charts FC+';
+
+  @override
+  String get flowPlateRuleAllPerfect => 'All charts AP+';
+
+  @override
+  String get flowPlateRuleFullSyncDx => 'All charts FDX+';
+
+  @override
+  String get flowPlateRuleClear80 => 'CLEAR ≥ 80%';
+
+  @override
+  String get flowPlateRuleAdvanced => 'Stretch goal';
+
+  @override
+  String get flowPlateRuleUnofficialShin =>
+      'Unofficial plate · uses 真神 chart list';
+
+  @override
+  String get flowViewPlateProgress => 'View plate progress';
+
+  @override
+  String get flowPressBackAgainToExitApp =>
+      'Press back again to exit ChiffonMai';
+
+  @override
+  String get flowSwitchToUtage => 'Switch to UTAGE';
+
+  @override
+  String get flowSwitchChartVersion => 'Switch chart version';
+
+  @override
+  String get flowCurrentChart => 'Current';
 }

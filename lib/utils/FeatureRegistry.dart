@@ -281,7 +281,7 @@ class FeatureRegistry {
       '结算画面识别': const ButtonItem(
           icon: Icons.document_scanner,
           title: '结算画面识别',
-          subtitle: '拍摄机台结算画面，自动识别成绩'),
+          subtitle: '拍摄结算画面，自动识别成绩'),
       '收藏品查询': const ButtonItem(
           icon: Icons.collections_bookmark,
           title: '收藏品查询',
@@ -385,9 +385,9 @@ class FeatureRegistry {
       '收藏夹': const ButtonItem(
           icon: Icons.favorite, title: '收藏夹', subtitle: '管理你收藏的谱面'),
       '下次想玩': const ButtonItem(
-          icon: Icons.queue_music, title: '下次想玩', subtitle: '排好下次去机台想玩的歌曲'),
+          icon: Icons.queue_music, title: '下次想玩', subtitle: '排好下次出勤想玩的歌曲'),
       '全国音游地图': const ButtonItem(
-          icon: Icons.map, title: '全国音游地图', subtitle: '看看哪里有你想玩的机台'),
+          icon: Icons.map, title: '全国音游地图', subtitle: '看看附近有哪些机厅与音游'),
       '全球音游街机地图': const ButtonItem(
           icon: Icons.public,
           title: '全球音游街机地图',
