@@ -566,67 +566,93 @@ class _SongPvPageState extends State<SongPvPage> {
       builder: (context, value, child) {
         final aspectRatio = value.aspectRatio > 0 ? value.aspectRatio : 16 / 9;
         final shownPosition = _seekPreviewPosition ?? value.position;
-        final showControls = !_fullscreen ||
-            _playbackControlsVisible ||
-            !value.isPlaying ||
-            value.isBuffering;
+        final showControls = !_fullscreen || _playbackControlsVisible;
         return Column(
           children: [
             Expanded(
-              child: Stack(fit: StackFit.expand, children: [
-                Center(
-                  child: AspectRatio(
-                    aspectRatio: aspectRatio,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        VideoPlayer(controller),
-                        if (value.isBuffering && !_isSeeking)
-                          _bufferingOverlay(),
-                        Positioned.fill(
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onHorizontalDragStart: (_) => _startSeeking(value),
-                            onHorizontalDragUpdate: (details) =>
-                                _updateSeeking(details, value),
-                            onHorizontalDragEnd: (_) => _finishSeeking(),
-                            onHorizontalDragCancel: _cancelSeeking,
-                            onTap: () {
-                              if (_fullscreen) {
-                                setState(() => _playbackControlsVisible = true);
-                                _scheduleHideControls();
-                              } else {
-                                _togglePlayback(value.isPlaying);
-                              }
-                            },
-                            child: const SizedBox.expand(),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Center(
+                    child: AspectRatio(
+                      aspectRatio: aspectRatio,
+                      child: VideoPlayer(controller),
+                    ),
+                  ),
+                  // 覆盖全屏区域的点击与横向滑动层，支持点击画面或四周留黑处切换控制器显隐。
+                  Positioned.fill(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onHorizontalDragStart: (_) => _startSeeking(value),
+                      onHorizontalDragUpdate: (details) =>
+                          _updateSeeking(details, value),
+                      onHorizontalDragEnd: (_) => _finishSeeking(),
+                      onHorizontalDragCancel: _cancelSeeking,
+                      onTap: () {
+                        if (_fullscreen) {
+                          if (_playbackControlsVisible) {
+                            _hideControlsTimer?.cancel();
+                            setState(() => _playbackControlsVisible = false);
+                          } else {
+                            setState(() => _playbackControlsVisible = true);
+                            if (value.isPlaying) {
+                              _scheduleHideControls();
+                            }
+                          }
+                        } else {
+                          _togglePlayback(value.isPlaying);
+                        }
+                      },
+                      child: const SizedBox.expand(),
+                    ),
+                  ),
+                  if (value.isBuffering && !_isSeeking) _bufferingOverlay(),
+                  if (_isSeeking && _seekPreviewPosition != null)
+                    Center(child: _seekPreviewOverlay(shownPosition)),
+                  if (_fullscreen) ...[
+                    Positioned(
+                      left: 0,
+                      top: 0,
+                      child: IgnorePointer(
+                        ignoring: !showControls,
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 180),
+                          opacity: showControls ? 1.0 : 0.0,
+                          child: SafeArea(
+                            bottom: false,
+                            right: false,
+                            child: _controlButton(
+                              Icons.arrow_back,
+                              context.l10n.pvExitFullscreen,
+                              _handleBack,
+                            ),
                           ),
                         ),
-                        if (_isSeeking && _seekPreviewPosition != null)
-                          _seekPreviewOverlay(shownPosition),
-                      ],
-                    ),
-                  ),
-                ),
-                if (_fullscreen && showControls) ...[
-                  Positioned.fill(
-                    child: SafeArea(
-                      child: Align(
-                        alignment: Alignment.topLeft,
-                        child: _controlButton(Icons.arrow_back,
-                            context.l10n.pvExitFullscreen, _handleBack),
                       ),
                     ),
-                  ),
-                  Positioned(
+                    Positioned(
                       left: 0,
                       right: 0,
                       bottom: 0,
-                      child: SafeArea(
-                          top: false,
-                          child: _controls(controller, value, shownPosition))),
+                      child: IgnorePointer(
+                        ignoring: !showControls,
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 180),
+                          opacity: showControls ? 1.0 : 0.0,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () {},
+                            child: SafeArea(
+                              top: false,
+                              child: _controls(controller, value, shownPosition),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
-              ]),
+              ),
             ),
             if (!_fullscreen)
               SafeArea(
@@ -926,11 +952,14 @@ class _SongPvPageState extends State<SongPvPage> {
     final controller = _controller;
     if (controller == null) return;
     if (isPlaying) {
+      _hideControlsTimer?.cancel();
+      setState(() => _playbackControlsVisible = true);
       unawaited(controller.pause());
     } else {
+      setState(() => _playbackControlsVisible = true);
       unawaited(controller.play());
+      _scheduleHideControls();
     }
-    _scheduleHideControls();
   }
 
   void _startSeeking(VideoPlayerValue value) {
