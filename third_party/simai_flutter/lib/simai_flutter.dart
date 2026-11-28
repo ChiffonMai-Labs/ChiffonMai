@@ -24,6 +24,17 @@ export 'src/ui/note_motion.dart';
 export 'src/ui/note_style.dart';
 export 'src/ui/custom_note_skin.dart';
 export 'src/ui/hit_effect_style.dart';
+export 'src/audio/judgement_sound_bank.dart'
+    show
+        SimaiCustomJudgementSounds,
+        SimaiJudgementSoundKind,
+        SimaiJudgementSoundVolumes,
+        SimaiScheduledJudgeSfxEvent,
+        buildSimaiJudgementSoundEvents,
+        previewSimaiJudgementSound,
+        resolveSimaiJudgementSoundKind,
+        shouldPlaySimaiHanabiSound;
+export 'src/ui/components/simai_judgement_sound_volumes_panel.dart';
 export 'src/audio/soloud_audio_player.dart' show previewSimaiHitSound;
 export 'src/ui/simai_player_controls.dart';
 export 'src/ui/center_display_mode.dart';

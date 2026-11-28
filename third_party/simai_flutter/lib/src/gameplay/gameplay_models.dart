@@ -3,6 +3,8 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 
+import '../audio/judgement_sound_bank.dart'
+    show SimaiCustomJudgementSounds, SimaiJudgementSoundVolumes;
 import '../structures/location.dart';
 import '../structures/note_group.dart';
 import '../ui/hit_effect_style.dart';
@@ -191,6 +193,9 @@ class SimaiGameplaySettings {
     this.hitSoundVolume = 2.0,
     this.answerSoundEnabled = true,
     this.hitSoundEnabled = false,
+    this.judgementSoundEnabled = true,
+    this.judgementSoundVolumes = SimaiJudgementSoundVolumes.defaults,
+    this.customJudgementSounds = SimaiCustomJudgementSounds.empty,
     this.contactRadiusScale = 1.0,
     this.chartScale = 0.86,
     this.backgroundOpacity = 0.35,
@@ -220,6 +225,15 @@ class SimaiGameplaySettings {
 
   /// 是否开启反应式打击音（命中时即时发声，移动端受音频输出缓冲延迟影响）。
   final bool hitSoundEnabled;
+
+  /// 是否开启街机式判定时音效（按音符类型与绝赞/档位即时播放不同反馈音）。
+  final bool judgementSoundEnabled;
+
+  /// 各判定音效的独立音量倍率映射（0.0 ~ simaiMaxHitSoundVolume，默认全部 100%）。
+  final SimaiJudgementSoundVolumes judgementSoundVolumes;
+
+  /// 各判定音色的自定义文件路径映射（未配置项沿用内置机台音效）。
+  final SimaiCustomJudgementSounds customJudgementSounds;
 
   /// 触摸接触圆半径缩放倍率（0.8 ~ 1.6）。
   final double contactRadiusScale;
@@ -290,6 +304,9 @@ class SimaiGameplaySettings {
     double? hitSoundVolume,
     bool? answerSoundEnabled,
     bool? hitSoundEnabled,
+    bool? judgementSoundEnabled,
+    SimaiJudgementSoundVolumes? judgementSoundVolumes,
+    SimaiCustomJudgementSounds? customJudgementSounds,
     double? contactRadiusScale,
     double? chartScale,
     double? backgroundOpacity,
@@ -315,6 +332,12 @@ class SimaiGameplaySettings {
       hitSoundVolume: hitSoundVolume ?? this.hitSoundVolume,
       answerSoundEnabled: answerSoundEnabled ?? this.answerSoundEnabled,
       hitSoundEnabled: hitSoundEnabled ?? this.hitSoundEnabled,
+      judgementSoundEnabled:
+          judgementSoundEnabled ?? this.judgementSoundEnabled,
+      judgementSoundVolumes:
+          judgementSoundVolumes ?? this.judgementSoundVolumes,
+      customJudgementSounds:
+          customJudgementSounds ?? this.customJudgementSounds,
       contactRadiusScale: contactRadiusScale ?? this.contactRadiusScale,
       chartScale: chartScale ?? this.chartScale,
       backgroundOpacity: backgroundOpacity ?? this.backgroundOpacity,
@@ -344,6 +367,11 @@ class SimaiGameplaySettings {
       'hitSoundVolume': safe.hitSoundVolume,
       'answerSoundEnabled': safe.answerSoundEnabled,
       'hitSoundEnabled': safe.hitSoundEnabled,
+      'judgementSoundEnabled': safe.judgementSoundEnabled,
+      if (!safe.judgementSoundVolumes.isAllDefault)
+        'judgementSoundVolumes': safe.judgementSoundVolumes.toJson(),
+      if (safe.customJudgementSounds.isNotEmpty)
+        'customJudgementSounds': safe.customJudgementSounds.toJson(),
       'contactRadiusScale': safe.contactRadiusScale,
       'chartScale': safe.chartScale,
       'backgroundOpacity': safe.backgroundOpacity,
@@ -395,6 +423,17 @@ class SimaiGameplaySettings {
       hitSoundEnabled: _readBool(
         json['hitSoundEnabled'],
         defaults.hitSoundEnabled,
+      ),
+      judgementSoundEnabled: _readBool(
+        json['judgementSoundEnabled'],
+        defaults.judgementSoundEnabled,
+      ),
+      judgementSoundVolumes: SimaiJudgementSoundVolumes.fromJson(
+        json['judgementSoundVolumes'],
+        legacyVolume: json['judgementSoundVolume'],
+      ),
+      customJudgementSounds: SimaiCustomJudgementSounds.fromJson(
+        json['customJudgementSounds'],
       ),
       contactRadiusScale: _readDouble(
         json['contactRadiusScale'],
@@ -499,6 +538,9 @@ class SimaiGameplaySettings {
           hitSoundVolume == other.hitSoundVolume &&
           answerSoundEnabled == other.answerSoundEnabled &&
           hitSoundEnabled == other.hitSoundEnabled &&
+          judgementSoundEnabled == other.judgementSoundEnabled &&
+          judgementSoundVolumes == other.judgementSoundVolumes &&
+          customJudgementSounds == other.customJudgementSounds &&
           contactRadiusScale == other.contactRadiusScale &&
           chartScale == other.chartScale &&
           backgroundOpacity == other.backgroundOpacity &&
@@ -525,6 +567,9 @@ class SimaiGameplaySettings {
     hitSoundVolume,
     answerSoundEnabled,
     hitSoundEnabled,
+    judgementSoundEnabled,
+    judgementSoundVolumes,
+    customJudgementSounds,
     contactRadiusScale,
     chartScale,
     backgroundOpacity,

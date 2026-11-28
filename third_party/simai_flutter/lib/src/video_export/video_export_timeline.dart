@@ -35,6 +35,7 @@ class SimaiVideoTimeline {
     required bool includeMusic,
     required bool includeHitSounds,
     double hitSoundDurationSeconds = simaiHitSoundDurationSeconds,
+    double? extraAudioEndSeconds,
     int fps = 60,
   }) {
     final safeFps = fps > 0 ? fps : 60;
@@ -49,6 +50,9 @@ class SimaiVideoTimeline {
           ? hitSoundDurationSeconds
           : simaiHitSoundDurationSeconds;
       end = max(end, hitEventTimesUs.last / 1000000.0 + safeHitDuration);
+    }
+    if (extraAudioEndSeconds != null && extraAudioEndSeconds.isFinite) {
+      end = max(end, extraAudioEndSeconds);
     }
     final duration = max(0.0, end - start);
     return SimaiVideoTimeline(

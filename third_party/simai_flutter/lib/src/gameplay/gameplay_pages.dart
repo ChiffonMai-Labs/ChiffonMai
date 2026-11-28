@@ -7,6 +7,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_soloud/flutter_soloud.dart';
 
+import '../audio/judgement_sound_bank.dart';
 import '../audio/soloud_audio_player.dart';
 import '../ui/fullscreen_utils.dart';
 import '../ui/hit_effect_style.dart';
@@ -17,6 +18,8 @@ import '../ui/simai_colors.dart';
 import '../ui/simai_game.dart';
 import '../ui/simai_visual_tokens.dart';
 import '../ui/simai_player.dart';
+import '../ui/components/simai_expressive_loading_indicator.dart';
+import '../ui/components/simai_judgement_sound_volumes_panel.dart';
 import 'gameplay_controller.dart';
 import 'gameplay_models.dart';
 import 'gameplay_session.dart';
@@ -335,6 +338,28 @@ class _SimaiGameplaySetupPageState extends State<SimaiGameplaySetupPage> {
             onChanged: (value) =>
                 _update(_settings.copyWith(hitSoundVolume: value)),
           ),
+          SwitchListTile(
+            title: const Text('判定音效（绝赞 / EX / 档位实时反馈）'),
+            value: _settings.judgementSoundEnabled,
+            onChanged: (value) =>
+                _update(_settings.copyWith(judgementSoundEnabled: value)),
+          ),
+          if (_settings.judgementSoundEnabled)
+            SimaiJudgementSoundVolumesPanel(
+              volumes: _settings.judgementSoundVolumes,
+              customSounds: _settings.customJudgementSounds,
+              onVolumeChanged: (kind, volume) => _update(
+                _settings.copyWith(
+                  judgementSoundVolumes: _settings.judgementSoundVolumes
+                      .withVolume(kind, volume),
+                ),
+              ),
+              onResetAll: () => _update(
+                _settings.copyWith(
+                  judgementSoundVolumes: SimaiJudgementSoundVolumes.defaults,
+                ),
+              ),
+            ),
           _SliderSetting(
             title: '滑星触控灵敏度（接触半径）',
             value: _settings.contactRadiusScale,
@@ -637,6 +662,9 @@ class _SimaiGameplayPageState extends State<SimaiGameplayPage>
       hitSoundVolume: settings.hitSoundVolume,
       hitSoundEnabled: settings.hitSoundEnabled,
       gameplayAnswerSoundEnabled: settings.answerSoundEnabled,
+      judgementSoundEnabled: settings.judgementSoundEnabled,
+      judgementSoundVolumes: settings.judgementSoundVolumes,
+      customJudgementSounds: settings.customJudgementSounds,
       gameplayContactRadiusScale: settings.contactRadiusScale,
       backgroundMode: settings.backgroundMode,
       backgroundOpacity: settings.backgroundOpacity,
@@ -925,7 +953,11 @@ class _SimaiGameplayPageState extends State<SimaiGameplayPage>
                     final colorScheme = Theme.of(context).colorScheme;
                     return ColoredBox(
                       color: colorScheme.surface,
-                      child: const Center(child: CircularProgressIndicator()),
+                      child: const Center(
+                        child: SimaiExpressiveLoadingIndicator.contained(
+                          size: 48,
+                        ),
+                      ),
                     );
                   },
                   overlayBuilderMap: {
@@ -2011,7 +2043,7 @@ class _LatencyCalibrationDialogState extends State<_LatencyCalibrationDialog> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      CircularProgressIndicator(),
+                      SimaiExpressiveLoadingIndicator.contained(size: 48),
                       SizedBox(height: 12),
                       Text('正在准备节拍音…'),
                     ],

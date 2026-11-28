@@ -112,6 +112,7 @@ class SimaiGameplaySession {
   int _breakCount = 0;
   int _manualCount = 0;
   int _excludedCount = 0;
+  int _slideStartEventCount = 0;
 
   int revision = 0;
   int _scoreRevision = 0;
@@ -129,6 +130,9 @@ class SimaiGameplaySession {
   int get currentCombo => _currentCombo;
   int get maxCombo => _maxCombo;
   int get committedCount => _committed.length;
+  int get feedbackCount => _feedback.length;
+  SimaiJudgementRecord feedbackAt(int index) => _feedback[index];
+  int get slideStartEventCount => _slideStartEventCount;
   int get totalScoringNotes => _scoreSlots.length;
   bool get hasPendingScores => _scoreCommitCursor < _scoreSlots.length;
   bool get isPrepared => _slideDataInstalled;
@@ -1433,6 +1437,10 @@ class SimaiGameplaySession {
       if (cursor == branch.groups.length - 1) {
         if (currentOn) {
           slide.markGroupCleared(current.visualGroupId);
+          if (!slide.slideStarted) {
+            slide.slideStarted = true;
+            _slideStartEventCount++;
+          }
           branch.cursor++;
           branch.armed = false;
           changed = true;
@@ -1448,6 +1456,10 @@ class SimaiGameplaySession {
             (pointerCurrentSensorMask & currentMask) == 0;
         if (!currentOn || pointerExitedGroup) {
           slide.markGroupCleared(current.visualGroupId);
+          if (!slide.slideStarted) {
+            slide.slideStarted = true;
+            _slideStartEventCount++;
+          }
           branch.cursor++;
           branch.armed = false;
           changed = true;
@@ -1462,6 +1474,10 @@ class SimaiGameplaySession {
         final nextMask = branch.groupSensorMasks[cursor + 1];
         if ((activeSensorMask & nextMask) != 0) {
           slide.markGroupCleared(current.visualGroupId);
+          if (!slide.slideStarted) {
+            slide.slideStarted = true;
+            _slideStartEventCount++;
+          }
           branch.cursor++;
           branch.armed = true;
           changed = true;
@@ -1814,6 +1830,7 @@ class _SlideRuntime {
   double deliveryDeadline = 0.0;
   int stageIndex = 0;
   bool active = false;
+  bool slideStarted = false;
   bool resolved = false;
 
   String get precalcKey => '${collectionIndex}_${noteIndex}_$slidePathIndex';

@@ -26,6 +26,8 @@ internal class AndroidVideoExportSession(
     private val audioFilePath: String?,
     private val hitAssetKey: String,
     private val hitSoundFilePath: String? = null,
+    private val judgementSoundAssetKeys: Map<String, String> = emptyMap(),
+    private val judgementSoundFilePaths: Map<String, String> = emptyMap(),
     private val audioMode: String,
     private val pvVideoPath: String? = null,
     private val pvRect: IntArray? = null,
@@ -138,6 +140,7 @@ internal class AndroidVideoExportSession(
         musicVolume: Double,
         hitSoundVolume: Double = 2.0,
         hitEventTimesUs: List<Long>,
+        judgementEvents: List<JudgementSoundEvent> = emptyList(),
         directGallerySaver: ((File) -> String?)? = null,
     ): FinishOutcome {
         try {
@@ -151,14 +154,31 @@ internal class AndroidVideoExportSession(
             val producedFile = if (audioMode == "silent") {
                 videoOnlyFile
             } else {
-                val hitFile = if (audioMode == "musicAndHitSounds") {
+                val hitFile = if (audioMode == "musicAndHitSounds" && hitEventTimesUs.isNotEmpty()) {
                     materializedHitSoundFile ?: copyAsset(hitAssetKey, "answer.wav")
                 } else {
                     null
                 }
+                val judgementFiles = if (audioMode == "musicAndHitSounds" && judgementEvents.isNotEmpty()) {
+                    val neededKinds = judgementEvents.asSequence().map { it.kind }.toSet()
+                    buildMap<String, File> {
+                        for (kind in neededKinds) {
+                            val custom = judgementSoundFilePaths[kind]?.let(::File)?.takeIf { it.isFile }
+                            val resolved = custom ?: judgementSoundAssetKeys[kind]?.let { assetKey ->
+                                copyAsset(assetKey, "judge_$kind.wav")
+                            }
+                            if (resolved != null && resolved.isFile) {
+                                put(kind, resolved)
+                            }
+                        }
+                    }
+                } else {
+                    emptyMap()
+                }
                 AndroidAudioComposer(
                     musicFile = materializedAudioFile!!,
                     hitSoundFile = hitFile,
+                    judgementSoundFiles = judgementFiles,
                     videoFile = videoOnlyFile,
                     outputFile = finalMuxedFile,
                     workingDirectory = workingDirectory,
@@ -170,6 +190,7 @@ internal class AndroidVideoExportSession(
                     musicVolume = musicVolume.toFloat().coerceIn(0f, 1f),
                     hitSoundVolume = hitSoundVolume.toFloat().coerceIn(0f, 3f),
                     hitEventTimesUs = hitEventTimesUs,
+                    judgementEvents = judgementEvents,
                 )
                 checkCancelled()
                 finalMuxedFile

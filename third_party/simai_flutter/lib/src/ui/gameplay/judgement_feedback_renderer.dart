@@ -100,6 +100,21 @@ class SimaiJudgementFeedbackRenderer {
           bannerColors: <Color>[Color(0xFFFFDC52), Color(0xFFFF8818)],
           bannerEdgeColor: Color(0xEEFFF8D0),
         ),
+        SimaiJudgementVisualKind.breakMergedCriticalPerfect: _JudgementPalette(
+          gradientColors: <Color>[
+            Color(0xFFFFFFFF),
+            Color(0xFFFFE552),
+            Color(0xFFFFB8EA),
+            Color(0xFF8FF5FF),
+            Color(0xFFFF7A14),
+          ],
+          gradientStops: <double>[0.0, 0.24, 0.50, 0.74, 1.0],
+          outerStrokeColor: Color(0xF76E0E00),
+          innerStrokeColor: Color(0xFFFFFFFF),
+          glowColor: Color(0xD9FF9420),
+          bannerColors: <Color>[Color(0xFFFFDC52), Color(0xFFFF8818)],
+          bannerEdgeColor: Color(0xEEFFF8D0),
+        ),
         SimaiJudgementVisualKind.critical: _JudgementPalette(
           gradientColors: <Color>[
             Color(0xFFFFFFFF),
@@ -486,10 +501,11 @@ class SimaiJudgementFeedbackRenderer {
     final double targetRotation = clockwise
         ? centerAngle + pi / 2
         : centerAngle - pi / 2;
+    final bool isBreakMergedPerfectArc = _hasBreakMergedCriticalVisual(lines);
     final bool isBreakCriticalArc = _hasBreakCriticalVisual(lines);
-    final double effectiveScale = isBreakCriticalArc
-        ? animation.scale * 1.07
-        : animation.scale;
+    final double effectiveScale = isBreakMergedPerfectArc
+        ? animation.scale * 1.08
+        : (isBreakCriticalArc ? animation.scale * 1.07 : animation.scale);
 
     _bitmapPaint.color = Color.fromARGB(alpha, 255, 255, 255);
     canvas.save();
@@ -512,6 +528,15 @@ class SimaiJudgementFeedbackRenderer {
       final kind = lines[i].kind;
       if (kind == SimaiJudgementVisualKind.breakCritical ||
           kind == SimaiJudgementVisualKind.breakCriticalPerfect) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static bool _hasBreakMergedCriticalVisual(List<SimaiJudgementLine> lines) {
+    for (var i = 0; i < lines.length; i++) {
+      if (lines[i].kind == SimaiJudgementVisualKind.breakMergedCriticalPerfect) {
         return true;
       }
     }
@@ -570,6 +595,9 @@ class SimaiJudgementFeedbackRenderer {
 
     try {
       final bool isBreakCriticalArc = _hasBreakCriticalVisual(lines);
+      final bool isBreakMergedPerfectArc = _hasBreakMergedCriticalVisual(lines);
+      final bool hasBreakSpecialArc =
+          isBreakCriticalArc || isBreakMergedPerfectArc;
       final bakeCenterAngle = clockwise ? -pi / 2 : pi / 2;
       final anchorOrigin = Offset(0.0, clockwise ? -baseRadius : baseRadius);
       final lineFontSizes = <double>[
@@ -582,8 +610,8 @@ class SimaiJudgementFeedbackRenderer {
           ? (lineFontSizes[0] + lineFontSizes[1]) * 0.275
           : 0.0;
       final double margin =
-          fontSize * (isBreakCriticalArc ? 0.95 : 0.65) +
-          (isBreakCriticalArc ? 12.0 : 8.0);
+          fontSize * (hasBreakSpecialArc ? 0.95 : 0.65) +
+          (hasBreakSpecialArc ? 12.0 : 8.0);
       double minX = double.infinity;
       double minY = double.infinity;
       double maxX = double.negativeInfinity;
@@ -773,14 +801,34 @@ class SimaiJudgementFeedbackRenderer {
               ) *
               (ornamentRadius + fontSize * 0.36) -
           anchorOrigin;
+      final double apexFlankAngle = (fontSize * 0.56) / ornamentRadius;
+      final double apexFlankRadius = outerCrestRadius - fontSize * 0.06;
+      final Offset apexLeftCenter =
+          Offset(
+                cos(bakeCenterAngle - apexFlankAngle),
+                sin(bakeCenterAngle - apexFlankAngle),
+              ) *
+              apexFlankRadius -
+          anchorOrigin;
+      final Offset apexRightCenter =
+          Offset(
+                cos(bakeCenterAngle + apexFlankAngle),
+                sin(bakeCenterAngle + apexFlankAngle),
+              ) *
+              apexFlankRadius -
+          anchorOrigin;
 
-      if (isBreakCriticalArc) {
+      if (hasBreakSpecialArc) {
         final double pad = fontSize * 0.75 + 8.0;
         expandBoundsFor(apexStarCenter, pad);
         expandBoundsFor(leftStarCenter, pad);
         expandBoundsFor(rightStarCenter, pad);
         expandBoundsFor(leftMiniCenter, pad);
         expandBoundsFor(rightMiniCenter, pad);
+        if (isBreakMergedPerfectArc) {
+          expandBoundsFor(apexLeftCenter, pad);
+          expandBoundsFor(apexRightCenter, pad);
+        }
       }
 
       final double logicalW = max(1.0, maxX - minX);
@@ -793,7 +841,33 @@ class SimaiJudgementFeedbackRenderer {
         ..scale(_bitmapPixelRatio, _bitmapPixelRatio)
         ..translate(-minX, -minY);
 
-      if (isBreakCriticalArc) {
+      if (isBreakMergedPerfectArc) {
+        _paintBreakMergedPerfectArcOrnament(
+          canvas,
+          arcOrigin: -anchorOrigin,
+          arcRadius: ornamentRadius,
+          fontSize: fontSize,
+          centerAngle: bakeCenterAngle,
+          halfAngle: arcFlareHalfAngle,
+          bandThickness: lines.length > 1
+              ? (halfSeparation * 2.0 + fontSize * 0.96)
+              : fontSize * 1.24,
+          apexStarCenter: apexStarCenter,
+          apexStarRadius: apexStarRadius * 1.08,
+          apexLeftCenter: apexLeftCenter,
+          apexRightCenter: apexRightCenter,
+          apexFlankRadius: fontSize * 0.25,
+          leftStarCenter: leftStarCenter,
+          rightStarCenter: rightStarCenter,
+          sideStarRadius: sideStarRadius * 1.06,
+          leftMiniCenter: leftMiniCenter,
+          rightMiniCenter: rightMiniCenter,
+          sideMiniRadius: sideMiniRadius * 1.08,
+          leftRotation: leftEndAngle + pi / 2,
+          rightRotation: rightEndAngle + pi / 2,
+          apexRotation: bakeCenterAngle + pi / 2,
+        );
+      } else if (isBreakCriticalArc) {
         _paintBreakCriticalArcOrnament(
           canvas,
           arcOrigin: -anchorOrigin,
@@ -1610,6 +1684,165 @@ class SimaiJudgementFeedbackRenderer {
       radius: sideMiniRadius,
       rotation: rightRotation + pi / 4,
       glowColor: const Color(0xB8FF7FD8),
+      coreColor: const Color(0xFFFFF0FA),
+    );
+  }
+
+  /// 为「所有 Perfect 合并显示」(1-A~1-E) 下仍仅显示 `PERFECT` 的非滑条绝赞 CRITICAL PERFECT
+  /// 烘焙专属双轨虹光边丝与三连皇冠星芒，使其与普通 2550/2500 PERFECT 一目了然区别开来。
+  static void _paintBreakMergedPerfectArcOrnament(
+    Canvas canvas, {
+    required Offset arcOrigin,
+    required double arcRadius,
+    required double fontSize,
+    required double centerAngle,
+    required double halfAngle,
+    required double bandThickness,
+    required Offset apexStarCenter,
+    required double apexStarRadius,
+    required Offset apexLeftCenter,
+    required Offset apexRightCenter,
+    required double apexFlankRadius,
+    required Offset leftStarCenter,
+    required Offset rightStarCenter,
+    required double sideStarRadius,
+    required Offset leftMiniCenter,
+    required Offset rightMiniCenter,
+    required double sideMiniRadius,
+    required double leftRotation,
+    required double rightRotation,
+    required double apexRotation,
+  }) {
+    final double sweepStart = centerAngle - halfAngle;
+    final double sweepAngle = halfAngle * 2.0;
+    final double gradCenter = centerAngle < 0 ? centerAngle + 2 * pi : centerAngle;
+    final double gradStart = gradCenter - halfAngle;
+    final double gradEnd = gradCenter + halfAngle;
+    final Rect arcRect = Rect.fromCircle(center: arcOrigin, radius: arcRadius);
+
+    // 1. 炽金-赤橙背光焰带 + 内核白金高光线
+    final outerAuraPaint = Paint()
+      ..isAntiAlias = true
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = bandThickness
+      ..maskFilter = ui.MaskFilter.blur(
+        ui.BlurStyle.normal,
+        max(2.4, bandThickness * 0.22),
+      )
+      ..shader = ui.Gradient.sweep(
+        arcOrigin,
+        const <Color>[
+          Color(0x00FF5A00),
+          Color(0x78FF5518),
+          Color(0xBAFFB82E),
+          Color(0x78FF5518),
+          Color(0x00FF5A00),
+        ],
+        const <double>[0.0, 0.20, 0.50, 0.80, 1.0],
+        TileMode.clamp,
+        gradStart,
+        gradEnd,
+      );
+    canvas.drawArc(arcRect, sweepStart, sweepAngle, false, outerAuraPaint);
+
+    // 2. 上下双轨弧形耀金丝线框（单行 PERFECT 专属视觉框定，与普通 PERFECT 拉开层级）
+    final double rimHalfOffset = fontSize * 0.56;
+    final double rimSweep = halfAngle * 0.90;
+    final double rimStart = centerAngle - rimSweep;
+    final double rimGradStart = gradCenter - rimSweep;
+    final double rimGradEnd = gradCenter + rimSweep;
+    final rimPaint = Paint()
+      ..isAntiAlias = true
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = max(1.4, fontSize * 0.085)
+      ..shader = ui.Gradient.sweep(
+        arcOrigin,
+        const <Color>[
+          Color(0x00FFE86E),
+          Color(0xBBFFF088),
+          Color(0xF5FFFFFF),
+          Color(0xBBFFF088),
+          Color(0x00FFE86E),
+        ],
+        const <double>[0.0, 0.24, 0.50, 0.76, 1.0],
+        TileMode.clamp,
+        rimGradStart,
+        rimGradEnd,
+      );
+    canvas.drawArc(
+      Rect.fromCircle(center: arcOrigin, radius: arcRadius + rimHalfOffset),
+      rimStart,
+      rimSweep * 2.0,
+      false,
+      rimPaint,
+    );
+    if (arcRadius - rimHalfOffset > 4.0) {
+      canvas.drawArc(
+        Rect.fromCircle(center: arcOrigin, radius: arcRadius - rimHalfOffset),
+        rimStart,
+        rimSweep * 2.0,
+        false,
+        rimPaint,
+      );
+    }
+
+    // 3. 顶部三连皇冠星芒 + 两侧虹光星屑
+    _paintFourPointStar(
+      canvas,
+      center: apexStarCenter,
+      radius: apexStarRadius,
+      rotation: apexRotation,
+      glowColor: const Color(0xD9FF8418),
+      coreColor: const Color(0xFFFFFCE6),
+    );
+    _paintFourPointStar(
+      canvas,
+      center: apexLeftCenter,
+      radius: apexFlankRadius,
+      rotation: apexRotation + pi / 4,
+      glowColor: const Color(0xCCFFE058),
+      coreColor: const Color(0xFFFFFFFF),
+    );
+    _paintFourPointStar(
+      canvas,
+      center: apexRightCenter,
+      radius: apexFlankRadius,
+      rotation: apexRotation + pi / 4,
+      glowColor: const Color(0xCCFFE058),
+      coreColor: const Color(0xFFFFFFFF),
+    );
+    _paintFourPointStar(
+      canvas,
+      center: leftStarCenter,
+      radius: sideStarRadius,
+      rotation: leftRotation,
+      glowColor: const Color(0xCCFF7A18),
+      coreColor: const Color(0xFFFFFFFF),
+    );
+    _paintFourPointStar(
+      canvas,
+      center: rightStarCenter,
+      radius: sideStarRadius,
+      rotation: rightRotation,
+      glowColor: const Color(0xCCFF7A18),
+      coreColor: const Color(0xFFFFFFFF),
+    );
+    _paintFourPointStar(
+      canvas,
+      center: leftMiniCenter,
+      radius: sideMiniRadius,
+      rotation: leftRotation + pi / 4,
+      glowColor: const Color(0xCC5CE8FF),
+      coreColor: const Color(0xFFF0FCFF),
+    );
+    _paintFourPointStar(
+      canvas,
+      center: rightMiniCenter,
+      radius: sideMiniRadius,
+      rotation: rightRotation + pi / 4,
+      glowColor: const Color(0xCCFF7FD8),
       coreColor: const Color(0xFFFFF0FA),
     );
   }

@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import '../audio/judgement_sound_bank.dart';
 import '../ui/simai_game.dart';
 import '../ui/simai_player.dart';
 import '../ui/utils/custom_file_probe.dart';
@@ -126,9 +127,12 @@ class SimaiVideoExporter with WidgetsBindingObserver {
   }) {
     final hitSoundEnabled =
         options.hitSoundEnabled ?? controller.hitSoundEnabled;
+    final judgementSoundEnabled =
+        options.judgementSoundEnabled ?? controller.judgementSoundEnabled;
     final audioMode = resolveSimaiVideoAudioMode(
       requestedMode: options.audioMode,
       hitSoundEnabled: hitSoundEnabled,
+      judgementSoundEnabled: judgementSoundEnabled,
     );
     final visualDuration = max(0.0, controller.chartInfo.totalDuration);
     final timelineStart = min(
@@ -167,6 +171,9 @@ class SimaiVideoExporter with WidgetsBindingObserver {
     );
     snapshotController.hitSoundEnabled =
         options.hitSoundEnabled ?? snapshotController.hitSoundEnabled;
+    snapshotController.judgementSoundEnabled =
+        options.judgementSoundEnabled ??
+        snapshotController.judgementSoundEnabled;
     snapshotController.showCornerInfo =
         options.showCornerInfo ?? snapshotController.showCornerInfo;
     snapshotController.showDetailedPerformanceInfo =
@@ -234,10 +241,13 @@ class SimaiVideoExporter with WidgetsBindingObserver {
       final nativeAudioMode = resolveSimaiVideoAudioMode(
         requestedMode: options.audioMode,
         hitSoundEnabled: snapshotController.hitSoundEnabled,
+        judgementSoundEnabled: snapshotController.judgementSoundEnabled,
       );
       final includesMusic = nativeAudioMode != SimaiVideoAudioMode.silent;
-      final includesHits =
-          nativeAudioMode == SimaiVideoAudioMode.musicAndHitSounds;
+      final allowSfx = nativeAudioMode == SimaiVideoAudioMode.musicAndHitSounds;
+      final includesHits = allowSfx && snapshotController.hitSoundEnabled;
+      final includesJudgementSounds =
+          allowSfx && snapshotController.judgementSoundEnabled;
       if (includesMusic &&
           snapshotController.audioAsset == null &&
           snapshotController.audioFilePath == null) {
@@ -300,6 +310,60 @@ class SimaiVideoExporter with WidgetsBindingObserver {
               customFileExists(rawCustomHitPath))
           ? rawCustomHitPath
           : null;
+
+      final List<int> judgeEventTimesUs = <int>[];
+      final List<String> judgeEventKinds = <String>[];
+      final List<double> judgeEventVolumes = <double>[];
+      Map<String, String>? judgementSoundAssetPaths;
+      Map<String, String>? judgementSoundFilePaths;
+      if (includesJudgementSounds) {
+        final rawJudgeEvents = buildSimaiJudgementSoundEvents(
+          chart: snapshotController.chart,
+          autoPlayTimeline: snapshotController.autoPlayTimeline,
+          userOffsetMs: snapshotController.hitSoundOffsetMs,
+        );
+        final usedKinds = <SimaiJudgementSoundKind>{};
+        void addJudgeEntry(int timeUs, SimaiJudgementSoundKind kind) {
+          final volume = snapshotController.judgementSoundVolumes.volumeFor(
+            kind,
+          );
+          if (volume <= 0) return;
+          usedKinds.add(kind);
+          judgeEventTimesUs.add(timeUs);
+          judgeEventKinds.add(kind.name);
+          judgeEventVolumes.add(volume);
+        }
+
+        for (final event in rawJudgeEvents) {
+          addJudgeEntry(event.timeUs, event.kind);
+          if (event.isHanabi) {
+            addJudgeEntry(event.timeUs, SimaiJudgementSoundKind.hanabi);
+          }
+        }
+        if (usedKinds.isNotEmpty) {
+          const packagePrefix = 'packages/simai_flutter/';
+          final assetsMap = <String, String>{};
+          final filesMap = <String, String>{};
+          for (final kind in usedKinds) {
+            final assetPath = kind.assetPath.startsWith(packagePrefix)
+                ? kind.assetPath.substring(packagePrefix.length)
+                : kind.assetPath;
+            assetsMap[kind.name] = assetPath;
+            final customPath =
+                snapshotController.customJudgementSounds.pathFor(kind)?.trim();
+            if (customPath != null &&
+                customPath.isNotEmpty &&
+                customFileExists(customPath)) {
+              filesMap[kind.name] = customPath;
+            }
+          }
+          judgementSoundAssetPaths = assetsMap;
+          if (filesMap.isNotEmpty) {
+            judgementSoundFilePaths = filesMap;
+          }
+        }
+      }
+
       session = await _platform.start(
         width: outputWidth,
         height: outputHeight,
@@ -309,6 +373,8 @@ class SimaiVideoExporter with WidgetsBindingObserver {
         audioAsset: snapshotController.audioAsset,
         audioFilePath: snapshotController.audioFilePath,
         hitSoundFilePath: resolvedCustomHitPath,
+        judgementSoundAssetPaths: judgementSoundAssetPaths,
+        judgementSoundFilePaths: judgementSoundFilePaths,
         audioMode: nativeAudioMode.name,
         pvVideoPath: hasPvVideo ? pvVideoPath : null,
         pvRect: pvRect,
@@ -348,6 +414,9 @@ class SimaiVideoExporter with WidgetsBindingObserver {
         includeHitSounds: includesHits,
         hitSoundDurationSeconds: (session.hitSoundDurationUs / 1000000.0)
             .clamp(0.05, 5.0),
+        extraAudioEndSeconds: judgeEventTimesUs.isNotEmpty
+            ? judgeEventTimesUs.last / 1000000.0 + 1.5
+            : null,
         fps: fps,
       );
       final estimatedFileSizeBytes = estimateSimaiVideoFileSizeBytes(
@@ -456,6 +525,9 @@ class SimaiVideoExporter with WidgetsBindingObserver {
             .clamp(0.0, simaiMaxHitSoundVolume)
             .toDouble(),
         hitEventTimesUs: hitEvents,
+        judgementEventTimesUs: judgeEventTimesUs,
+        judgementEventKinds: judgeEventKinds,
+        judgementEventVolumes: judgeEventVolumes,
       );
       nativeCompleted = true;
       task.updateProgressForExport(
@@ -582,11 +654,12 @@ class SimaiVideoExporter with WidgetsBindingObserver {
 SimaiVideoAudioMode resolveSimaiVideoAudioMode({
   required SimaiVideoAudioMode requestedMode,
   required bool hitSoundEnabled,
+  bool judgementSoundEnabled = false,
 }) {
   if (requestedMode != SimaiVideoAudioMode.musicAndHitSounds) {
     return requestedMode;
   }
-  return hitSoundEnabled
+  return (hitSoundEnabled || judgementSoundEnabled)
       ? SimaiVideoAudioMode.musicAndHitSounds
       : SimaiVideoAudioMode.musicOnly;
 }
@@ -614,6 +687,8 @@ SimaiPlayerController createSimaiVideoExportControllerSnapshot(
     ..hitSoundOffsetMs = source.hitSoundOffsetMs
     ..pvOffsetMs = source.pvOffsetMs
     ..hitSoundEnabled = source.hitSoundEnabled
+    ..judgementSoundEnabled = source.judgementSoundEnabled
+    ..judgementSoundVolumes = source.judgementSoundVolumes
     ..backgroundMode = source.backgroundMode
     ..backgroundOpacity = source.backgroundOpacity
     ..mirrorMode = source.mirrorMode
@@ -633,6 +708,7 @@ SimaiPlayerController createSimaiVideoExportControllerSnapshot(
     ..holdStyle = source.holdStyle
     ..customNoteSkin = source.customNoteSkin
     ..customHitSoundPath = source.customHitSoundPath
+    ..customJudgementSounds = source.customJudgementSounds
     ..showCornerInfo = source.showCornerInfo
     ..showDetailedPerformanceInfo = source.showDetailedPerformanceInfo;
   return snapshot;

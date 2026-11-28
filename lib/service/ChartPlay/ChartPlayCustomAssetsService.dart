@@ -92,8 +92,10 @@ class ChartPlayCustomAssetsService {
     return file.bytes;
   }
 
-  /// 选择并导入自定义正解音音频，返回持久化本地路径；用户取消返回 null，异常抛出 [FormatException]。
-  static Future<String?> pickAndImportHitSound() async {
+  static Future<String?> _pickAndImportAudio({
+    required String filePrefix,
+    required String sizeLimitLabel,
+  }) async {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: allowedAudioExtensions,
@@ -108,19 +110,37 @@ class ChartPlayCustomAssetsService {
       throw const FormatException('无法读取所选音频文件内容');
     }
     if (bytes.length > maxAudioFileBytes) {
-      throw const FormatException('正解音效文件不能超过 10 MB');
+      throw FormatException('$sizeLimitLabel文件不能超过 10 MB');
     }
     final dir = await _sfxDir();
     final baseStem = p
         .basenameWithoutExtension(picked.name)
         .replaceAll(RegExp(r'[^a-zA-Z0-9_\-]'), '_');
-    final stem = baseStem.isEmpty ? 'hit' : baseStem;
+    final stem = baseStem.isEmpty ? filePrefix : baseStem;
     final target = File(
-      p.join(dir.path, '${stem}_${DateTime.now().millisecondsSinceEpoch}$safeExt'),
+      p.join(
+        dir.path,
+        '${filePrefix}_${stem}_${DateTime.now().millisecondsSinceEpoch}$safeExt',
+      ),
     );
     await target.writeAsBytes(bytes, flush: true);
     return target.path;
   }
+
+  /// 选择并导入自定义正解音音频，返回持久化本地路径；用户取消返回 null，异常抛出 [FormatException]。
+  static Future<String?> pickAndImportHitSound() => _pickAndImportAudio(
+        filePrefix: 'hit',
+        sizeLimitLabel: '正解音',
+      );
+
+  /// 选择并导入指定判定音色的自定义音频，返回持久化本地路径；用户取消返回 null，异常抛出 [FormatException]。
+  static Future<String?> pickAndImportJudgementSound(
+    SimaiJudgementSoundKind kind,
+  ) =>
+      _pickAndImportAudio(
+        filePrefix: 'judge_${kind.name}',
+        sizeLimitLabel: '判定音效',
+      );
 
   /// 为单个 NOTE 槽位选择并导入图片纹理，返回持久化路径；取消返回 null。
   static Future<String?> pickAndImportNoteSlot(String slotKey) async {

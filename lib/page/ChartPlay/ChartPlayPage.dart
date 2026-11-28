@@ -347,6 +347,9 @@ class _ChartPlayPageState extends State<ChartPlayPage>
       musicOffsetMs: controller.musicOffsetMs,
       musicVolume: controller.musicVolume,
       hitSoundVolume: controller.hitSoundVolume,
+      judgementSoundEnabled: controller.judgementSoundEnabled,
+      judgementSoundVolumes: controller.judgementSoundVolumes,
+      customJudgementSounds: controller.customJudgementSounds,
       mirrorMode: controller.mirrorMode,
       backgroundMode: controller.backgroundMode,
       backgroundOpacity: controller.backgroundOpacity,
@@ -1413,6 +1416,15 @@ class _ChartPlayPageState extends State<ChartPlayPage>
                 ChartPlayCustomNoteSkinTile(controller: c, onChanged: onChanged),
             customHitSoundSettingBuilder: (_, c, onChanged) =>
                 ChartPlayCustomHitSoundTile(controller: c, onChanged: onChanged),
+            customJudgementSoundSettingBuilder: (_, c, onChanged) =>
+                ChartPlayCustomJudgementSoundsTile(
+              controller: c,
+              onChanged: onChanged,
+            ),
+            switchBuilder: (_, value, onChanged) => AppSwitch(
+              value: value,
+              onChanged: onChanged,
+            ),
             onVideoExported: _onVideoExported,
           ),
         ),
@@ -1856,6 +1868,11 @@ E
                     ),
                 customHitSoundSettingBuilder: (_, c, onChanged) =>
                     ChartPlayCustomHitSoundTile(
+                      controller: c,
+                      onChanged: onChanged,
+                    ),
+                customJudgementSoundSettingBuilder: (_, c, onChanged) =>
+                    ChartPlayCustomJudgementSoundsTile(
                       controller: c,
                       onChanged: onChanged,
                     ),

@@ -67,6 +67,8 @@ class _MethodChannelVideoExportPlatform
     required String? audioAsset,
     required String? audioFilePath,
     String? hitSoundFilePath,
+    Map<String, String>? judgementSoundAssetPaths,
+    Map<String, String>? judgementSoundFilePaths,
     required String audioMode,
     String? pvVideoPath,
     List<int>? pvRect,
@@ -87,6 +89,8 @@ class _MethodChannelVideoExportPlatform
       'audioAsset': audioAsset,
       'audioFilePath': audioFilePath,
       'hitSoundFilePath': hitSoundFilePath,
+      'judgementSoundAssetPaths': judgementSoundAssetPaths,
+      'judgementSoundFilePaths': judgementSoundFilePaths,
       'audioMode': audioMode,
       'pvVideoPath': pvVideoPath,
       'pvRect': pvRect,
@@ -145,6 +149,9 @@ class _MethodChannelVideoExportPlatform
     required double musicVolume,
     double hitSoundVolume = 2.0,
     required List<int> hitEventTimesUs,
+    List<int> judgementEventTimesUs = const <int>[],
+    List<String> judgementEventKinds = const <String>[],
+    List<double> judgementEventVolumes = const <double>[],
   }) async {
     final result = await _channel.invokeMapMethod<String, Object?>('finish', {
       'sessionId': sessionId,
@@ -154,6 +161,9 @@ class _MethodChannelVideoExportPlatform
       'musicVolume': musicVolume,
       'hitSoundVolume': hitSoundVolume,
       'hitEventTimesUs': hitEventTimesUs,
+      'judgementEventTimesUs': judgementEventTimesUs,
+      'judgementEventKinds': judgementEventKinds,
+      'judgementEventVolumes': judgementEventVolumes,
     });
     if (result == null) {
       throw PlatformException(

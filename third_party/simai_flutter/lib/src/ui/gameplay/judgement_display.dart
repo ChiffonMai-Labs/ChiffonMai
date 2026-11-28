@@ -12,6 +12,7 @@ enum SimaiJudgementVisualKind {
   criticalPerfect,
   breakCritical,
   breakCriticalPerfect,
+  breakMergedCriticalPerfect,
   perfect,
   great,
   good,
@@ -160,9 +161,10 @@ class SimaiJudgementPresentation {
       SimaiJudgeTiming.late => 'LATE',
       SimaiJudgeTiming.none => null,
     };
+    final bool isBreak = record.scoringType == SimaiGameplayScoringType.breakNote;
     final gradeText = _gradeText(record, mode);
     final gradeColor = _gradeColor(record.grade);
-    final gradeKind = _gradeKind(record.grade, gradeText);
+    final gradeKind = _gradeKind(record.grade, gradeText, isBreak: isBreak);
     final timingColor = switch (record.timing) {
       SimaiJudgeTiming.fast => const Color(0xFF36C2FF),
       SimaiJudgeTiming.late => const Color(0xFFFF4F64),
@@ -175,7 +177,6 @@ class SimaiJudgementPresentation {
     };
     final visibleTiming = allowsTiming ? timingText : null;
     final showsCritical = gradeText == 'CRITICAL PERFECT';
-    final isBreak = record.scoringType == SimaiGameplayScoringType.breakNote;
 
     // Critical occupies the same visual row as FAST/LATE while PERFECT stays
     // on the grade row. Variant D still hides C-Perfect as documented.
@@ -289,10 +290,7 @@ class SimaiJudgementPresentation {
   ) {
     return switch (record.grade) {
       SimaiJudgeGrade.criticalPerfect =>
-        mode.category == 1 &&
-                record.scoringType != SimaiGameplayScoringType.breakNote
-            ? 'PERFECT'
-            : 'CRITICAL PERFECT',
+        mode.category == 1 ? 'PERFECT' : 'CRITICAL PERFECT',
       SimaiJudgeGrade.perfect => 'PERFECT',
       SimaiJudgeGrade.great => 'GREAT',
       SimaiJudgeGrade.good => 'GOOD',
@@ -302,12 +300,17 @@ class SimaiJudgementPresentation {
 
   static SimaiJudgementVisualKind _gradeKind(
     SimaiJudgeGrade grade,
-    String gradeText,
-  ) => switch (grade) {
+    String gradeText, {
+    bool isBreak = false,
+  }) => switch (grade) {
     SimaiJudgeGrade.criticalPerfect =>
       gradeText == 'CRITICAL PERFECT'
-          ? SimaiJudgementVisualKind.criticalPerfect
-          : SimaiJudgementVisualKind.perfect,
+          ? (isBreak
+                ? SimaiJudgementVisualKind.breakCriticalPerfect
+                : SimaiJudgementVisualKind.criticalPerfect)
+          : (isBreak
+                ? SimaiJudgementVisualKind.breakMergedCriticalPerfect
+                : SimaiJudgementVisualKind.perfect),
     SimaiJudgeGrade.perfect => SimaiJudgementVisualKind.perfect,
     SimaiJudgeGrade.great => SimaiJudgementVisualKind.great,
     SimaiJudgeGrade.good => SimaiJudgementVisualKind.good,

@@ -22,6 +22,8 @@ abstract class SimaiNativeVideoExportPlatform {
     required String? audioAsset,
     required String? audioFilePath,
     String? hitSoundFilePath,
+    Map<String, String>? judgementSoundAssetPaths,
+    Map<String, String>? judgementSoundFilePaths,
     required String audioMode,
     String? pvVideoPath,
     List<int>? pvRect,
@@ -55,6 +57,9 @@ abstract class SimaiNativeVideoExportPlatform {
     required double musicVolume,
     double hitSoundVolume = 2.0,
     required List<int> hitEventTimesUs,
+    List<int> judgementEventTimesUs = const <int>[],
+    List<String> judgementEventKinds = const <String>[],
+    List<double> judgementEventVolumes = const <double>[],
   });
 
   Future<void> cancel(int sessionId);

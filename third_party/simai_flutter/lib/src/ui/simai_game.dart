@@ -22,10 +22,10 @@ import 'utils/note_asset_manager.dart';
 import 'rendering/precalc_data.dart';
 import 'rendering/precalc_worker.dart';
 import 'rendering/chart_runtime_index.dart';
+import '../audio/judgement_sound_bank.dart';
 import '../audio/soloud_audio_player.dart';
 import 'gameplay/gameplay_hud_component.dart';
 import 'note_geometry.dart';
-import 'note_motion.dart';
 
 typedef SimaiTextStyleResolver = TextStyle Function(TextStyle style);
 
@@ -65,6 +65,8 @@ class SimaiGame extends FlameGame with KeyboardEvents {
   double hitSoundVolume;
   bool _hitSoundEnabled;
   bool _gameplayAnswerSoundEnabled;
+  bool _judgementSoundEnabled;
+  SimaiJudgementSoundVolumes judgementSoundVolumes;
   SimaiBackgroundMode backgroundMode;
   double backgroundOpacity;
   SimaiMirrorMode mirrorMode;
@@ -86,6 +88,7 @@ class SimaiGame extends FlameGame with KeyboardEvents {
   SimaiNoteStyle holdStyle;
   SimaiCustomNoteSkin customNoteSkin;
   String? customHitSoundPath;
+  SimaiCustomJudgementSounds customJudgementSounds;
   bool showCornerInfo;
   bool showFps;
   bool showDetailedPerformanceInfo;
@@ -186,6 +189,12 @@ class SimaiGame extends FlameGame with KeyboardEvents {
   List<int> _sfxEventTimesMs = const [];
   int _sfxEventIndex = 0;
   int _lastSfxCheckTimeMs = 0;
+  List<_ScheduledJudgeSfxEvent> _judgeSfxEvents = const [];
+  int _judgeSfxEventIndex = 0;
+  int _lastJudgeSfxCheckTimeMs = 0;
+  int _playedGameplayFeedbackCursor = 0;
+  int _playedGameplaySlideStartCursor = 0;
+  SimaiJudgementSoundBank? _judgeSoundBank;
   SoLoud get _soloud => SoLoud.instance;
   AudioSource? _sfxSource;
   int _sfxLoadGeneration = 0;
@@ -219,6 +228,8 @@ class SimaiGame extends FlameGame with KeyboardEvents {
     double hitSoundVolume = 2.0,
     bool hitSoundEnabled = true,
     bool gameplayAnswerSoundEnabled = true,
+    bool judgementSoundEnabled = true,
+    this.judgementSoundVolumes = SimaiJudgementSoundVolumes.defaults,
     this.backgroundMode = SimaiBackgroundMode.judgeLine,
     double backgroundOpacity = defaultBackgroundOpacity,
     this.mirrorMode = SimaiMirrorMode.none,
@@ -240,6 +251,7 @@ class SimaiGame extends FlameGame with KeyboardEvents {
     SimaiNoteStyle? holdStyle,
     this.customNoteSkin = SimaiCustomNoteSkin.empty,
     this.customHitSoundPath,
+    this.customJudgementSounds = SimaiCustomJudgementSounds.empty,
     this.showCornerInfo = true,
     this.showFps = true,
     this.showDetailedPerformanceInfo = false,
@@ -287,7 +299,8 @@ class SimaiGame extends FlameGame with KeyboardEvents {
                .toDouble(),
        _hitSoundOffset = hitSoundOffset.isFinite ? hitSoundOffset : 0.0,
        _hitSoundEnabled = hitSoundEnabled,
-       _gameplayAnswerSoundEnabled = gameplayAnswerSoundEnabled {
+       _gameplayAnswerSoundEnabled = gameplayAnswerSoundEnabled,
+       _judgementSoundEnabled = judgementSoundEnabled {
     _monotonicClock = Stopwatch()..start();
     _audioPlayer = headlessExport ? null : SoLoudAudioPlayer(clock: _monotonicClock);
     _chartAnchorClockUs = _monotonicClock.elapsedMicroseconds;
@@ -359,6 +372,44 @@ class SimaiGame extends FlameGame with KeyboardEvents {
     _hitSoundOffset = safe;
     _stopSfxVoices();
     _resyncSfxPosition();
+    _judgeSoundBank?.stopVoices();
+    _resyncJudgeSfxPosition();
+  }
+
+  bool get judgementSoundEnabled => _judgementSoundEnabled;
+  set judgementSoundEnabled(bool value) {
+    if (_judgementSoundEnabled == value) return;
+    _judgementSoundEnabled = value;
+    if (!value) {
+      _judgeSoundBank?.stopVoices();
+    } else if (!headlessExport && !_isRemoved) {
+      unawaited(
+        (_judgeSoundBank ??= SimaiJudgementSoundBank(
+          soloud: _soloud,
+          customSounds: customJudgementSounds,
+        )).ensureLoaded(),
+      );
+      if (gameplaySession != null) {
+        _playedGameplayFeedbackCursor = gameplaySession!.feedbackCount;
+        _playedGameplaySlideStartCursor =
+            gameplaySession!.slideStartEventCount;
+      } else {
+        _resyncJudgeSfxPosition();
+      }
+    }
+  }
+
+  void setCustomJudgementSounds(SimaiCustomJudgementSounds sounds) {
+    if (customJudgementSounds == sounds) return;
+    customJudgementSounds = sounds;
+    if (!headlessExport && !_isRemoved && _judgeSoundBank != null) {
+      unawaited(_judgeSoundBank!.setCustomSounds(sounds));
+    }
+  }
+
+  void setJudgementSoundVolumes(SimaiJudgementSoundVolumes volumes) {
+    if (judgementSoundVolumes == volumes) return;
+    judgementSoundVolumes = volumes;
   }
 
   TextStyle withDisplayFont(TextStyle style) {
@@ -501,6 +552,9 @@ class SimaiGame extends FlameGame with KeyboardEvents {
     if (autoPlayMode == mode) return;
     autoPlayMode = mode;
     _autoPlayTimeline = null;
+    if (!headlessExport && gameplaySession == null) {
+      _rebuildJudgeSfxEvents();
+    }
     invalidateNotes();
   }
 
@@ -509,6 +563,9 @@ class SimaiGame extends FlameGame with KeyboardEvents {
     if (autoPlaySeed == seed) return;
     autoPlaySeed = seed;
     _autoPlayTimeline = null;
+    if (!headlessExport && gameplaySession == null) {
+      _rebuildJudgeSfxEvents();
+    }
     invalidateNotes();
   }
 
@@ -600,6 +657,21 @@ class SimaiGame extends FlameGame with KeyboardEvents {
 
       await _reloadHitSoundSource();
       _rebuildSfxEventTimes();
+      if (gameplaySession == null) {
+        _rebuildJudgeSfxEvents();
+      } else {
+        _playedGameplayFeedbackCursor = gameplaySession!.feedbackCount;
+        _playedGameplaySlideStartCursor =
+            gameplaySession!.slideStartEventCount;
+      }
+      if (_judgementSoundEnabled) {
+        unawaited(
+          (_judgeSoundBank ??= SimaiJudgementSoundBank(
+            soloud: _soloud,
+            customSounds: customJudgementSounds,
+          )).ensureLoaded(),
+        );
+      }
 
       if (_hasAudio && audioPlayer != null) {
         try {
@@ -828,6 +900,8 @@ class SimaiGame extends FlameGame with KeyboardEvents {
     final src = _sfxSource;
     _sfxSource = null;
     _stopSfxVoices();
+    _judgeSoundBank?.dispose();
+    _judgeSoundBank = null;
     if (src != null) {
       // 通过共享池归还引用计数，仅计数归零时真正销毁底层音频资源。
       unawaited(SoLoudSourcePool.release(src, _soloud));
@@ -872,6 +946,14 @@ class SimaiGame extends FlameGame with KeyboardEvents {
       _resetCadenceWindow();
       _stopSfxVoices();
       _resyncSfxPosition();
+      _judgeSoundBank?.stopVoices();
+      if (gameplaySession == null) {
+        _resyncJudgeSfxPosition();
+      } else {
+        _playedGameplayFeedbackCursor = gameplaySession!.feedbackCount;
+        _playedGameplaySlideStartCursor =
+            gameplaySession!.slideStartEventCount;
+      }
       final audioPlayer = _audioPlayer;
       if (_hasAudio && audioPlayer != null) {
         if (chartTime < offset) {
@@ -887,6 +969,14 @@ class SimaiGame extends FlameGame with KeyboardEvents {
       clearGameplayPointers();
       _stopSfxVoices();
       _resyncSfxPosition();
+      _judgeSoundBank?.stopVoices();
+      if (gameplaySession == null) {
+        _resyncJudgeSfxPosition();
+      } else {
+        _playedGameplayFeedbackCursor = gameplaySession!.feedbackCount;
+        _playedGameplaySlideStartCursor =
+            gameplaySession!.slideStartEventCount;
+      }
       final audioPlayer = _audioPlayer;
       if (_hasAudio && audioPlayer != null) {
         audioPlayer.pause();
@@ -906,6 +996,10 @@ class SimaiGame extends FlameGame with KeyboardEvents {
     playbackRate = clamped;
     _stopSfxVoices();
     _resyncSfxPosition();
+    _judgeSoundBank?.stopVoices();
+    if (gameplaySession == null) {
+      _resyncJudgeSfxPosition();
+    }
     // 倍速变化时立刻刷新左上角 BPM 文案，并在暂停态补绘一帧。
     refreshStatusText();
     _requestPausedFrame();
@@ -1059,6 +1153,10 @@ class SimaiGame extends FlameGame with KeyboardEvents {
     _debugLastSeekReason = 'seek(syncAudio=$syncAudio)';
     _stopSfxVoices();
     _resyncSfxPosition();
+    _judgeSoundBank?.stopVoices();
+    if (gameplaySession == null) {
+      _resyncJudgeSfxPosition();
+    }
 
     final audioPlayer = _audioPlayer;
     if (syncAudio && _hasAudio && audioPlayer != null) {
@@ -1106,6 +1204,14 @@ class SimaiGame extends FlameGame with KeyboardEvents {
       invalidateNotes(resetWindow: true);
       _stopSfxVoices();
       _resyncSfxPosition();
+      _judgeSoundBank?.stopVoices();
+      if (gameplaySession == null) {
+        _resyncJudgeSfxPosition();
+      } else {
+        _playedGameplayFeedbackCursor = gameplaySession!.feedbackCount;
+        _playedGameplaySlideStartCursor =
+            gameplaySession!.slideStartEventCount;
+      }
       _isSeeking = false;
     }
   }
@@ -1287,6 +1393,9 @@ class SimaiGame extends FlameGame with KeyboardEvents {
           chartTime + session.judgementOffsetSeconds,
           displayTime: chartTime,
         );
+        if (!headlessExport && _judgementSoundEnabled) {
+          _drainGameplayJudgementSfx(session);
+        }
       }
 
       final double duration = totalVisualDuration;
@@ -1316,6 +1425,9 @@ class SimaiGame extends FlameGame with KeyboardEvents {
       // 仅播放中驱动组件更新；游玩态开启预调度正解音时同样调用 _updateSfx()。
       super.update(dt);
       if (_shouldPlayScheduledSfx) _updateSfx();
+      if (!headlessExport && session == null && _judgementSoundEnabled) {
+        _updateJudgementSfx();
+      }
 
       if ((kDebugMode || kProfileMode) && renderTime >= _debugNextLogTime) {
         gameplayInputP95Ms = _percentile95(_debugGameplayInputTimesMs);
@@ -1522,6 +1634,9 @@ class SimaiGame extends FlameGame with KeyboardEvents {
         allowOuterButtonHeadJudge: true,
       );
       if (judged && hitSoundEnabled) _playDaSound();
+      if (!headlessExport && _judgementSoundEnabled) {
+        _drainGameplayJudgementSfx(session);
+      }
       return judged;
     } finally {
       _recordGameplayInputTime(startedAtUs);
@@ -1598,6 +1713,9 @@ class SimaiGame extends FlameGame with KeyboardEvents {
         );
       }
       if (judged && hitSoundEnabled) _playDaSound();
+      if (!headlessExport && _judgementSoundEnabled) {
+        _drainGameplayJudgementSfx(session);
+      }
     } finally {
       _recordGameplayInputTime(startedAtUs);
     }
@@ -1626,6 +1744,9 @@ class SimaiGame extends FlameGame with KeyboardEvents {
         allowOuterButtonHeadJudge: false,
       );
       if (judged && hitSoundEnabled) _playDaSound();
+      if (!headlessExport && _judgementSoundEnabled) {
+        _drainGameplayJudgementSfx(session);
+      }
     } finally {
       _recordGameplayInputTime(startedAtUs);
     }
@@ -1756,6 +1877,14 @@ class SimaiGame extends FlameGame with KeyboardEvents {
     if (horizonMs < _lastSfxCheckTimeMs - 150) {
       _stopSfxVoices();
       _resyncSfxPosition();
+      _judgeSoundBank?.stopVoices();
+      if (gameplaySession == null) {
+        _resyncJudgeSfxPosition();
+      } else {
+        _playedGameplayFeedbackCursor = gameplaySession!.feedbackCount;
+        _playedGameplaySlideStartCursor =
+            gameplaySession!.slideStartEventCount;
+      }
     }
     _lastSfxCheckTimeMs = horizonMs;
 
@@ -1967,6 +2096,240 @@ class SimaiGame extends FlameGame with KeyboardEvents {
     return lo;
   }
 
+  void _rebuildJudgeSfxEvents() {
+    if (headlessExport || gameplaySession != null) {
+      _judgeSfxEvents = const <_ScheduledJudgeSfxEvent>[];
+      _judgeSfxEventIndex = 0;
+      return;
+    }
+    final timeline = autoPlayTimeline;
+    final list = <_ScheduledJudgeSfxEvent>[];
+    for (final record in timeline.events) {
+      if (record.collectionIndex < 0 ||
+          record.collectionIndex >= chart.noteCollections.length) {
+        continue;
+      }
+      final col = chart.noteCollections[record.collectionIndex];
+      if (record.noteIndex < 0 || record.noteIndex >= col.length) continue;
+      final note = col[record.noteIndex];
+      final slideIdx = record.slidePathIndex;
+      if (slideIdx != null) {
+        if (record.grade == SimaiJudgeGrade.miss) continue;
+        if (slideIdx >= 0 && slideIdx < note.slidePaths.length) {
+          final startTime = col.time + max(0.0, note.slidePaths[slideIdx].delay);
+          list.add(
+            _ScheduledJudgeSfxEvent(
+              timeMs: (startTime * 1000).round(),
+              kind: SimaiJudgementSoundKind.slide,
+              isHanabi: false,
+            ),
+          );
+        }
+        final endKind = resolveSimaiJudgementSoundKind(
+          record: record,
+          note: note,
+        );
+        if (endKind != null) {
+          list.add(
+            _ScheduledJudgeSfxEvent(
+              timeMs: (record.judgedTime * 1000).round(),
+              kind: endKind,
+              isHanabi: false,
+            ),
+          );
+        }
+        continue;
+      }
+      final kind = resolveSimaiJudgementSoundKind(record: record, note: note);
+      if (kind == null) continue;
+      final bool isHanabi = shouldPlaySimaiHanabiSound(
+        record: record,
+        note: note,
+      );
+      list.add(
+        _ScheduledJudgeSfxEvent(
+          timeMs: (record.judgedTime * 1000).round(),
+          kind: kind,
+          isHanabi: isHanabi,
+        ),
+      );
+    }
+    list.sort((a, b) => a.timeMs.compareTo(b.timeMs));
+    _judgeSfxEvents = list;
+    _resyncJudgeSfxPosition();
+  }
+
+  void _resyncJudgeSfxPosition() {
+    final targetChartSec =
+        chartTime - _effectiveHitSoundOffsetSeconds * playbackRate;
+    final ms = (targetChartSec * 1000).round();
+    _lastJudgeSfxCheckTimeMs = ms;
+    _judgeSfxEventIndex = _lowerBoundJudgeEvents(_judgeSfxEvents, ms);
+  }
+
+  void _updateJudgementSfx() {
+    if (!_judgementSoundEnabled || playbackRate <= 0 || headlessExport) return;
+    final bank = _judgeSoundBank;
+    if (bank == null || !bank.isReady) return;
+    final rate = playbackRate;
+    final effectiveOffset = _effectiveHitSoundOffsetSeconds;
+    final horizonChartSec =
+        chartTime + (_sfxLookaheadSeconds - effectiveOffset) * rate;
+    final horizonMs = (horizonChartSec * 1000).round();
+    if (horizonMs < _lastJudgeSfxCheckTimeMs - 150) {
+      bank.stopVoices();
+      _resyncJudgeSfxPosition();
+    }
+    _lastJudgeSfxCheckTimeMs = horizonMs;
+
+    if (_judgeSfxEventIndex >= _judgeSfxEvents.length ||
+        _judgeSfxEvents[_judgeSfxEventIndex].timeMs > horizonMs) {
+      return;
+    }
+
+    Duration? engineNow;
+    try {
+      engineNow = _soloud.getEngineTime();
+    } catch (_) {
+      engineNow = null;
+    }
+
+    final windowChartMs = (_sfxOverlapWindowMs * rate).round().clamp(1, 5000);
+    while (_judgeSfxEventIndex < _judgeSfxEvents.length &&
+        _judgeSfxEvents[_judgeSfxEventIndex].timeMs <= horizonMs) {
+      final event = _judgeSfxEvents[_judgeSfxEventIndex];
+      _judgeSfxEventIndex++;
+
+      final deltaRealSec =
+          (event.timeMs / 1000.0 - chartTime) / rate + effectiveOffset;
+      if (deltaRealSec < -_sfxMaxLateSeconds) {
+        continue;
+      }
+
+      final startIdx = _lowerBoundJudgeEvents(
+        _judgeSfxEvents,
+        event.timeMs - windowChartMs,
+      );
+      final endIdx = _upperBoundJudgeEvents(_judgeSfxEvents, event.timeMs);
+      final overlap = max(1, endIdx - startIdx);
+      final scheduledAt = engineNow != null && deltaRealSec > 0.002
+          ? engineNow + Duration(microseconds: (deltaRealSec * 1000000).round())
+          : null;
+      final kindVolume = judgementSoundVolumes.volumeFor(event.kind);
+      if (kindVolume > 0) {
+        bank.playScheduled(
+          event.kind,
+          volume: kindVolume,
+          overlap: overlap,
+          scheduledAt: scheduledAt,
+        );
+      }
+      if (event.isHanabi) {
+        final hanabiVolume = judgementSoundVolumes.volumeFor(
+          SimaiJudgementSoundKind.hanabi,
+        );
+        if (hanabiVolume > 0) {
+          bank.playScheduled(
+            SimaiJudgementSoundKind.hanabi,
+            volume: hanabiVolume,
+            overlap: overlap + 1,
+            scheduledAt: scheduledAt,
+          );
+        }
+      }
+    }
+  }
+
+  void _drainGameplayJudgementSfx(SimaiGameplaySession session) {
+    if (!_judgementSoundEnabled || headlessExport) return;
+    final bank = _judgeSoundBank;
+    final int slideCount = session.slideStartEventCount;
+    final int feedbackCount = session.feedbackCount;
+    if (_playedGameplaySlideStartCursor > slideCount) {
+      _playedGameplaySlideStartCursor = slideCount;
+    }
+    if (_playedGameplayFeedbackCursor > feedbackCount) {
+      _playedGameplayFeedbackCursor = feedbackCount;
+    }
+    if (bank == null || !bank.isReady) {
+      _playedGameplaySlideStartCursor = slideCount;
+      _playedGameplayFeedbackCursor = feedbackCount;
+      return;
+    }
+    final int nowUs = _monotonicClock.elapsedMicroseconds;
+    final slideVolume = judgementSoundVolumes.volumeFor(
+      SimaiJudgementSoundKind.slide,
+    );
+    while (_playedGameplaySlideStartCursor < slideCount) {
+      _playedGameplaySlideStartCursor++;
+      if (slideVolume > 0) {
+        bank.playImmediate(
+          SimaiJudgementSoundKind.slide,
+          volume: slideVolume,
+          nowUs: nowUs,
+        );
+      }
+    }
+    while (_playedGameplayFeedbackCursor < feedbackCount) {
+      final record = session.feedbackAt(_playedGameplayFeedbackCursor++);
+      if (record.isAuto) continue;
+      if (record.collectionIndex < 0 ||
+          record.collectionIndex >= chart.noteCollections.length) {
+        continue;
+      }
+      final col = chart.noteCollections[record.collectionIndex];
+      if (record.noteIndex < 0 || record.noteIndex >= col.length) continue;
+      final note = col[record.noteIndex];
+      final kind = resolveSimaiJudgementSoundKind(record: record, note: note);
+      if (kind != null) {
+        final kindVolume = judgementSoundVolumes.volumeFor(kind);
+        if (kindVolume > 0) {
+          bank.playImmediate(kind, volume: kindVolume, nowUs: nowUs);
+        }
+      }
+      if (shouldPlaySimaiHanabiSound(record: record, note: note)) {
+        final hanabiVolume = judgementSoundVolumes.volumeFor(
+          SimaiJudgementSoundKind.hanabi,
+        );
+        if (hanabiVolume > 0) {
+          bank.playImmediate(
+            SimaiJudgementSoundKind.hanabi,
+            volume: hanabiVolume,
+            nowUs: nowUs,
+          );
+        }
+      }
+    }
+  }
+
+  static int _lowerBoundJudgeEvents(List<_ScheduledJudgeSfxEvent> list, int x) {
+    int lo = 0;
+    int hi = list.length;
+    while (lo < hi) {
+      final mid = (lo + hi) >> 1;
+      if (list[mid].timeMs < x) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+    return lo;
+  }
+
+  static int _upperBoundJudgeEvents(List<_ScheduledJudgeSfxEvent> list, int x) {
+    int lo = 0;
+    int hi = list.length;
+    while (lo < hi) {
+      final mid = (lo + hi) >> 1;
+      if (list[mid].timeMs <= x) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+    return lo;
+  }
+
   static int _upperBound(List<int> a, int x) {
     int lo = 0;
     int hi = a.length;
@@ -1980,6 +2343,18 @@ class SimaiGame extends FlameGame with KeyboardEvents {
     }
     return lo;
   }
+}
+
+class _ScheduledJudgeSfxEvent {
+  const _ScheduledJudgeSfxEvent({
+    required this.timeMs,
+    required this.kind,
+    required this.isHanabi,
+  });
+
+  final int timeMs;
+  final SimaiJudgementSoundKind kind;
+  final bool isHanabi;
 }
 
 class _GameplayInputVisualRegion {

@@ -32,6 +32,9 @@ class _UnsupportedVideoExportPlatform
     required double musicVolume,
     double hitSoundVolume = 2.0,
     required List<int> hitEventTimesUs,
+    List<int> judgementEventTimesUs = const <int>[],
+    List<String> judgementEventKinds = const <String>[],
+    List<double> judgementEventVolumes = const <double>[],
   }) async => _unsupported();
 
   @override
@@ -51,6 +54,8 @@ class _UnsupportedVideoExportPlatform
     required String? audioAsset,
     required String? audioFilePath,
     String? hitSoundFilePath,
+    Map<String, String>? judgementSoundAssetPaths,
+    Map<String, String>? judgementSoundFilePaths,
     required String audioMode,
     String? pvVideoPath,
     List<int>? pvRect,

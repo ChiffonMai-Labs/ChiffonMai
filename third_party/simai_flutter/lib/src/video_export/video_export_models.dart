@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../audio/judgement_sound_bank.dart'
+    show SimaiCustomJudgementSounds, SimaiJudgementSoundVolumes;
 import '../gameplay/gameplay_models.dart';
 import '../simai_file.dart';
 import '../ui/auto_play_mode.dart';
@@ -216,6 +218,9 @@ class SimaiVideoExportOptions {
   /// when [audioMode] allows hit sounds.
   final bool? hitSoundEnabled;
 
+  /// Overrides the player controller's judgement-sound setting for this export.
+  final bool? judgementSoundEnabled;
+
   /// Overrides the player controller's corner-HUD setting for this export.
   ///
   /// A null value inherits the controller snapshot.
@@ -242,6 +247,7 @@ class SimaiVideoExportOptions {
     this.frameRate = SimaiVideoFrameRate.fps60,
     this.audioMode = SimaiVideoAudioMode.musicAndHitSounds,
     this.hitSoundEnabled,
+    this.judgementSoundEnabled,
     this.showCornerInfo,
     this.showDetailedPerformanceInfo,
     this.outputPath,
@@ -257,6 +263,8 @@ class SimaiVideoExportOptions {
     SimaiVideoAudioMode? audioMode,
     bool? hitSoundEnabled,
     bool inheritHitSoundEnabled = false,
+    bool? judgementSoundEnabled,
+    bool inheritJudgementSoundEnabled = false,
     bool? showCornerInfo,
     bool inheritShowCornerInfo = false,
     bool? showDetailedPerformanceInfo,
@@ -276,6 +284,9 @@ class SimaiVideoExportOptions {
       hitSoundEnabled: inheritHitSoundEnabled
           ? null
           : hitSoundEnabled ?? this.hitSoundEnabled,
+      judgementSoundEnabled: inheritJudgementSoundEnabled
+          ? null
+          : judgementSoundEnabled ?? this.judgementSoundEnabled,
       showCornerInfo: inheritShowCornerInfo
           ? null
           : showCornerInfo ?? this.showCornerInfo,
@@ -300,6 +311,7 @@ class SimaiVideoExportSettings {
   final bool includeMusic;
   final SimaiMirrorMode mirrorMode;
   final SimaiBackgroundMode backgroundMode;
+  final double backgroundOpacity;
   final double speed;
   final double touchSpeed;
   final double slideDisplayTiming;
@@ -318,15 +330,19 @@ class SimaiVideoExportSettings {
   final SimaiNoteStyle holdStyle;
   final SimaiCustomNoteSkin customNoteSkin;
   final String? customHitSoundPath;
+  final SimaiCustomJudgementSounds customJudgementSounds;
   final bool showAchievementRate;
   final bool highlightExNotes;
   final bool showCornerInfo;
   final bool showDetailedPerformanceInfo;
   final bool hitSoundEnabled;
+  final bool judgementSoundEnabled;
+  final SimaiJudgementSoundVolumes judgementSoundVolumes;
   final double musicVolume;
   final double hitSoundVolume;
   final int musicOffsetMs;
   final int hitSoundOffsetMs;
+  final int pvOffsetMs;
 
   const SimaiVideoExportSettings({
     this.quality = SimaiVideoQuality.fullHd1080,
@@ -335,6 +351,7 @@ class SimaiVideoExportSettings {
     this.includeMusic = true,
     this.mirrorMode = SimaiMirrorMode.none,
     this.backgroundMode = SimaiBackgroundMode.judgeLine,
+    this.backgroundOpacity = 0.35,
     this.speed = 8.0,
     this.touchSpeed = 8.0,
     this.slideDisplayTiming = 0.0,
@@ -353,15 +370,19 @@ class SimaiVideoExportSettings {
     this.holdStyle = SimaiNoteStyle.arcade,
     this.customNoteSkin = SimaiCustomNoteSkin.empty,
     this.customHitSoundPath,
+    this.customJudgementSounds = SimaiCustomJudgementSounds.empty,
     this.showAchievementRate = true,
     this.highlightExNotes = true,
     this.showCornerInfo = true,
     this.showDetailedPerformanceInfo = false,
     this.hitSoundEnabled = true,
+    this.judgementSoundEnabled = true,
+    this.judgementSoundVolumes = SimaiJudgementSoundVolumes.defaults,
     this.musicVolume = 0.5,
     this.hitSoundVolume = 2.0,
     this.musicOffsetMs = 0,
     this.hitSoundOffsetMs = 0,
+    this.pvOffsetMs = 0,
   });
 
   factory SimaiVideoExportSettings.capture(
@@ -378,6 +399,7 @@ class SimaiVideoExportSettings {
       includeMusic: includeMusic,
       mirrorMode: controller.mirrorMode,
       backgroundMode: controller.backgroundMode,
+      backgroundOpacity: controller.backgroundOpacity,
       speed: controller.speed,
       touchSpeed: controller.touchSpeed,
       slideDisplayTiming: controller.slideDisplayTiming,
@@ -396,15 +418,19 @@ class SimaiVideoExportSettings {
       holdStyle: controller.holdStyle,
       customNoteSkin: controller.customNoteSkin,
       customHitSoundPath: controller.customHitSoundPath,
+      customJudgementSounds: controller.customJudgementSounds,
       showAchievementRate: controller.showAchievementRate,
       highlightExNotes: controller.highlightExNotes,
       showCornerInfo: controller.showCornerInfo,
       showDetailedPerformanceInfo: controller.showDetailedPerformanceInfo,
       hitSoundEnabled: controller.hitSoundEnabled,
+      judgementSoundEnabled: controller.judgementSoundEnabled,
+      judgementSoundVolumes: controller.judgementSoundVolumes,
       musicVolume: controller.musicVolume,
       hitSoundVolume: controller.hitSoundVolume,
       musicOffsetMs: controller.musicOffsetMs,
       hitSoundOffsetMs: controller.hitSoundOffsetMs,
+      pvOffsetMs: controller.pvOffsetMs,
     );
   }
 
@@ -412,6 +438,7 @@ class SimaiVideoExportSettings {
     controller
       ..mirrorMode = mirrorMode
       ..backgroundMode = backgroundMode
+      ..backgroundOpacity = backgroundOpacity
       ..speed = speed
       ..touchSpeed = touchSpeed
       ..slideDisplayTiming = slideDisplayTiming
@@ -430,15 +457,19 @@ class SimaiVideoExportSettings {
       ..holdStyle = holdStyle
       ..customNoteSkin = customNoteSkin
       ..customHitSoundPath = customHitSoundPath
+      ..customJudgementSounds = customJudgementSounds
       ..showAchievementRate = showAchievementRate
       ..highlightExNotes = highlightExNotes
       ..showCornerInfo = showCornerInfo
       ..showDetailedPerformanceInfo = showDetailedPerformanceInfo
       ..hitSoundEnabled = hitSoundEnabled
+      ..judgementSoundEnabled = judgementSoundEnabled
+      ..judgementSoundVolumes = judgementSoundVolumes
       ..musicVolume = musicVolume
       ..hitSoundVolume = hitSoundVolume
       ..musicOffsetMs = musicOffsetMs
-      ..hitSoundOffsetMs = hitSoundOffsetMs;
+      ..hitSoundOffsetMs = hitSoundOffsetMs
+      ..pvOffsetMs = pvOffsetMs;
   }
 }
 

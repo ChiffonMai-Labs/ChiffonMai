@@ -140,6 +140,28 @@ class SimaiFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             "simai_flutter",
         )
         val hitSoundFilePath = call.argument<String>("hitSoundFilePath")?.takeIf { it.isNotBlank() }
+        val judgementSoundAssetKeys = call.argument<Map<*, *>>("judgementSoundAssetPaths")
+            ?.entries
+            ?.mapNotNull { (k, v) ->
+                val kind = k as? String
+                val asset = (v as? String)?.takeIf { it.isNotBlank() }
+                if (kind != null && asset != null) {
+                    kind to flutterAssets.getAssetFilePathByName(asset, "simai_flutter")
+                } else {
+                    null
+                }
+            }
+            ?.toMap()
+            .orEmpty()
+        val judgementSoundFilePaths = call.argument<Map<*, *>>("judgementSoundFilePaths")
+            ?.entries
+            ?.mapNotNull { (k, v) ->
+                val kind = k as? String
+                val path = (v as? String)?.takeIf { it.isNotBlank() }
+                if (kind != null && path != null) kind to path else null
+            }
+            ?.toMap()
+            .orEmpty()
         val pvVideoPath = call.argument<String>("pvVideoPath")?.takeIf { it.isNotBlank() }
         val pvRect = call.argument<List<Number>>("pvRect")?.map { it.toInt() }?.toIntArray()
         val saveToGallery = call.argument<Boolean>("saveToGallery") ?: false
@@ -157,6 +179,8 @@ class SimaiFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             audioFilePath = call.argument("audioFilePath"),
             hitAssetKey = hitAssetKey,
             hitSoundFilePath = hitSoundFilePath,
+            judgementSoundAssetKeys = judgementSoundAssetKeys,
+            judgementSoundFilePaths = judgementSoundFilePaths,
             audioMode = call.requireString("audioMode"),
             pvVideoPath = pvVideoPath,
             pvRect = pvRect,
@@ -193,6 +217,21 @@ class SimaiFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
         val hitEvents = call.argument<List<Number>>("hitEventTimesUs")
             ?.map { it.toLong() }
             .orEmpty()
+        val judgeTimes = call.argument<List<Number>>("judgementEventTimesUs")
+            ?.map { it.toLong() }
+            .orEmpty()
+        val judgeKinds = call.argument<List<String>>("judgementEventKinds").orEmpty()
+        val judgeVolumes = call.argument<List<Number>>("judgementEventVolumes")
+            ?.map { it.toFloat() }
+            .orEmpty()
+        val judgeCount = minOf(judgeTimes.size, judgeKinds.size, judgeVolumes.size)
+        val judgementEvents = List(judgeCount) { idx ->
+            JudgementSoundEvent(
+                timeUs = judgeTimes[idx],
+                kind = judgeKinds[idx],
+                volume = judgeVolumes[idx],
+            )
+        }
         exportExecutor.execute {
             var succeeded = false
             try {
@@ -203,6 +242,7 @@ class SimaiFlutterPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     musicVolume = musicVolume,
                     hitSoundVolume = hitSoundVolume,
                     hitEventTimesUs = hitEvents,
+                    judgementEvents = judgementEvents,
                     directGallerySaver = if (session.saveToGallery) {
                         { renderedFile ->
                             trySaveDirectlyToGallery(

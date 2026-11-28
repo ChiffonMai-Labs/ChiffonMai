@@ -17,9 +17,16 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
 
+internal data class JudgementSoundEvent(
+    val timeUs: Long,
+    val kind: String,
+    val volume: Float,
+)
+
 internal class AndroidAudioComposer(
     private val musicFile: File,
     private val hitSoundFile: File?,
+    private val judgementSoundFiles: Map<String, File> = emptyMap(),
     private val videoFile: File,
     private val outputFile: File,
     private val workingDirectory: File,
@@ -36,27 +43,46 @@ internal class AndroidAudioComposer(
         musicVolume: Float,
         hitSoundVolume: Float = 2.0f,
         hitEventTimesUs: List<Long>,
+        judgementEvents: List<JudgementSoundEvent> = emptyList(),
     ) {
         checkCancelled()
         val decoded = decodeAudioFileToPcm(musicFile, decodedPcmFile)
-        val hitSound = hitSoundFile?.let(::decodeHitSoundTo48kMono)
+        val hitSound = hitSoundFile?.let { decodeHitSoundTo48kMono(it, decodedHitSoundPcmFile) }
+        val decodedJudgeByPath = mutableMapOf<String, HitSoundPcm>()
+        val judgeBank = mutableMapOf<String, HitSoundPcm>()
+        var tempIndex = 0
+        for ((kind, file) in judgementSoundFiles) {
+            checkCancelled()
+            val path = file.absolutePath
+            val cached = decodedJudgeByPath[path]
+            if (cached != null) {
+                judgeBank[kind] = cached
+                continue
+            }
+            val tempPcm = File(workingDirectory, "judge_${tempIndex++}.pcm")
+            val pcm = decodeHitSoundTo48kMono(file, tempPcm)
+            decodedJudgeByPath[path] = pcm
+            judgeBank[kind] = pcm
+        }
         encodeMixedAac(
             decoded = decoded,
             hitSound = hitSound,
+            judgeBank = judgeBank,
             durationUs = durationUs,
             timelineStartUs = timelineStartUs,
             musicOffsetUs = musicOffsetUs,
             musicVolume = musicVolume,
             hitSoundVolume = hitSoundVolume,
             hitEventTimesUs = hitEventTimesUs,
+            judgementEvents = judgementEvents,
         )
         checkCancelled()
         muxTracks(videoFile, encodedAudioFile, outputFile)
     }
 
-    private fun decodeHitSoundTo48kMono(file: File): HitSoundPcm {
+    private fun decodeHitSoundTo48kMono(file: File, tempPcmFile: File): HitSoundPcm {
         WavPcm16.tryReadMono48k(file, MAX_HIT_SOUND_FRAMES)?.let { return it }
-        val decoded = decodeAudioFileToPcm(file, decodedHitSoundPcmFile)
+        val decoded = decodeAudioFileToPcm(file, tempPcmFile)
         val sampler = PcmFileSampler(decoded)
         try {
             val targetFrames = ceil(decoded.frameCount * OUTPUT_SAMPLE_RATE.toDouble() / decoded.sampleRate)
@@ -198,18 +224,30 @@ internal class AndroidAudioComposer(
     private fun encodeMixedAac(
         decoded: DecodedPcm,
         hitSound: HitSoundPcm?,
+        judgeBank: Map<String, HitSoundPcm>,
         durationUs: Long,
         timelineStartUs: Long,
         musicOffsetUs: Long,
         musicVolume: Float,
         hitSoundVolume: Float,
         hitEventTimesUs: List<Long>,
+        judgementEvents: List<JudgementSoundEvent>,
     ) {
         val outputFrames = ceil(durationUs * OUTPUT_SAMPLE_RATE / 1_000_000.0).toLong()
         val musicStartSeconds = (musicOffsetUs - timelineStartUs) / 1_000_000.0
         val hitStarts = hitEventTimesUs.map {
             ((it - timelineStartUs) * OUTPUT_SAMPLE_RATE / 1_000_000.0).roundToLong()
         }.sorted()
+        val preparedJudgeEvents = judgementEvents.mapNotNull { event ->
+            val pcm = judgeBank[event.kind] ?: return@mapNotNull null
+            val volume = event.volume.coerceIn(0f, 3f)
+            if (volume <= 0f) return@mapNotNull null
+            PreparedJudgementEvent(
+                startFrame = ((event.timeUs - timelineStartUs) * OUTPUT_SAMPLE_RATE / 1_000_000.0).roundToLong(),
+                pcm = pcm,
+                volume = volume,
+            )
+        }.sortedBy { it.startFrame }
         val mixer = PcmMixer(
             decoded = decoded,
             hitSound = hitSound,
@@ -217,6 +255,7 @@ internal class AndroidAudioComposer(
             musicVolume = musicVolume,
             hitSoundVolume = hitSoundVolume,
             hitStarts = hitStarts,
+            judgeEvents = preparedJudgeEvents,
         )
 
         var encoder: MediaCodec? = null
@@ -398,6 +437,12 @@ private data class DecodedPcm(
     val frameCount: Long,
 )
 
+private class PreparedJudgementEvent(
+    val startFrame: Long,
+    val pcm: HitSoundPcm,
+    val volume: Float,
+)
+
 private class PcmMixer(
     decoded: DecodedPcm,
     private val hitSound: HitSoundPcm?,
@@ -405,8 +450,11 @@ private class PcmMixer(
     private val musicVolume: Float,
     private val hitSoundVolume: Float,
     private val hitStarts: List<Long>,
+    private val judgeEvents: List<PreparedJudgementEvent>,
 ) {
     private val music = PcmFileSampler(decoded)
+    private val judgeStarts: List<Long> = judgeEvents.map { it.startFrame }
+    private val maxJudgeFrames: Long = judgeEvents.maxOfOrNull { it.pcm.frameCount } ?: 0L
 
     fun write(output: ByteBuffer, outputStartFrame: Long, frameCount: Int) {
         val samples = FloatArray(frameCount * 2)
@@ -419,9 +467,9 @@ private class PcmMixer(
                 samples[frame * 2 + 1] += music.sample(sourceFrame, 1) * musicVolume
             }
         }
+        val chunkEnd = outputStartFrame + frameCount
         val hit = hitSound
-        if (hit != null) {
-            val chunkEnd = outputStartFrame + frameCount
+        if (hit != null && hitStarts.isNotEmpty()) {
             val first = lowerBound(hitStarts, outputStartFrame - hit.frameCount)
             var index = first
             while (index < hitStarts.size && hitStarts[index] < chunkEnd) {
@@ -443,12 +491,45 @@ private class PcmMixer(
                 index++
             }
         }
+        if (judgeEvents.isNotEmpty()) {
+            val first = lowerBound(judgeStarts, outputStartFrame - maxJudgeFrames)
+            var index = first
+            while (index < judgeEvents.size && judgeEvents[index].startFrame < chunkEnd) {
+                val event = judgeEvents[index]
+                val start = event.startFrame
+                val end = start + event.pcm.frameCount
+                if (end > outputStartFrame) {
+                    val from = max(outputStartFrame, start)
+                    val to = min(chunkEnd, end)
+                    val overlap = max(
+                        1,
+                        upperBound(judgeStarts, start) -
+                            lowerBound(judgeStarts, start - JUDGE_OVERLAP_WINDOW_FRAMES + 1),
+                    )
+                    val gain = (event.volume.toDouble() * 0.82 / sqrt(overlap.toDouble())).toFloat()
+                    val pcmSamples = event.pcm.samples
+                    for (outputFrame in from until to) {
+                        val sfxFrame = (outputFrame - start).toInt()
+                        val value = pcmSamples[sfxFrame] * gain
+                        val local = (outputFrame - outputStartFrame).toInt() * 2
+                        samples[local] += value
+                        samples[local + 1] += value
+                    }
+                }
+                index++
+            }
+        }
         samples.forEach { sample ->
             output.putShort((sample.coerceIn(-1f, 1f) * 32767f).toInt().toShort())
         }
     }
 
     fun close() = music.close()
+
+    companion object {
+        // 与 SimaiJudgementSoundBank._overlapWindowUs (80ms) 对齐。
+        private const val JUDGE_OVERLAP_WINDOW_FRAMES = 3840L
+    }
 }
 
 private class PcmFileSampler(decoded: DecodedPcm) {
@@ -526,15 +607,47 @@ private object WavPcm16 {
             }
             offset += 8 + size + (size and 1)
         }
-        if (format != 1 || channels != 1 || sampleRate != 48_000 || bitDepth != 16 || dataOffset < 0) {
+        if (format != 1 || (channels != 1 && channels != 2) || sampleRate <= 0 || bitDepth != 16 || dataOffset < 0) {
             return@runCatching null
         }
         val rawSamples = ShortArray(dataSize / 2)
         ByteBuffer.wrap(bytes, dataOffset, dataSize).order(ByteOrder.LITTLE_ENDIAN)
             .asShortBuffer().get(rawSamples)
-        val cappedCount = min(rawSamples.size.toLong(), maxFrames).toInt()
-        val samples = FloatArray(cappedCount) { i -> rawSamples[i] / 32768f }
-        HitSoundPcm(samples, cappedCount.toLong())
+        val sourceFrames = rawSamples.size / channels
+        if (sourceFrames <= 0) return@runCatching null
+        if (sampleRate == 48_000) {
+            val cappedCount = min(sourceFrames.toLong(), maxFrames).toInt()
+            val samples = FloatArray(cappedCount) { i ->
+                if (channels == 1) {
+                    rawSamples[i] / 32768f
+                } else {
+                    (rawSamples[i * 2] + rawSamples[i * 2 + 1]) / 65536f
+                }
+            }
+            return@runCatching HitSoundPcm(samples, cappedCount.toLong())
+        }
+        val targetFrames = ceil(sourceFrames * 48_000.0 / sampleRate)
+            .toLong()
+            .coerceIn(1L, maxFrames)
+            .toInt()
+        val rateRatio = sampleRate.toDouble() / 48_000.0
+        fun monoAt(frameIdx: Int): Float {
+            val safe = frameIdx.coerceIn(0, sourceFrames - 1)
+            return if (channels == 1) {
+                rawSamples[safe] / 32768f
+            } else {
+                (rawSamples[safe * 2] + rawSamples[safe * 2 + 1]) / 65536f
+            }
+        }
+        val samples = FloatArray(targetFrames) { i ->
+            val pos = i * rateRatio
+            val idx0 = floor(pos).toInt()
+            val frac = (pos - idx0).toFloat()
+            val a = monoAt(idx0)
+            val b = monoAt(idx0 + 1)
+            a + (b - a) * frac
+        }
+        HitSoundPcm(samples, targetFrames.toLong())
     }.getOrNull()
 }
 

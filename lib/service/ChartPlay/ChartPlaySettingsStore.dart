@@ -101,6 +101,9 @@ class ChartPlaySettings {
   // ---- 音频设置 ----
   final bool hitSoundEnabled;
   final String? customHitSoundPath;
+  final bool judgementSoundEnabled;
+  final SimaiJudgementSoundVolumes judgementSoundVolumes;
+  final SimaiCustomJudgementSounds customJudgementSounds;
   final bool metronomeSoundEnabled;
   final double musicVolume;
   final double hitSoundVolume;
@@ -140,6 +143,9 @@ class ChartPlaySettings {
     this.metronomeSpeed = 1.0,
     this.hitSoundEnabled = true,
     this.customHitSoundPath,
+    this.judgementSoundEnabled = true,
+    this.judgementSoundVolumes = SimaiJudgementSoundVolumes.defaults,
+    this.customJudgementSounds = SimaiCustomJudgementSounds.empty,
     this.metronomeSoundEnabled = false,
     this.musicVolume = 0.5,
     this.hitSoundVolume = 2.0,
@@ -188,6 +194,9 @@ class ChartPlaySettings {
       metronomeSpeed: safeMetronomeSpeed,
       hitSoundEnabled: c.hitSoundEnabled,
       customHitSoundPath: c.customHitSoundPath,
+      judgementSoundEnabled: c.judgementSoundEnabled,
+      judgementSoundVolumes: c.judgementSoundVolumes,
+      customJudgementSounds: c.customJudgementSounds,
       metronomeSoundEnabled: metronomeSoundEnabled,
       musicVolume: c.musicVolume,
       hitSoundVolume: c.hitSoundVolume,
@@ -228,6 +237,9 @@ class ChartPlaySettings {
     c.showDetailedPerformanceInfo = showDetailedPerformanceInfo;
     c.hitSoundEnabled = hitSoundEnabled;
     c.customHitSoundPath = customHitSoundPath;
+    c.judgementSoundEnabled = judgementSoundEnabled;
+    c.judgementSoundVolumes = judgementSoundVolumes;
+    c.customJudgementSounds = customJudgementSounds;
     c.musicVolume = musicVolume;
     c.hitSoundVolume = hitSoundVolume;
     c.musicOffsetMs = musicOffsetMs;
@@ -267,6 +279,11 @@ class ChartPlaySettings {
         'hitSoundEnabled': hitSoundEnabled,
         if (customHitSoundPath != null && customHitSoundPath!.isNotEmpty)
           'customHitSoundPath': customHitSoundPath,
+        'judgementSoundEnabled': judgementSoundEnabled,
+        if (!judgementSoundVolumes.isAllDefault)
+          'judgementSoundVolumes': judgementSoundVolumes.toJson(),
+        if (customJudgementSounds.isNotEmpty)
+          'customJudgementSounds': customJudgementSounds.toJson(),
         'metronomeSoundEnabled': metronomeSoundEnabled,
         'musicVolume': musicVolume,
         'hitSoundVolume': hitSoundVolume,
@@ -358,6 +375,17 @@ class ChartPlaySettings {
           json['metronomeSpeed'], 0.5, 3.0, fallback.metronomeSpeed),
       hitSoundEnabled: _bool(json['hitSoundEnabled'], fallback.hitSoundEnabled),
       customHitSoundPath: _nonEmptyString(json['customHitSoundPath']),
+      judgementSoundEnabled: _bool(
+        json['judgementSoundEnabled'],
+        fallback.judgementSoundEnabled,
+      ),
+      judgementSoundVolumes: SimaiJudgementSoundVolumes.fromJson(
+        json['judgementSoundVolumes'],
+        legacyVolume: json['judgementSoundVolume'],
+      ),
+      customJudgementSounds: SimaiCustomJudgementSounds.fromJson(
+        json['customJudgementSounds'],
+      ),
       metronomeSoundEnabled:
           _bool(json['metronomeSoundEnabled'], fallback.metronomeSoundEnabled),
       musicVolume:
@@ -604,6 +632,7 @@ class ChartVideoExportSettingsStore {
         'includeMusic': s.includeMusic,
         'mirrorMode': s.mirrorMode.name,
         'backgroundMode': s.backgroundMode.name,
+        'backgroundOpacity': s.backgroundOpacity,
         'speed': s.speed,
         'touchSpeed': s.touchSpeed,
         'slideDisplayTiming': s.slideDisplayTiming,
@@ -629,10 +658,16 @@ class ChartVideoExportSettingsStore {
         'hitSoundEnabled': s.hitSoundEnabled,
         if (s.customHitSoundPath != null && s.customHitSoundPath!.isNotEmpty)
           'customHitSoundPath': s.customHitSoundPath,
+        'judgementSoundEnabled': s.judgementSoundEnabled,
+        if (!s.judgementSoundVolumes.isAllDefault)
+          'judgementSoundVolumes': s.judgementSoundVolumes.toJson(),
+        if (s.customJudgementSounds.isNotEmpty)
+          'customJudgementSounds': s.customJudgementSounds.toJson(),
         'musicVolume': s.musicVolume,
         'hitSoundVolume': s.hitSoundVolume,
         'musicOffsetMs': s.musicOffsetMs,
         'hitSoundOffsetMs': s.hitSoundOffsetMs,
+        'pvOffsetMs': s.pvOffsetMs,
       };
 
   static SimaiVideoExportSettings _fromJson(Map<String, dynamic> json) {
@@ -658,6 +693,8 @@ class ChartVideoExportSettingsStore {
           SimaiMirrorMode.values, json['mirrorMode'], fallback.mirrorMode),
       backgroundMode: ChartPlaySettings._enumByName(SimaiBackgroundMode.values,
           json['backgroundMode'], fallback.backgroundMode),
+      backgroundOpacity: ChartPlaySettings._clampDouble(
+          json['backgroundOpacity'], 0.0, 1.0, fallback.backgroundOpacity),
       speed: parsedSpeed,
       touchSpeed: NoteMotion.parseSpeed(
         json['touchSpeed'],
@@ -721,6 +758,17 @@ class ChartVideoExportSettingsStore {
           json['hitSoundEnabled'], fallback.hitSoundEnabled),
       customHitSoundPath:
           ChartPlaySettings._nonEmptyString(json['customHitSoundPath']),
+      judgementSoundEnabled: ChartPlaySettings._bool(
+        json['judgementSoundEnabled'],
+        fallback.judgementSoundEnabled,
+      ),
+      judgementSoundVolumes: SimaiJudgementSoundVolumes.fromJson(
+        json['judgementSoundVolumes'],
+        legacyVolume: json['judgementSoundVolume'],
+      ),
+      customJudgementSounds: SimaiCustomJudgementSounds.fromJson(
+        json['customJudgementSounds'],
+      ),
       musicVolume: ChartPlaySettings._clampDouble(
           json['musicVolume'], 0.0, 1.0, fallback.musicVolume),
       hitSoundVolume: ChartPlaySettings._clampDouble(json['hitSoundVolume'],
@@ -729,6 +777,8 @@ class ChartVideoExportSettingsStore {
           json['musicOffsetMs'], -2000, 2000, fallback.musicOffsetMs),
       hitSoundOffsetMs: ChartPlaySettings._clampInt(
           json['hitSoundOffsetMs'], -200, 200, fallback.hitSoundOffsetMs),
+      pvOffsetMs: ChartPlaySettings._clampInt(
+          json['pvOffsetMs'], -2000, 2000, fallback.pvOffsetMs),
     );
   }
 }

@@ -7,10 +7,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_soloud/flutter_soloud.dart';
 
+import '../audio/judgement_sound_bank.dart';
 import '../audio/soloud_audio_player.dart';
 import '../gameplay/gameplay_models.dart';
 import '../ui/auto_play_mode.dart';
 import '../ui/center_display_mode.dart';
+import '../ui/components/simai_expressive_loading_indicator.dart';
+import '../ui/components/simai_judgement_sound_volumes_panel.dart';
 import '../ui/hit_effect_style.dart';
 import '../ui/note_motion.dart';
 import '../ui/note_style.dart';
@@ -55,6 +58,8 @@ class SimaiVideoExportPage extends StatefulWidget {
   final Future<void> Function()? prepareFonts;
   final SimaiCustomSettingBuilder? customNoteSkinSettingBuilder;
   final SimaiCustomSettingBuilder? customHitSoundSettingBuilder;
+  final SimaiCustomSettingBuilder? customJudgementSoundSettingBuilder;
+  final SimaiSwitchBuilder? switchBuilder;
 
   const SimaiVideoExportPage({
     super.key,
@@ -76,6 +81,8 @@ class SimaiVideoExportPage extends StatefulWidget {
     this.prepareFonts,
     this.customNoteSkinSettingBuilder,
     this.customHitSoundSettingBuilder,
+    this.customJudgementSoundSettingBuilder,
+    this.switchBuilder,
   });
 
   @override
@@ -112,6 +119,11 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
   final List<SoundHandle> _previewHitVoices = <SoundHandle>[];
   List<int> _previewHitEventsUs = const <int>[];
   int _previewHitIndex = 0;
+  SimaiJudgementSoundBank? _previewJudgeSoundBank;
+  SimaiCustomJudgementSounds? _loadedPreviewJudgeSounds;
+  List<SimaiScheduledJudgeSfxEvent> _previewJudgeEvents =
+      const <SimaiScheduledJudgeSfxEvent>[];
+  int _previewJudgeIndex = 0;
   bool _resolvingAudio = false;
   Future<String?>? _audioResolveFuture;
   ui.Image? _previewImage;
@@ -183,7 +195,7 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     final useMusic = _includeMusic && _hasAudioSource;
     final selectedAudioMode = !useMusic
         ? SimaiVideoAudioMode.silent
-        : settings.hitSoundEnabled
+        : (settings.hitSoundEnabled || settings.judgementSoundEnabled)
         ? SimaiVideoAudioMode.musicAndHitSounds
         : SimaiVideoAudioMode.musicOnly;
     return widget.initialOptions.copyWith(
@@ -192,6 +204,7 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
       showHeader: _showHeader,
       audioMode: selectedAudioMode,
       hitSoundEnabled: useMusic && settings.hitSoundEnabled,
+      judgementSoundEnabled: useMusic && settings.judgementSoundEnabled,
       showCornerInfo: settings.showCornerInfo,
       showDetailedPerformanceInfo: settings.showDetailedPerformanceInfo,
       pvVideoPath: _usePvBackground ? _pvVideoPath : null,
@@ -260,6 +273,10 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
             _includeMusic &&
             (widget.initialOptions.hitSoundEnabled ??
                 widget.controller.hitSoundEnabled);
+        configuration.judgementSoundEnabled =
+            _includeMusic &&
+            (widget.initialOptions.judgementSoundEnabled ??
+                widget.controller.judgementSoundEnabled);
         configuration.showCornerInfo =
             widget.initialOptions.showCornerInfo ??
             widget.controller.showCornerInfo;
@@ -524,7 +541,9 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     _previewTime = clamped;
     _previewTimeNotifier.value = clamped;
     _syncPreviewPvTime();
-    _previewHitIndex = _lowerBoundHitEvent((clamped * 1000000).round());
+    final targetUs = (clamped * 1000000).round();
+    _previewHitIndex = _lowerBoundHitEvent(targetUs);
+    _previewJudgeIndex = _lowerBoundJudgeEvent(targetUs);
     _queuePreviewFrame(resetWindow: true);
     if (!syncAudio || !_includeMusic || !_previewMusicReady) return;
     final musicSeconds =
@@ -699,6 +718,18 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     _previewHitIndex = _lowerBoundHitEvent((_previewTime * 1000000).round());
   }
 
+  void _rebuildPreviewJudgeEvents() {
+    final controller = _settingsController;
+    _previewJudgeEvents = buildSimaiJudgementSoundEvents(
+      chart: controller.chart,
+      autoPlayTimeline: controller.autoPlayTimeline,
+      userOffsetMs: controller.hitSoundOffsetMs,
+    );
+    _previewJudgeIndex = _lowerBoundJudgeEvent(
+      (_previewTime * 1000000).round(),
+    );
+  }
+
   Future<String?> _ensureMusicResolved({required bool notifyOnMissing}) async {
     if (_hasAudioSource) {
       unawaited(_preparePreviewAudio());
@@ -778,8 +809,12 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
       return;
     }
     _rebuildPreviewHitEvents();
+    _rebuildPreviewJudgeEvents();
     if (settings.hitSoundEnabled) {
       unawaited(_preparePreviewHitSound());
+    }
+    if (settings.judgementSoundEnabled) {
+      unawaited(_preparePreviewJudgeSoundBank());
     }
     final alreadyLoaded =
         _previewMusicReady &&
@@ -873,11 +908,33 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     }
   }
 
+  Future<void> _preparePreviewJudgeSoundBank() async {
+    if (_disposed) return;
+    final customSounds = _settingsController.customJudgementSounds;
+    final existing = _previewJudgeSoundBank;
+    if (existing != null && _loadedPreviewJudgeSounds == customSounds) {
+      await existing.ensureLoaded();
+      return;
+    }
+    _loadedPreviewJudgeSounds = customSounds;
+    if (existing == null) {
+      final bank = SimaiJudgementSoundBank(customSounds: customSounds);
+      _previewJudgeSoundBank = bank;
+      await bank.ensureLoaded();
+    } else {
+      await existing.setCustomSounds(customSounds);
+    }
+  }
+
   Future<void> _startPreviewAudioPlayback() async {
     if (_disposed || !_includeMusic || !_previewPlaying) return;
     _rebuildPreviewHitEvents();
+    _rebuildPreviewJudgeEvents();
     if (_settingsController.hitSoundEnabled && _previewHitSource == null) {
       unawaited(_preparePreviewHitSound());
+    }
+    if (_settingsController.judgementSoundEnabled) {
+      unawaited(_preparePreviewJudgeSoundBank());
     }
     if (!_previewMusicReady) {
       unawaited(_preparePreviewAudio());
@@ -925,6 +982,7 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
   Future<void> _pausePreviewAudioPlayback() async {
     _previewAudioPlayActive = false;
     _stopPreviewHitVoices();
+    _previewJudgeSoundBank?.stopVoices();
     final player = _previewMusicPlayer;
     if (player == null || !_previewMusicReady) return;
     try {
@@ -955,6 +1013,37 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
       }
       if (triggered > 0) {
         _playPreviewHitVoice(triggered);
+      }
+    }
+    if (_settingsController.judgementSoundEnabled &&
+        _previewJudgeEvents.isNotEmpty) {
+      final bank = _previewJudgeSoundBank;
+      if (bank != null && bank.isReady) {
+        final nowUs = (_previewTime * 1000000).round();
+        final volumes = _settingsController.judgementSoundVolumes;
+        while (_previewJudgeIndex < _previewJudgeEvents.length &&
+            _previewJudgeEvents[_previewJudgeIndex].timeUs <= nowUs) {
+          final event = _previewJudgeEvents[_previewJudgeIndex];
+          _previewJudgeIndex++;
+          if (nowUs - event.timeUs <= 60000) {
+            final vol = volumes.volumeFor(event.kind);
+            if (vol > 0) {
+              bank.playImmediate(event.kind, volume: vol, nowUs: nowUs);
+            }
+            if (event.isHanabi) {
+              final hanabiVol = volumes.volumeFor(
+                SimaiJudgementSoundKind.hanabi,
+              );
+              if (hanabiVol > 0) {
+                bank.playImmediate(
+                  SimaiJudgementSoundKind.hanabi,
+                  volume: hanabiVol,
+                  nowUs: nowUs,
+                );
+              }
+            }
+          }
+        }
       }
     }
   }
@@ -1008,6 +1097,9 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     if (src != null) {
       unawaited(SoLoudSourcePool.release(src, SoLoud.instance));
     }
+    _previewJudgeSoundBank?.dispose();
+    _previewJudgeSoundBank = null;
+    _loadedPreviewJudgeSounds = null;
   }
 
   int _lowerBoundHitEvent(int targetUs) {
@@ -1017,6 +1109,21 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     while (low < high) {
       final mid = (low + high) >> 1;
       if (list[mid] < targetUs) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+    return low;
+  }
+
+  int _lowerBoundJudgeEvent(int targetUs) {
+    final list = _previewJudgeEvents;
+    var low = 0;
+    var high = list.length;
+    while (low < high) {
+      final mid = (low + high) >> 1;
+      if (list[mid].timeUs < targetUs) {
         low = mid + 1;
       } else {
         high = mid;
@@ -1049,9 +1156,15 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
   }) {
     final controller = _configurationController;
     if (controller == null) return;
+    final prevAutoPlayMode = controller.autoPlayMode;
+    final prevAutoPlaySeed = controller.autoPlaySeed;
     update(controller);
     setState(() {});
     _notifySettingsChanged();
+    if (controller.autoPlayMode != prevAutoPlayMode ||
+        controller.autoPlaySeed != prevAutoPlaySeed) {
+      _rebuildPreviewJudgeEvents();
+    }
     if (rebuildPreview) {
       _schedulePreviewRebuild();
     } else {
@@ -1068,10 +1181,14 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     setState(() {});
     _notifySettingsChanged();
     _rebuildPreviewHitEvents();
+    _rebuildPreviewJudgeEvents();
     _syncPreviewPvTime();
     unawaited(_previewMusicPlayer?.setVolume(controller.musicVolume));
     if (controller.hitSoundEnabled && _includeMusic) {
       unawaited(_preparePreviewHitSound());
+    }
+    if (controller.judgementSoundEnabled && _includeMusic) {
+      unawaited(_preparePreviewJudgeSoundBank());
     }
   }
 
@@ -1486,10 +1603,7 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     } else if (task.isRunning) {
       onPressed = task.isCancelling ? null : _confirmCancelExport;
       icon = task.isCancelling
-          ? const SizedBox.square(
-              dimension: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
+          ? const SimaiExpressiveLoadingIndicator(size: 20)
           : const Icon(Icons.close);
       label = task.isCancelling ? '正在取消…' : '取消导出';
       style = FilledButton.styleFrom(
@@ -1670,12 +1784,9 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
   }
 
   Widget _buildCompletedActions(ThemeData theme, SimaiVideoExportResult result) {
-    Widget actionProgressIndicator() => SizedBox.square(
-      dimension: 18,
-      child: CircularProgressIndicator(
-        strokeWidth: 2,
-        color: theme.colorScheme.primary,
-      ),
+    Widget actionProgressIndicator() => SimaiExpressiveLoadingIndicator(
+      size: 18,
+      color: theme.colorScheme.primary,
     );
     final saved = result.savedToGallery || _savedToGallery;
     final canShare = _canShareResult(result);
@@ -1872,43 +1983,23 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
             (controller) => controller.backgroundMode = value,
           ),
         ),
+        _buildSliderSetting(
+          theme,
+          label: '背景透明度',
+          icon: Icons.opacity,
+          value: controller.backgroundOpacity,
+          min: 0.0,
+          max: 1.0,
+          divisions: 100,
+          valueSuffix: '${(controller.backgroundOpacity * 100).round()}%',
+          onChanged: (value) => _updateVisualSetting(
+            (controller) => controller.backgroundOpacity = value,
+          ),
+        ),
         if (widget.checkCachedPvFilePath != null ||
             widget.downloadPvFilePath != null) ...[
           const SizedBox(height: 8),
           _buildPvBackgroundSetting(theme),
-          if (_usePvBackground) ...[
-            _buildSliderSetting(
-              theme,
-              label: '背景透明度',
-              icon: Icons.opacity,
-              value: controller.backgroundOpacity,
-              min: 0.0,
-              max: 1.0,
-              divisions: 100,
-              valueSuffix: '${(controller.backgroundOpacity * 100).round()}%',
-              onChanged: (value) => _updateVisualSetting(
-                (controller) => controller.backgroundOpacity = value,
-              ),
-            ),
-            _buildSliderSetting(
-              theme,
-              label: 'PV 偏移',
-              icon: Icons.ondemand_video_rounded,
-              value: controller.pvOffsetMs.toDouble(),
-              min: -2000,
-              max: 2000,
-              divisions: 400,
-              valueSuffix:
-                  '${controller.pvOffsetMs > 0 ? '+' : ''}${controller.pvOffsetMs}ms',
-              onChanged: (value) {
-                _updateVisualSetting(
-                  (controller) => controller.pvOffsetMs = value.round(),
-                  rebuildPreview: false,
-                );
-                _syncPreviewPvTime();
-              },
-            ),
-          ],
         ],
         _buildSliderSetting(
           theme,
@@ -2508,6 +2599,35 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
             (controller) => controller.hitSoundVolume = value,
           ),
         ),
+        _buildSwitchSetting(
+          theme,
+          label: '判定音效（绝赞 / EX / 档位）',
+          icon: Icons.surround_sound_outlined,
+          value: _audioEnabled && controller.judgementSoundEnabled,
+          enabled: _audioEnabled,
+          onChanged: (value) => _updateAudioSetting(
+            (controller) => controller.judgementSoundEnabled = value,
+          ),
+        ),
+        if (_audioEnabled && controller.judgementSoundEnabled) ...[
+          SimaiJudgementSoundVolumesPanel(
+            volumes: controller.judgementSoundVolumes,
+            customSounds: controller.customJudgementSounds,
+            onVolumeChanged: (kind, volume) => _updateAudioSetting(
+              (controller) => controller.setJudgementSoundVolume(kind, volume),
+            ),
+            onResetAll: () => _updateAudioSetting(
+              (controller) => controller.judgementSoundVolumes =
+                  SimaiJudgementSoundVolumes.defaults,
+            ),
+          ),
+          if (widget.customJudgementSoundSettingBuilder != null)
+            widget.customJudgementSoundSettingBuilder!(
+              context,
+              controller,
+              () => _updateAudioSetting((_) {}),
+            ),
+        ],
         _buildSliderSetting(
           theme,
           label: '音乐偏移',
@@ -2530,12 +2650,61 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
           min: -200,
           max: 200,
           divisions: 40,
-          enabled: _audioEnabled && controller.hitSoundEnabled,
+          enabled:
+              _audioEnabled &&
+              (controller.hitSoundEnabled || controller.judgementSoundEnabled),
           valueSuffix: '${controller.hitSoundOffsetMs}ms',
           onChanged: (value) => _updateAudioSetting(
             (controller) => controller.hitSoundOffsetMs = value.toInt(),
           ),
         ),
+        if (_usePvBackground) ...[
+          _buildSliderSetting(
+            theme,
+            label: 'PV 延迟',
+            icon: Icons.ondemand_video_outlined,
+            value: controller.pvOffsetMs.toDouble(),
+            min: -2000,
+            max: 2000,
+            divisions: 400,
+            valueSuffix:
+                '${controller.pvOffsetMs > 0 ? '+' : ''}${controller.pvOffsetMs}ms',
+            onChanged: (value) {
+              _updateVisualSetting(
+                (controller) => controller.pvOffsetMs = value.round(),
+                rebuildPreview: false,
+              );
+              _syncPreviewPvTime();
+            },
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final delta in const [-50, -10, 0, 10, 50])
+                  _buildOffsetQuickChip(
+                    theme,
+                    label: delta == 0
+                        ? '0ms'
+                        : '${delta > 0 ? '+' : ''}${delta}ms',
+                    selected: delta == 0 && controller.pvOffsetMs == 0,
+                    onTap: () {
+                      _updateVisualSetting(
+                        (controller) => controller.pvOffsetMs = delta == 0
+                            ? 0
+                            : (controller.pvOffsetMs + delta)
+                                  .clamp(-2000, 2000),
+                        rebuildPreview: false,
+                      );
+                      _syncPreviewPvTime();
+                    },
+                  ),
+              ],
+            ),
+          ),
+        ],
         const Padding(
           padding: EdgeInsets.symmetric(vertical: 16),
           child: Divider(),
@@ -2685,10 +2854,16 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
                 ),
               ],
             )
-          : Switch(
-              value: _usePvBackground,
-              onChanged: (value) => unawaited(_setUsePvBackground(value)),
-            ),
+          : (widget.switchBuilder != null
+              ? widget.switchBuilder!(
+                  context,
+                  _usePvBackground,
+                  (value) => unawaited(_setUsePvBackground(value)),
+                )
+              : Switch(
+                  value: _usePvBackground,
+                  onChanged: (value) => unawaited(_setUsePvBackground(value)),
+                )),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
     );
@@ -2703,6 +2878,7 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     required ValueChanged<bool> onChanged,
     bool enabled = true,
   }) {
+    final effectiveChanged = enabled ? onChanged : null;
     return ListTile(
       enabled: enabled,
       leading: Icon(icon, color: theme.colorScheme.onSurfaceVariant),
@@ -2715,9 +2891,49 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
               ),
             )
           : null,
-      trailing: Switch(value: value, onChanged: enabled ? onChanged : null),
+      trailing: widget.switchBuilder != null
+          ? widget.switchBuilder!(context, value, effectiveChanged)
+          : Switch(value: value, onChanged: effectiveChanged),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+    );
+  }
+
+  Widget _buildOffsetQuickChip(
+    ThemeData theme, {
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    final colorScheme = theme.colorScheme;
+    return Material(
+      color: selected
+          ? colorScheme.primaryContainer
+          : colorScheme.onSurface.withValues(alpha: 0.08),
+      shape: StadiumBorder(
+        side: BorderSide(
+          color: selected ? colorScheme.primary : colorScheme.outlineVariant,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        splashFactory: NoSplash.splashFactory,
+        highlightColor: Colors.transparent,
+        hoverColor: Colors.transparent,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Text(
+            label,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: selected
+                  ? colorScheme.onPrimaryContainer
+                  : colorScheme.onSurfaceVariant,
+              fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -2937,7 +3153,9 @@ class _SimaiVideoExportPageState extends State<SimaiVideoExportPage>
     }
     final image = _previewImage;
     if (image == null) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(
+        child: SimaiExpressiveLoadingIndicator.contained(size: 48),
+      );
     }
     final pvPath = _pvVideoPath;
     final showPv =

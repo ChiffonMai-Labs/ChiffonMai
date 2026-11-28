@@ -98,6 +98,18 @@ public final class SimaiFlutterPlugin: NSObject, FlutterPlugin {
       .flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
       .flatMap { !$0.isEmpty && FileManager.default.fileExists(atPath: $0) ? $0 : nil }
     let hitPath = customHitPath ?? assetPath("assets/answer.wav", package: "simai_flutter")
+    let rawJudgeAssets = arguments["judgementSoundAssetPaths"] as? [String: String] ?? [:]
+    let rawJudgeFiles = arguments["judgementSoundFilePaths"] as? [String: String] ?? [:]
+    var judgementSoundPaths: [String: String] = [:]
+    for (kind, asset) in rawJudgeAssets {
+      if let custom = rawJudgeFiles[kind]?.trimmingCharacters(in: .whitespacesAndNewlines),
+         !custom.isEmpty,
+         FileManager.default.fileExists(atPath: custom) {
+        judgementSoundPaths[kind] = custom
+      } else if let bundled = assetPath(asset, package: "simai_flutter") {
+        judgementSoundPaths[kind] = bundled
+      }
+    }
     let pvVideoPath = (arguments["pvVideoPath"] as? String).flatMap { $0.isEmpty ? nil : $0 }
     let pvRect = (arguments["pvRect"] as? [NSNumber])?.map(\.intValue)
     let saveToGallery = (arguments["saveToGallery"] as? Bool) ?? false
@@ -110,6 +122,7 @@ public final class SimaiFlutterPlugin: NSObject, FlutterPlugin {
       requestedOutputPath: arguments["outputPath"] as? String,
       audioPath: arguments["audioFilePath"] as? String ?? audioAssetPath,
       hitSoundPath: hitPath,
+      judgementSoundPaths: judgementSoundPaths,
       audioMode: try arguments.requiredString("audioMode"),
       pvVideoPath: pvVideoPath,
       pvRect: pvRect,
@@ -138,6 +151,13 @@ public final class SimaiFlutterPlugin: NSObject, FlutterPlugin {
     let id = try arguments.requiredInt("sessionId")
     let session = try requiredSession(arguments)
     let hits = (arguments["hitEventTimesUs"] as? [NSNumber])?.map(\.int64Value) ?? []
+    let judgeTimes = (arguments["judgementEventTimesUs"] as? [NSNumber])?.map(\.int64Value) ?? []
+    let judgeKinds = arguments["judgementEventKinds"] as? [String] ?? []
+    let judgeVolumes = (arguments["judgementEventVolumes"] as? [NSNumber])?.map(\.floatValue) ?? []
+    let judgeCount = min(judgeTimes.count, min(judgeKinds.count, judgeVolumes.count))
+    let judgementEvents: [(timeUs: Int64, kind: String, volume: Float)] = (0..<judgeCount).map {
+      (timeUs: judgeTimes[$0], kind: judgeKinds[$0], volume: judgeVolumes[$0])
+    }
     let durationUs = try arguments.requiredInt64("durationUs")
     let timelineStartUs = try arguments.requiredInt64("timelineStartUs")
     let musicOffsetUs = try arguments.requiredInt64("musicOffsetUs")
@@ -152,7 +172,8 @@ public final class SimaiFlutterPlugin: NSObject, FlutterPlugin {
           musicOffsetUs: musicOffsetUs,
           musicVolume: musicVolume,
           hitSoundVolume: hitSoundVolume,
-          hitEventTimesUs: hits
+          hitEventTimesUs: hits,
+          judgementEvents: judgementEvents
         )
         let attributes = try FileManager.default.attributesOfItem(atPath: output.path)
         let size = (attributes[.size] as? NSNumber)?.intValue ?? 0
@@ -417,6 +438,7 @@ private final class IOSVideoExportSession {
   let outputURL: URL
   let audioURL: URL?
   let hitSoundURL: URL?
+  let judgementSoundURLs: [String: URL]
   let audioMode: String
   let audioDurationUs: Int64
   let hitSoundDurationUs: Int64
@@ -444,6 +466,7 @@ private final class IOSVideoExportSession {
     requestedOutputPath: String?,
     audioPath: String?,
     hitSoundPath: String?,
+    judgementSoundPaths: [String: String] = [:],
     audioMode: String,
     pvVideoPath: String? = nil,
     pvRect: [Int]? = nil,
@@ -538,6 +561,7 @@ private final class IOSVideoExportSession {
     self.outputURL = resolvedOutputURL
     self.audioURL = resolvedAudioURL
     self.hitSoundURL = resolvedHitSoundURL
+    self.judgementSoundURLs = judgementSoundPaths.mapValues { URL(fileURLWithPath: $0) }
     self.audioMode = audioMode
     self.audioDurationUs = resolvedAudioDurationUs
     self.hitSoundDurationUs = resolvedHitSoundDurationUs
@@ -809,7 +833,8 @@ private final class IOSVideoExportSession {
     musicOffsetUs: Int64,
     musicVolume: Double,
     hitSoundVolume: Double = 2.0,
-    hitEventTimesUs: [Int64]
+    hitEventTimesUs: [Int64],
+    judgementEvents: [(timeUs: Int64, kind: String, volume: Float)] = []
   ) throws -> URL {
     try checkCancelled()
     try ensureDiskSpace(durationUs: durationUs)
@@ -831,7 +856,8 @@ private final class IOSVideoExportSession {
       try IOSAudioMuxer(
         videoURL: videoOnlyURL,
         musicURL: audioURL!,
-        hitSoundURL: audioMode == "musicAndHitSounds" ? hitSoundURL : nil,
+        hitSoundURL: (audioMode == "musicAndHitSounds" && !hitEventTimesUs.isEmpty) ? hitSoundURL : nil,
+        judgementSoundURLs: audioMode == "musicAndHitSounds" ? judgementSoundURLs : [:],
         outputURL: finalMuxedURL,
         isCancelled: { [weak self] in self?.isCancellationRequested() ?? true }
       ).mux(
@@ -840,7 +866,8 @@ private final class IOSVideoExportSession {
         musicOffsetUs: musicOffsetUs,
         musicVolume: Float(musicVolume).clamped(to: 0...1),
         hitSoundVolume: Float(hitSoundVolume).clamped(to: 0...3),
-        hitEventTimesUs: hitEventTimesUs
+        hitEventTimesUs: hitEventTimesUs,
+        judgementEvents: judgementEvents
       )
       try checkCancelled()
       try replaceItem(at: outputURL, with: finalMuxedURL)
@@ -1100,13 +1127,22 @@ private final class IOSAudioMuxer {
   let videoURL: URL
   let musicURL: URL
   let hitSoundURL: URL?
+  let judgementSoundURLs: [String: URL]
   let outputURL: URL
   let isCancelled: () -> Bool
 
-  init(videoURL: URL, musicURL: URL, hitSoundURL: URL?, outputURL: URL, isCancelled: @escaping () -> Bool) {
+  init(
+    videoURL: URL,
+    musicURL: URL,
+    hitSoundURL: URL?,
+    judgementSoundURLs: [String: URL] = [:],
+    outputURL: URL,
+    isCancelled: @escaping () -> Bool
+  ) {
     self.videoURL = videoURL
     self.musicURL = musicURL
     self.hitSoundURL = hitSoundURL
+    self.judgementSoundURLs = judgementSoundURLs
     self.outputURL = outputURL
     self.isCancelled = isCancelled
   }
@@ -1117,7 +1153,8 @@ private final class IOSAudioMuxer {
     musicOffsetUs: Int64,
     musicVolume: Float,
     hitSoundVolume: Float = 2.0,
-    hitEventTimesUs: [Int64]
+    hitEventTimesUs: [Int64],
+    judgementEvents: [(timeUs: Int64, kind: String, volume: Float)] = []
   ) throws {
     if isCancelled() {
       throw IOSExportError(code: "cancelled", message: "Video export was cancelled.")
@@ -1133,7 +1170,7 @@ private final class IOSAudioMuxer {
       volume: musicVolume,
       mixParameters: &mixParameters
     )
-    if let hitSoundURL {
+    if let hitSoundURL, !hitEventTimesUs.isEmpty {
       try addHitSounds(
         hitSoundURL,
         to: composition,
@@ -1141,6 +1178,16 @@ private final class IOSAudioMuxer {
         timelineStartUs: timelineStartUs,
         hitSoundVolume: hitSoundVolume,
         hitEventTimesUs: hitEventTimesUs,
+        mixParameters: &mixParameters
+      )
+    }
+    if !judgementEvents.isEmpty && !judgementSoundURLs.isEmpty {
+      try addJudgementSounds(
+        judgementSoundURLs,
+        events: judgementEvents,
+        to: composition,
+        totalDuration: totalDuration,
+        timelineStartUs: timelineStartUs,
         mixParameters: &mixParameters
       )
     }
@@ -1317,6 +1364,81 @@ private final class IOSAudioMuxer {
         trackEvents[slot].append((targetStartUs, gain))
       }
       availableAt[slot] = startUs + hitDurationUs
+    }
+    for (index, track) in tracks.enumerated() {
+      let parameters = AVMutableAudioMixInputParameters(track: track)
+      for (timeUs, gain) in trackEvents[index] {
+        parameters.setVolume(gain, at: CMTime(value: timeUs, timescale: 1_000_000))
+      }
+      mixParameters.append(parameters)
+    }
+  }
+
+  private func addJudgementSounds(
+    _ urls: [String: URL],
+    events: [(timeUs: Int64, kind: String, volume: Float)],
+    to composition: AVMutableComposition,
+    totalDuration: CMTime,
+    timelineStartUs: Int64,
+    mixParameters: inout [AVMutableAudioMixInputParameters]
+  ) throws {
+    var sources: [String: (track: AVAssetTrack, durationUs: Int64)] = [:]
+    for (kind, url) in urls {
+      guard FileManager.default.fileExists(atPath: url.path) else { continue }
+      let asset = AVURLAsset(url: url)
+      guard let source = asset.tracks(withMediaType: .audio).first else { continue }
+      let rawSec = asset.duration.seconds
+      let durationUs: Int64 = (rawSec.isFinite && rawSec > 0)
+        ? min(max(1, Int64(rawSec * 1_000_000)), 5_000_000)
+        : 200_000
+      sources[kind] = (track: source, durationUs: durationUs)
+    }
+    let sortedEvents = events
+      .compactMap { event -> (startUs: Int64, kind: String, volume: Float)? in
+        guard event.volume > 0, sources[event.kind] != nil else { return nil }
+        return (startUs: event.timeUs - timelineStartUs, kind: event.kind, volume: event.volume.clamped(to: 0...3))
+      }
+      .sorted { $0.startUs < $1.startUs }
+    guard !sortedEvents.isEmpty else { return }
+
+    let starts = sortedEvents.map(\.startUs)
+    let totalDurationUs = Int64(totalDuration.seconds * 1_000_000)
+    let overlapWindowUs: Int64 = 80_000
+    var availableAt = Array(repeating: Int64.min, count: 12)
+    var tracks: [AVMutableCompositionTrack] = []
+    var trackEvents: [[(Int64, Float)]] = Array(repeating: [], count: 12)
+
+    for (eventIndex, item) in sortedEvents.enumerated() {
+      if eventIndex & 63 == 0, isCancelled() {
+        throw IOSExportError(code: "cancelled", message: "Video export was cancelled.")
+      }
+      if item.startUs >= totalDurationUs { break }
+      guard let info = sources[item.kind] else { continue }
+      let slot = availableAt.firstIndex(where: { $0 <= item.startUs })
+        ?? availableAt.enumerated().min(by: { $0.element < $1.element })!.offset
+      while tracks.count <= slot {
+        if let track = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) {
+          tracks.append(track)
+        }
+      }
+      let targetStartUs = max(0, item.startUs)
+      let sourceStartUs = max(0, -item.startUs)
+      let remainingUs = totalDurationUs - targetStartUs
+      let insertUs = min(info.durationUs - sourceStartUs, remainingUs)
+      if insertUs > 0 {
+        try tracks[slot].insertTimeRange(
+          CMTimeRange(
+            start: CMTime(value: sourceStartUs, timescale: 1_000_000),
+            duration: CMTime(value: insertUs, timescale: 1_000_000)
+          ),
+          of: info.track,
+          at: CMTime(value: targetStartUs, timescale: 1_000_000)
+        )
+        let overlap = max(1, upperBound(starts, item.startUs) - lowerBound(starts, item.startUs - overlapWindowUs + 1))
+        let gain = min(Float(1.0), Float(Double(item.volume) * 0.82 / sqrt(Double(overlap))))
+        trackEvents[slot].append((targetStartUs, gain))
+      }
+      availableAt[slot] = item.startUs + info.durationUs
     }
     for (index, track) in tracks.enumerated() {
       let parameters = AVMutableAudioMixInputParameters(track: track)

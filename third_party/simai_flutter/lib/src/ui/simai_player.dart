@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../simai_flutter.dart';
 import 'chart_timing_mapper.dart';
-import 'note_motion.dart';
+import 'components/simai_expressive_loading_indicator.dart';
 import 'simai_game.dart';
 import 'fullscreen_utils.dart';
 import 'rendering/chart_runtime_index.dart';
@@ -73,6 +73,9 @@ class SimaiPlayerController extends ChangeNotifier {
   int _hitSoundOffsetMs = 0;
   int _pvOffsetMs = 0;
   bool _hitSoundEnabled = true;
+  bool _judgementSoundEnabled = true;
+  SimaiJudgementSoundVolumes _judgementSoundVolumes =
+      SimaiJudgementSoundVolumes.defaults;
   bool _isFullScreen = false;
   SimaiBackgroundMode _backgroundMode = SimaiBackgroundMode.judgeLine;
   double _backgroundOpacity = SimaiGame.defaultBackgroundOpacity;
@@ -95,6 +98,8 @@ class SimaiPlayerController extends ChangeNotifier {
   SimaiNoteStyle _holdStyle = SimaiNoteStyle.arcade;
   SimaiCustomNoteSkin _customNoteSkin = SimaiCustomNoteSkin.empty;
   String? _customHitSoundPath;
+  SimaiCustomJudgementSounds _customJudgementSounds =
+      SimaiCustomJudgementSounds.empty;
   bool _showCornerInfo = true;
   bool _showDetailedPerformanceInfo = false;
 
@@ -161,6 +166,9 @@ class SimaiPlayerController extends ChangeNotifier {
   int get hitSoundOffsetMs => _hitSoundOffsetMs;
   int get pvOffsetMs => _pvOffsetMs;
   bool get hitSoundEnabled => _hitSoundEnabled;
+  bool get judgementSoundEnabled => _judgementSoundEnabled;
+  SimaiJudgementSoundVolumes get judgementSoundVolumes =>
+      _judgementSoundVolumes;
   bool get isFullScreen => _isFullScreen;
   SimaiBackgroundMode get backgroundMode => _backgroundMode;
   double get backgroundOpacity => _backgroundOpacity;
@@ -181,6 +189,8 @@ class SimaiPlayerController extends ChangeNotifier {
   SimaiNoteStyle get holdStyle => _holdStyle;
   SimaiCustomNoteSkin get customNoteSkin => _customNoteSkin;
   String? get customHitSoundPath => _customHitSoundPath;
+  SimaiCustomJudgementSounds get customJudgementSounds =>
+      _customJudgementSounds;
   bool get showCornerInfo => _showCornerInfo;
   bool get showDetailedPerformanceInfo => _showDetailedPerformanceInfo;
 
@@ -318,6 +328,27 @@ class SimaiPlayerController extends ChangeNotifier {
     _hitSoundEnabled = value;
     _applyToGame();
     notifyListeners();
+  }
+
+  set judgementSoundEnabled(bool value) {
+    if (_judgementSoundEnabled == value) return;
+    _judgementSoundEnabled = value;
+    _applyToGame();
+    notifyListeners();
+  }
+
+  set judgementSoundVolumes(SimaiJudgementSoundVolumes value) {
+    if (_judgementSoundVolumes == value) return;
+    _judgementSoundVolumes = value;
+    _applyToGame();
+    notifyListeners();
+  }
+
+  void setJudgementSoundVolume(
+    SimaiJudgementSoundKind kind,
+    double volume,
+  ) {
+    judgementSoundVolumes = _judgementSoundVolumes.withVolume(kind, volume);
   }
 
   set isFullScreen(bool value) {
@@ -464,6 +495,13 @@ class SimaiPlayerController extends ChangeNotifier {
         : null;
     if (_customHitSoundPath == normalized) return;
     _customHitSoundPath = normalized;
+    _applyToGame();
+    notifyListeners();
+  }
+
+  set customJudgementSounds(SimaiCustomJudgementSounds value) {
+    if (_customJudgementSounds == value) return;
+    _customJudgementSounds = value;
     _applyToGame();
     notifyListeners();
   }
@@ -707,6 +745,8 @@ class SimaiPlayerController extends ChangeNotifier {
     game.offset = effectiveMusicOffsetSeconds;
     game.hitSoundOffset = _hitSoundOffsetMs / 1000.0;
     game.hitSoundEnabled = _hitSoundEnabled;
+    game.judgementSoundEnabled = _judgementSoundEnabled;
+    game.setJudgementSoundVolumes(_judgementSoundVolumes);
     game.setPlaying(_isPlaying);
     game.setAudioAsset(audioAsset);
     game.setAudioFilePath(audioFilePath);
@@ -735,6 +775,7 @@ class SimaiPlayerController extends ChangeNotifier {
     game.setHoldStyle(_holdStyle);
     game.setCustomNoteSkin(_customNoteSkin);
     game.setCustomHitSoundPath(_customHitSoundPath);
+    game.setCustomJudgementSounds(_customJudgementSounds);
     game.showCornerInfo = _showCornerInfo;
     game.showDetailedPerformanceInfo = _showDetailedPerformanceInfo;
     if (!assetRebuildPending) {
@@ -852,6 +893,8 @@ class _SimaiPlayerState extends State<SimaiPlayer> {
       hitSoundVolume: controller.hitSoundVolume,
       hitSoundOffset: controller.hitSoundOffsetMs / 1000.0,
       hitSoundEnabled: controller.hitSoundEnabled,
+      judgementSoundEnabled: controller.judgementSoundEnabled,
+      judgementSoundVolumes: controller.judgementSoundVolumes,
       backgroundMode: controller.backgroundMode,
       backgroundOpacity: controller.backgroundOpacity,
       mirrorMode: controller.mirrorMode,
@@ -871,6 +914,7 @@ class _SimaiPlayerState extends State<SimaiPlayer> {
       holdStyle: controller.holdStyle,
       customNoteSkin: controller.customNoteSkin,
       customHitSoundPath: controller.customHitSoundPath,
+      customJudgementSounds: controller.customJudgementSounds,
       showCornerInfo: controller.showCornerInfo,
       showDetailedPerformanceInfo: controller.showDetailedPerformanceInfo,
       hasVideoBackground: widget.backgroundVideo != null,
@@ -1518,6 +1562,7 @@ class SimaiPlayerPage extends StatefulWidget {
   final Widget? extraDisplaySettings;
   final SimaiCustomSettingBuilder? customNoteSkinSettingBuilder;
   final SimaiCustomSettingBuilder? customHitSoundSettingBuilder;
+  final SimaiCustomSettingBuilder? customJudgementSoundSettingBuilder;
   final TextStyle? displayFont;
   final SimaiTextStyleResolver? textStyleResolver;
   final Future<void> Function()? prepareFonts;
@@ -1549,6 +1594,7 @@ class SimaiPlayerPage extends StatefulWidget {
     this.extraDisplaySettings,
     this.customNoteSkinSettingBuilder,
     this.customHitSoundSettingBuilder,
+    this.customJudgementSoundSettingBuilder,
     this.displayFont,
     this.textStyleResolver,
     this.prepareFonts,
@@ -1574,12 +1620,19 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
   bool _isLocked = false;
   bool _isManualExit = false;
   Orientation? _observedOrientation;
+  bool _isHorizontalSeeking = false;
+  bool _wasPlayingBeforeHorizontalSeek = false;
+  double _horizontalSeekStartTime = 0.0;
+  double _horizontalSeekDragPx = 0.0;
+  double? _horizontalSeekTargetTime;
   bool _videoExportAvailable = false;
   bool _videoExportSupportChecking = false;
   bool _videoExportInProgress = false;
   int _videoSupportGeneration = 0;
   SimaiGameplayController? _ownedGameplayController;
   late final GlobalKey<_SimaiPlayerState> _playerKey;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final PageStorageBucket _settingsDrawerStorageBucket = PageStorageBucket();
 
   @override
   void initState() {
@@ -1647,6 +1700,9 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
         musicOffsetMs: widget.controller.musicOffsetMs,
         musicVolume: widget.controller.musicVolume,
         hitSoundVolume: widget.controller.hitSoundVolume,
+        judgementSoundEnabled: widget.controller.judgementSoundEnabled,
+        judgementSoundVolumes: widget.controller.judgementSoundVolumes,
+        customJudgementSounds: widget.controller.customJudgementSounds,
         mirrorMode: widget.controller.mirrorMode,
         backgroundMode: widget.controller.backgroundMode,
         backgroundOpacity: widget.controller.backgroundOpacity,
@@ -1726,6 +1782,9 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
             initialPvVideoPath: widget.initialExportPvVideoPath,
             customNoteSkinSettingBuilder: widget.customNoteSkinSettingBuilder,
             customHitSoundSettingBuilder: widget.customHitSoundSettingBuilder,
+            customJudgementSoundSettingBuilder:
+                widget.customJudgementSoundSettingBuilder,
+            switchBuilder: widget.switchBuilder,
             task:
                 SimaiVideoExporter.instance.activeTask ??
                 SimaiVideoExporter.instance.lastCompletedTask,
@@ -1816,6 +1875,71 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
     _startHideTimer();
   }
 
+  void _startHorizontalSeek(DragStartDetails details) {
+    if (_isLocked || _isLoading) return;
+    final total = widget.controller.chartInfo.totalDuration;
+    if (total <= 0 || !total.isFinite) return;
+    _hideTimer?.cancel();
+    final current = widget.controller.chartTime.clamp(0.0, total).toDouble();
+    final wasPlaying = widget.controller.isPlaying;
+    setState(() {
+      _isHorizontalSeeking = true;
+      _wasPlayingBeforeHorizontalSeek = wasPlaying;
+      _horizontalSeekStartTime = current;
+      _horizontalSeekDragPx = 0.0;
+      _horizontalSeekTargetTime = current;
+    });
+    if (wasPlaying) {
+      unawaited(widget.controller.pause());
+    }
+  }
+
+  void _updateHorizontalSeek(DragUpdateDetails details) {
+    if (!_isHorizontalSeeking) return;
+    final total = widget.controller.chartInfo.totalDuration;
+    if (total <= 0 || !total.isFinite) return;
+    _horizontalSeekDragPx += details.primaryDelta ?? 0.0;
+    final width = MediaQuery.sizeOf(context).width.clamp(1.0, 10000.0);
+    final target =
+        (_horizontalSeekStartTime + total * _horizontalSeekDragPx / width)
+            .clamp(0.0, total)
+            .toDouble();
+    setState(() => _horizontalSeekTargetTime = target);
+    unawaited(widget.controller.seek(target, syncAudio: false));
+  }
+
+  Future<void> _finishHorizontalSeek() async {
+    if (!_isHorizontalSeeking) return;
+    final target = _horizontalSeekTargetTime;
+    final shouldResume = _wasPlayingBeforeHorizontalSeek;
+    setState(() {
+      _isHorizontalSeeking = false;
+      _wasPlayingBeforeHorizontalSeek = false;
+      _horizontalSeekTargetTime = null;
+    });
+    if (target != null) {
+      await widget.controller.seek(target, syncAudio: true);
+    }
+    if (mounted && shouldResume && !_isHorizontalSeeking) {
+      await widget.controller.play();
+    }
+    if (mounted && _showControls) {
+      _startHideTimer();
+    }
+  }
+
+  static String _formatSeekSeconds(double seconds) {
+    final safe = seconds.isFinite ? math.max(0, seconds.round()) : 0;
+    final mins = safe ~/ 60;
+    final secs = safe % 60;
+    return '$mins:${secs.toString().padLeft(2, '0')}';
+  }
+
+  static String _formatSeekDelta(double deltaSeconds) {
+    final sign = deltaSeconds >= 0 ? '+' : '';
+    return '$sign${deltaSeconds.toStringAsFixed(1)}s';
+  }
+
   void _toggleFullScreen() {
     if (_isFullScreen) {
       _isManualExit = true;
@@ -1840,6 +1964,7 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
   Future<void> _exitFullScreen() async {
     setState(() {
       _isFullScreen = false;
+      _isLocked = false;
     });
     widget.controller.isFullScreen = false;
     await FullScreenUtils.exitFullScreen();
@@ -1899,8 +2024,13 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
                       ),
                     ),
                   Expanded(
-                    child: ListView(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: PageStorage(
+                      bucket: _settingsDrawerStorageBucket,
+                      child: ListView(
+                        key: const PageStorageKey<String>(
+                          'simai_settings_drawer_list',
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
                       children: [
                         _buildSectionHeader(context, '功能'),
                         ListTile(
@@ -1920,11 +2050,8 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
                         if (widget.videoExportMetadata != null)
                           ListTile(
                             leading: _videoExportInProgress
-                                ? const SizedBox.square(
-                                    dimension: 24,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
+                                ? const SimaiExpressiveLoadingIndicator(
+                                    size: 24,
                                   )
                                 : const Icon(Icons.video_file_outlined),
                             title: const Text('视频导出'),
@@ -2459,6 +2586,29 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
                           valueSuffix:
                               '${(controller.hitSoundVolume * 100).round()}%',
                         ),
+                        _buildSwitchSetting(
+                          context,
+                          label: '判定音效（绝赞 / EX / 档位）',
+                          icon: Icons.surround_sound_outlined,
+                          value: controller.judgementSoundEnabled,
+                          onChanged: (v) =>
+                              controller.judgementSoundEnabled = v,
+                        ),
+                        if (controller.judgementSoundEnabled) ...[
+                          SimaiJudgementSoundVolumesPanel(
+                            volumes: controller.judgementSoundVolumes,
+                            customSounds: controller.customJudgementSounds,
+                            onVolumeChanged: controller.setJudgementSoundVolume,
+                            onResetAll: () => controller.judgementSoundVolumes =
+                                SimaiJudgementSoundVolumes.defaults,
+                          ),
+                          if (widget.customJudgementSoundSettingBuilder != null)
+                            widget.customJudgementSoundSettingBuilder!(
+                              context,
+                              controller,
+                              () {},
+                            ),
+                        ],
                         _buildSliderSetting(
                           context,
                           label: '音乐偏移',
@@ -2522,6 +2672,7 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
                           ),
                         ],
                       ],
+                    ),
                     ),
                   ),
                 ],
@@ -2949,7 +3100,7 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
             color: Colors.black,
             child: Center(
               child: _loadError == null
-                  ? const CircularProgressIndicator()
+                  ? const SimaiExpressiveLoadingIndicator.contained(size: 48)
                   : Padding(
                       padding: const EdgeInsets.all(24),
                       child: Text(
@@ -3023,6 +3174,14 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: _toggleControls,
+          onHorizontalDragStart: _isLocked ? null : _startHorizontalSeek,
+          onHorizontalDragUpdate: _isLocked ? null : _updateHorizontalSeek,
+          onHorizontalDragEnd: _isLocked
+              ? null
+              : (_) => unawaited(_finishHorizontalSeek()),
+          onHorizontalDragCancel: _isLocked
+              ? null
+              : () => unawaited(_finishHorizontalSeek()),
           child: Stack(
             children: [
               Center(
@@ -3031,6 +3190,73 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
                   child: RepaintBoundary(child: player),
                 ),
               ),
+              if (_isHorizontalSeeking && _horizontalSeekTargetTime != null)
+                Center(
+                  child: IgnorePointer(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.76),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.18),
+                        ),
+                      ),
+                      child: Builder(
+                        builder: (context) {
+                          final total = widget.controller.chartInfo.totalDuration;
+                          final target = _horizontalSeekTargetTime!;
+                          final ratio = total > 0
+                              ? (target / total).clamp(0.0, 1.0).toDouble()
+                              : 0.0;
+                          final delta = target - _horizontalSeekStartTime;
+                          return Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '${_formatSeekSeconds(target)} / ${_formatSeekSeconds(total)}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                  fontFeatures: [FontFeature.tabularFigures()],
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _formatSeekDelta(delta),
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  fontFeatures: [FontFeature.tabularFigures()],
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                width: 148,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(999),
+                                  child: LinearProgressIndicator(
+                                    value: ratio,
+                                    minHeight: 3,
+                                    backgroundColor: Colors.white24,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Theme.of(context).colorScheme.primary,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ),
               // Top Bar
               IgnorePointer(
                 ignoring: !_showControls || _isLocked,
@@ -3055,16 +3281,21 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
                         padding: const EdgeInsets.fromLTRB(8, 8, 8, 16),
                         child: Row(
                           children: [
-                            if (Navigator.canPop(context) ||
+                            if (_isFullScreen ||
+                                (canRotate &&
+                                    orientation == Orientation.landscape) ||
+                                Navigator.canPop(context) ||
                                 widget.onBack != null)
                               IconButton(
+                                tooltip: '退出全屏',
                                 icon: const Icon(
                                   Icons.arrow_back,
                                   color: Colors.white,
                                 ),
-                                onPressed:
-                                    widget.onBack ??
-                                    () => Navigator.of(context).pop(),
+                                onPressed: () {
+                                  _isManualExit = true;
+                                  _exitFullScreen();
+                                },
                               ),
                             const SizedBox(width: 8),
                             Expanded(
@@ -3188,21 +3419,41 @@ class _SimaiPlayerPageState extends State<SimaiPlayerPage> {
       );
     }
 
-    return CallbackShortcuts(
-      bindings: <ShortcutActivator, VoidCallback>{
-        if (_isFullScreen)
-          const SingleActivator(LogicalKeyboardKey.escape): () {
-            _isManualExit = true;
-            _exitFullScreen();
-          },
+    final bool interceptBackToPortrait =
+        _isFullScreen || (canRotate && orientation == Orientation.landscape);
+
+    return PopScope(
+      canPop: !interceptBackToPortrait,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (_scaffoldKey.currentState?.isEndDrawerOpen ?? false) {
+          _scaffoldKey.currentState?.closeEndDrawer();
+          return;
+        }
+        if (returningToPortrait) return;
+        if (_isFullScreen ||
+            (canRotate && orientation == Orientation.landscape)) {
+          _isManualExit = true;
+          _exitFullScreen();
+        }
       },
-      child: Focus(
-        autofocus: !canRotate,
-        child: Scaffold(
-          backgroundColor: Colors.black,
-          appBar: appBar,
-          endDrawer: _isLoading ? null : _buildSettingsDrawer(context),
-          body: body,
+      child: CallbackShortcuts(
+        bindings: <ShortcutActivator, VoidCallback>{
+          if (_isFullScreen)
+            const SingleActivator(LogicalKeyboardKey.escape): () {
+              _isManualExit = true;
+              _exitFullScreen();
+            },
+        },
+        child: Focus(
+          autofocus: !canRotate,
+          child: Scaffold(
+            key: _scaffoldKey,
+            backgroundColor: Colors.black,
+            appBar: appBar,
+            endDrawer: _isLoading ? null : _buildSettingsDrawer(context),
+            body: body,
+          ),
         ),
       ),
     );
