@@ -176,6 +176,10 @@ class RankTableExportService {
               .where((r) => completions[r] == RankCompletion.failed)
               .length;
 
+          final totalCount = allRanks.length;
+          final clearRate =
+              totalCount > 0 ? cleared / totalCount * 100 : 0.0;
+
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -189,51 +193,40 @@ class RankTableExportService {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(
+                    ExportUniformStatRow(
                       children: [
-                        Expanded(
-                          flex: 2,
-                          child: ExportHeroBlock(
-                            centered: true,
-                            label: l10n.flowDanCertification,
-                            value: '$cleared / ${allRanks.length}',
-                          ),
+                        ExportHeroBlock.compact(
+                          label: l10n.flowDanCertification,
+                          value: '$cleared / $totalCount',
+                          caption: '${clearRate.toStringAsFixed(1)}%',
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ExportStatBlock(
-                            centered: true,
-                            label: l10n.flowPassed,
-                            value: '$passed',
-                            positive: true,
-                          ),
+                        ExportStatBlock.compact(
+                          label: l10n.flowPassed,
+                          value: '$passed',
+                          caption: '常规通关',
+                          positive: true,
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ExportStatBlock(
-                            centered: true,
-                            label: '赤合格',
-                            value: '$red',
-                            valueColor: const Color(0xFFD97706),
-                          ),
+                        ExportStatBlock.compact(
+                          label: '赤合格',
+                          value: '$red',
+                          caption: '赤段通关',
+                          valueColor: const Color(0xFFD97706),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ExportStatBlock(
-                            centered: true,
-                            label: l10n.flowFailed2,
-                            value: '$failed',
-                            positive: false,
-                          ),
+                        ExportStatBlock.compact(
+                          label: l10n.flowFailed2,
+                          value: '$failed',
+                          caption: '未通过',
+                          positive: false,
                         ),
                       ],
                     ),
                     const SizedBox(height: 14),
                     SmoothLinearProgressIndicator(
-                      value: allRanks.isEmpty ? 0 : cleared / allRanks.length,
+                      value: totalCount == 0 ? 0 : cleared / totalCount,
                       minHeight: 10,
                       color: c.accent,
                       backgroundColor: c.track,
+                      animate: false,
                     ),
                   ],
                 ),
@@ -402,7 +395,24 @@ class RankTableExportService {
         builder: (context) {
           final l10n = context.l10n;
           final c = ExportPalette.of(context);
-          final statusColor = _completionColor(c, completion);
+          final playedSongs =
+              songs.where((s) => s.achievement != null).toList();
+          final hasAchievement =
+              totalAchievement != null || playedSongs.isNotEmpty;
+          final sumAchievement = totalAchievement ??
+              playedSongs.fold<double>(
+                  0.0, (sum, item) => sum + item.achievement!);
+          final double? avgAchievement;
+          if (playedSongs.isNotEmpty) {
+            avgAchievement = sumAchievement / playedSongs.length;
+          } else if (totalAchievement != null && songs.isNotEmpty) {
+            avgAchievement = totalAchievement / songs.length;
+          } else {
+            avgAchievement = null;
+          }
+          final totalLabel = playedSongs.length == songs.length
+              ? '${songs.length} 曲累计'
+              : '已计 ${playedSongs.length}/${songs.length} 曲';
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -416,46 +426,50 @@ class RankTableExportService {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(
+                    ExportUniformStatRow(
                       children: [
-                        Expanded(
-                          child: ExportHeroBlock(
-                            centered: true,
-                            label: rankData.name,
-                            value: _completionLabel(context, completion),
-                            caption: 'HP ${rankData.initialHp}',
-                          ),
+                        ExportHeroBlock.compact(
+                          label: rankData.name,
+                          value: _completionLabel(context, completion),
+                          caption: 'HP ${rankData.initialHp}',
                         ),
-                        if (totalAchievement != null && remainingHp != null) ...[
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: ExportStatBlock(
-                              centered: true,
-                              label: l10n.flowTotalAchievement,
-                              value: '${totalAchievement.toStringAsFixed(4)}%',
-                              positive: totalAchievement >= 400,
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: ExportStatBlock(
-                              centered: true,
-                              label: l10n.flowRemainingLife,
-                              value: '$remainingHp / ${rankData.initialHp}',
-                              positive: !(isDead ?? false) && remainingHp > 0,
-                            ),
-                          ),
-                        ] else ...[
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: ExportStatBlock(
-                              centered: true,
-                              label: l10n.flowMyChallenges,
-                              value: _completionLabel(context, completion),
-                              valueColor: statusColor,
-                            ),
-                          ),
-                        ],
+                        ExportStatBlock.compact(
+                          label: l10n.flowTotalAchievement,
+                          value: hasAchievement
+                              ? '${sumAchievement.toStringAsFixed(4)}%'
+                              : '--',
+                          caption: hasAchievement ? totalLabel : l10n.flowUnplayed,
+                          positive: hasAchievement &&
+                                  playedSongs.length == songs.length &&
+                                  sumAchievement >= 400
+                              ? true
+                              : null,
+                        ),
+                        ExportStatBlock.compact(
+                          label: l10n.featureAverageAchievement,
+                          value: avgAchievement != null
+                              ? '${avgAchievement.toStringAsFixed(4)}%'
+                              : '--',
+                          caption: avgAchievement != null
+                              ? '${playedSongs.isNotEmpty ? playedSongs.length : songs.length} 曲均值'
+                              : l10n.flowUnplayed,
+                          positive: avgAchievement != null &&
+                                  avgAchievement >= 100
+                              ? true
+                              : null,
+                        ),
+                        ExportStatBlock.compact(
+                          label: l10n.flowRemainingLife,
+                          value: remainingHp != null
+                              ? '$remainingHp / ${rankData.initialHp}'
+                              : '-- / ${rankData.initialHp}',
+                          caption: remainingHp != null
+                              ? ((isDead ?? false) ? '预计扣空' : '预计通关')
+                              : '需 4 曲成绩',
+                          positive: remainingHp != null
+                              ? (!(isDead ?? false) && remainingHp > 0)
+                              : null,
+                        ),
                       ],
                     ),
                     if (remainingHp != null && rankData.initialHp > 0) ...[
@@ -467,6 +481,7 @@ class RankTableExportService {
                         minHeight: 10,
                         color: (isDead ?? false) ? c.negative : c.positive,
                         backgroundColor: c.track,
+                        animate: false,
                       ),
                     ],
                   ],
@@ -493,56 +508,38 @@ class RankTableExportService {
               ExportSectionTitle(l10n.flowLifeSettings),
               const SizedBox(height: 12),
               ExportStatsPanel(
-                child: Row(
+                child: ExportUniformStatRow(
+                  gap: 10,
                   children: [
-                    Expanded(
-                      child: ExportStatBlock(
-                        centered: true,
-                        label: l10n.flowStartingLife,
-                        value: '${rankData.initialHp}',
-                        positive: true,
-                        valueSize: 30,
-                      ),
+                    ExportStatBlock.compact(
+                      label: l10n.flowStartingLife,
+                      value: '${rankData.initialHp}',
+                      positive: true,
+                      valueSize: 26,
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: ExportStatBlock(
-                        centered: true,
-                        label: 'GREAT',
-                        value: '-${rankData.greatDamage}',
-                        valueColor: const Color(0xFFD97706),
-                        valueSize: 30,
-                      ),
+                    ExportStatBlock.compact(
+                      label: 'GREAT',
+                      value: '-${rankData.greatDamage}',
+                      valueColor: const Color(0xFFD97706),
+                      valueSize: 26,
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: ExportStatBlock(
-                        centered: true,
-                        label: 'GOOD',
-                        value: '-${rankData.goodDamage}',
-                        positive: false,
-                        valueSize: 30,
-                      ),
+                    ExportStatBlock.compact(
+                      label: 'GOOD',
+                      value: '-${rankData.goodDamage}',
+                      positive: false,
+                      valueSize: 26,
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: ExportStatBlock(
-                        centered: true,
-                        label: 'MISS',
-                        value: '-${rankData.missDamage}',
-                        positive: false,
-                        valueSize: 30,
-                      ),
+                    ExportStatBlock.compact(
+                      label: 'MISS',
+                      value: '-${rankData.missDamage}',
+                      positive: false,
+                      valueSize: 26,
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: ExportStatBlock(
-                        centered: true,
-                        label: l10n.flowClearRecovery,
-                        value: '+${rankData.healAmount}',
-                        positive: true,
-                        valueSize: 30,
-                      ),
+                    ExportStatBlock.compact(
+                      label: l10n.flowClearRecovery,
+                      value: '+${rankData.healAmount}',
+                      positive: true,
+                      valueSize: 26,
                     ),
                   ],
                 ),

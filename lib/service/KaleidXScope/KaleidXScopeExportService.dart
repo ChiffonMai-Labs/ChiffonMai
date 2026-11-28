@@ -249,75 +249,79 @@ class KaleidXScopeExportService {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
+                    ExportUniformStatRow(
                       children: [
                         if (assetPath != null)
                           Container(
-                            width: 248,
-                            height: 112,
-                            padding: const EdgeInsets.all(10),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 12),
                             decoration: BoxDecoration(
                               color: accentColor.withValues(alpha: 0.10),
                               borderRadius: BorderRadius.circular(18),
                             ),
-                            child: Image.asset(assetPath, fit: BoxFit.contain),
-                          ),
-                        if (assetPath != null) const SizedBox(width: 18),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              if (currentPhases.isEmpty)
-                                ExportStatBlock(
-                                  label: l10n.flowCurrentPhase,
-                                  value: l10n.flowNoActiveChallengesCheckTheScheduleBelow,
-                                  valueSize: 20,
-                                )
-                              else
-                                for (final (idx, item) in currentPhases.indexed) ...[
-                                  if (idx > 0) const SizedBox(height: 10),
-                                  ExportHeroBlock(
-                                    label: currentPhases.length > 1
-                                        ? item.name
-                                        : l10n.flowCurrentPhase,
-                                    value: twoStages && item.phase.target != null
-                                        ? 'LIFE ${item.phase.lifeTarget} / ${item.phase.target}'
-                                        : 'LIFE ${item.phase.lifeTarget}',
-                                    caption:
-                                        '${item.phase.difficulty} · ${KaleidDateUtil.range(item.phase.startDate, item.phase.endDate)}',
-                                  ),
-                                ],
-                              if (markable) ...[
-                                const SizedBox(height: 12),
-                                Row(
-                                  children: [
-                                    Text(
-                                      l10n.flowMarkedP0P1(
-                                          '$markedCount', '${poolIds.length}'),
-                                      style: AppTheme.number(
-                                        fontSize: 19,
-                                        fontWeight: FontWeight.w800,
-                                        color: c.ink,
-                                      ),
-                                    ),
-                                  ],
+                            child: Center(
+                              child: SizedBox(
+                                height: 78,
+                                child: Image.asset(
+                                  assetPath,
+                                  fit: BoxFit.contain,
                                 ),
-                                const SizedBox(height: 6),
-                                SmoothLinearProgressIndicator(
-                                  value: poolIds.isEmpty
-                                      ? 0
-                                      : markedCount / poolIds.length,
-                                  minHeight: 8,
-                                  color: accentColor,
-                                  backgroundColor: c.track,
-                                ),
-                              ],
-                            ],
+                              ),
+                            ),
                           ),
-                        ),
+                        if (currentPhases.isEmpty)
+                          ExportStatBlock.compact(
+                            label: l10n.flowCurrentPhase,
+                            value: '暂无阶段',
+                            caption: '请查看下方排期',
+                            valueSize: 26,
+                          )
+                        else
+                          for (final item in currentPhases)
+                            ExportHeroBlock.compact(
+                              label: currentPhases.length > 1
+                                  ? item.name
+                                  : l10n.flowCurrentPhase,
+                              value: twoStages && item.phase.target != null
+                                  ? 'LIFE ${item.phase.lifeTarget} / ${item.phase.target}'
+                                  : 'LIFE ${item.phase.lifeTarget}',
+                              caption:
+                                  '${item.phase.difficulty} · ${KaleidDateUtil.range(item.phase.startDate, item.phase.endDate)}',
+                              valueSize: 28,
+                            ),
+                        if (markable)
+                          ExportStatBlock.compact(
+                            label: '曲目池标记',
+                            value: '$markedCount / ${poolIds.length}',
+                            caption:
+                                '${(poolIds.isEmpty ? 0.0 : markedCount / poolIds.length * 100).toStringAsFixed(0)}% 完成',
+                            positive: poolIds.isNotEmpty &&
+                                    markedCount == poolIds.length
+                                ? true
+                                : null,
+                          )
+                        else if (poolIds.isNotEmpty)
+                          ExportStatBlock.compact(
+                            label: l10n.flowSongPool,
+                            value: '${poolIds.length} 首',
+                            caption: gate.specialSongs.isNotEmpty
+                                ? '含 ${gate.specialSongs.length} 首隐藏/奖励曲'
+                                : '门扉曲目池',
+                          ),
                       ],
                     ),
+                    if (markable) ...[
+                      const SizedBox(height: 14),
+                      SmoothLinearProgressIndicator(
+                        value: poolIds.isEmpty
+                            ? 0
+                            : markedCount / poolIds.length,
+                        minHeight: 10,
+                        color: accentColor,
+                        backgroundColor: c.track,
+                        animate: false,
+                      ),
+                    ],
                   ],
                 ),
               ),

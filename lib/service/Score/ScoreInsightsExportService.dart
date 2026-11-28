@@ -139,30 +139,33 @@ class ScoreInsightsExportService {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ExportStatsPanel(
-          child: Row(
+          child: ExportUniformStatRow(
             children: [
-              Expanded(
-                child: ExportStatBlock(
-                  centered: true,
-                  label: l10n.awmcChartCoverage,
-                  value: '$played / $total',
-                ),
+              ExportHeroBlock.compact(
+                label: l10n.awmcChartCoverage,
+                value: total > 0
+                    ? '${(played / total * 100).toStringAsFixed(1)}%'
+                    : '0.0%',
+                caption: '$played / $total',
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: ExportStatBlock(
-                  centered: true,
-                  label: 'SSS / SSS+',
-                  value: '${score.sss}',
-                ),
+              ExportStatBlock.compact(
+                label: '已玩 / 总数',
+                value: '$played / $total',
+                caption: '未玩 ${total - played}',
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: ExportStatBlock(
-                  centered: true,
-                  label: 'FC / AP',
-                  value: '${score.fullCombo}',
-                ),
+              ExportStatBlock.compact(
+                label: 'SSS / SSS+',
+                value: '${score.sss}',
+                caption: total > 0
+                    ? '${(score.sss / total * 100).toStringAsFixed(1)}%'
+                    : null,
+              ),
+              ExportStatBlock.compact(
+                label: 'FC / AP',
+                value: '${score.fullCombo}',
+                caption: total > 0
+                    ? '${(score.fullCombo / total * 100).toStringAsFixed(1)}%'
+                    : null,
               ),
             ],
           ),
@@ -455,39 +458,35 @@ class ScoreInsightsExportService {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ExportStatsPanel(
-          child: Row(
+          child: ExportUniformStatRow(
             children: [
-              Expanded(
-                flex: 2,
-                child: ExportHeroBlock(
-                  centered: true,
-                  label: 'B50 Rating',
-                  value: '${audit.baseline.raSum}',
-                  caption: version ?? l10n.awmcCurrentConstants,
-                ),
+              ExportHeroBlock.compact(
+                label: 'B50 Rating',
+                value: '${audit.baseline.raSum}',
+                caption: version ?? l10n.awmcCurrentConstants,
               ),
-              if (version != null) ...[
-                const SizedBox(width: 14),
-                Expanded(
-                  child: ExportStatBlock(
-                    centered: true,
-                    label: 'Δ Rating',
-                    value:
-                        '${audit.ratingDifference > 0 ? '+' : ''}${audit.ratingDifference}',
-                    positive: audit.ratingDifference == 0
-                        ? null
-                        : audit.ratingDifference > 0,
-                  ),
-                ),
-              ],
-              const SizedBox(width: 14),
-              Expanded(
-                child: ExportStatBlock(
-                  centered: true,
-                  label: 'B35 / B15 底线',
+              if (version != null)
+                ExportStatBlock.compact(
+                  label: 'Δ Rating',
                   value:
-                      '${audit.baseline.floor(false)} / ${audit.baseline.floor(true)}',
+                      '${audit.ratingDifference > 0 ? '+' : ''}${audit.ratingDifference}',
+                  caption: audit.ratingDifference == 0
+                      ? '定数持平'
+                      : (audit.ratingDifference > 0 ? '定数上升' : '定数下降'),
+                  positive: audit.ratingDifference == 0
+                      ? null
+                      : audit.ratingDifference > 0,
                 ),
+              ExportStatBlock.compact(
+                label: 'B35 / B15 底线',
+                value:
+                    '${audit.baseline.floor(false)} / ${audit.baseline.floor(true)}',
+                caption: '入榜门槛',
+              ),
+              ExportStatBlock.compact(
+                label: '边缘曲目',
+                value: '${audit.edges.length}',
+                caption: 'B35 ${b35Edges.length} · B15 ${b15Edges.length}',
               ),
             ],
           ),
@@ -516,31 +515,44 @@ class ScoreInsightsExportService {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ExportStatsPanel(
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                child: ExportHeroBlock(
-                  centered: true,
-                  label: genre.isEmpty ? l10n.awmcChartCoverage : genre,
-                  value: '${overallPct.toStringAsFixed(1)}%',
-                  caption: '$played / $total',
-                ),
+              ExportUniformStatRow(
+                children: [
+                  ExportHeroBlock.compact(
+                    label: genre.isEmpty ? l10n.awmcChartCoverage : genre,
+                    value: '${overallPct.toStringAsFixed(1)}%',
+                    caption: '$played / $total',
+                  ),
+                  ExportStatBlock.compact(
+                    label: '已玩 / 总数',
+                    value: '$played / $total',
+                    caption: '未玩 ${total - played}',
+                  ),
+                  ExportStatBlock.compact(
+                    label: 'SSS / SSS+',
+                    value: '${score.sss}',
+                    caption: total > 0
+                        ? '${(score.sss / total * 100).toStringAsFixed(1)}%'
+                        : null,
+                  ),
+                  ExportStatBlock.compact(
+                    label: 'FC / AP',
+                    value: '${score.fullCombo}',
+                    caption: total > 0
+                        ? '${(score.fullCombo / total * 100).toStringAsFixed(1)}%'
+                        : null,
+                  ),
+                ],
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: ExportStatBlock(
-                  centered: true,
-                  label: 'SSS / SSS+',
-                  value: '${score.sss}',
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: ExportStatBlock(
-                  centered: true,
-                  label: 'FC / AP',
-                  value: '${score.fullCombo}',
-                ),
+              const SizedBox(height: 14),
+              SmoothLinearProgressIndicator(
+                value: total > 0 ? played / total : 0.0,
+                minHeight: 10,
+                color: c.accent,
+                backgroundColor: c.track,
+                animate: false,
               ),
             ],
           ),
@@ -590,6 +602,7 @@ class ScoreInsightsExportService {
                         minHeight: 8,
                         backgroundColor: c.track,
                         color: c.accent,
+                        animate: false,
                       ),
                     ],
                   );

@@ -471,12 +471,46 @@ class ExportStatsPanel extends StatelessWidget {
   }
 }
 
+/// 等高等宽的导出统计格行容器：确保整行内所有统计块尺寸完全一致。
+class ExportUniformStatRow extends StatelessWidget {
+  final List<Widget> children;
+  final double gap;
+
+  const ExportUniformStatRow({
+    super.key,
+    required this.children,
+    this.gap = 12,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (children.isEmpty) return const SizedBox.shrink();
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < children.length; i++) ...[
+            if (i > 0) SizedBox(width: gap),
+            Expanded(child: children[i]),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 /// 主角数值（Rating、完成率）：主题色实心块。
 class ExportHeroBlock extends StatelessWidget {
   final String label;
   final String value;
   final String? caption;
   final bool centered;
+  final double labelSize;
+  final double valueSize;
+  final double captionSize;
+  final EdgeInsetsGeometry padding;
+  final double radius;
+  final List<Color>? colors;
 
   const ExportHeroBlock({
     super.key,
@@ -484,48 +518,85 @@ class ExportHeroBlock extends StatelessWidget {
     required this.value,
     this.caption,
     this.centered = false,
+    this.labelSize = 26,
+    this.valueSize = 72,
+    this.captionSize = 24,
+    this.padding = const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+    this.radius = 24,
+    this.colors,
+  });
+
+  /// 1080px 宽海报用的紧凑规格，字号克制且各格子体量协调。
+  const ExportHeroBlock.compact({
+    super.key,
+    required this.label,
+    required this.value,
+    this.caption,
+    this.centered = true,
+    this.labelSize = 17,
+    this.valueSize = 32,
+    this.captionSize = 14,
+    this.padding = const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+    this.radius = 18,
+    this.colors,
   });
 
   @override
   Widget build(BuildContext context) {
     final c = ExportPalette.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: padding,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [c.heroDeep, c.heroLight],
+          colors: colors ?? [c.heroDeep, c.heroLight],
         ),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(radius),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment:
             centered ? CrossAxisAlignment.center : CrossAxisAlignment.start,
         children: [
-          Text(label,
-              textAlign: centered ? TextAlign.center : TextAlign.start,
-              style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white.withValues(alpha: 0.85))),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: centered ? Alignment.center : Alignment.centerLeft,
+            child: Text(label,
+                maxLines: 1,
+                textAlign: centered ? TextAlign.center : TextAlign.start,
+                style: TextStyle(
+                    fontSize: labelSize,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white.withValues(alpha: 0.86))),
+          ),
+          const SizedBox(height: 4),
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: centered ? Alignment.center : Alignment.centerLeft,
             child: Text(value,
                 maxLines: 1,
-                style: const TextStyle(
-                    fontSize: 72,
+                style: TextStyle(
+                    fontSize: valueSize,
                     height: 1.15,
                     fontWeight: FontWeight.w800,
-                    color: Colors.white)),
+                    color: Colors.white,
+                    fontFeatures: const [FontFeature.tabularFigures()])),
           ),
-          if (caption != null)
-            Text(caption!,
-                textAlign: centered ? TextAlign.center : TextAlign.start,
-                style: TextStyle(
-                    fontSize: 24, color: Colors.white.withValues(alpha: 0.85))),
+          if (caption != null) ...[
+            const SizedBox(height: 4),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: centered ? Alignment.center : Alignment.centerLeft,
+              child: Text(caption!,
+                  maxLines: 1,
+                  textAlign: centered ? TextAlign.center : TextAlign.start,
+                  style: TextStyle(
+                      fontSize: captionSize,
+                      color: Colors.white.withValues(alpha: 0.85),
+                      fontFeatures: const [FontFeature.tabularFigures()])),
+            ),
+          ],
         ],
       ),
     );
@@ -538,7 +609,11 @@ class ExportStatBlock extends StatelessWidget {
   final String value;
   final String? caption;
   final Color? valueColor;
+  final double labelSize;
   final double valueSize;
+  final double captionSize;
+  final EdgeInsetsGeometry padding;
+  final double radius;
   final bool centered;
 
   /// 差值类的数字：true 用正向色，false 用负向色。
@@ -550,9 +625,29 @@ class ExportStatBlock extends StatelessWidget {
     required this.value,
     this.caption,
     this.valueColor,
+    this.labelSize = 22,
     this.valueSize = 38,
+    this.captionSize = 20,
+    this.padding = const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    this.radius = 20,
     this.positive,
     this.centered = false,
+  });
+
+  /// 1080px 宽海报用的紧凑规格，与 [ExportHeroBlock.compact] 字号及留白对齐。
+  const ExportStatBlock.compact({
+    super.key,
+    required this.label,
+    required this.value,
+    this.caption,
+    this.valueColor,
+    this.labelSize = 17,
+    this.valueSize = 28,
+    this.captionSize = 14,
+    this.padding = const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+    this.radius = 18,
+    this.positive,
+    this.centered = true,
   });
 
   @override
@@ -560,10 +655,10 @@ class ExportStatBlock extends StatelessWidget {
     final c = ExportPalette.of(context);
     final signed = positive;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: padding,
       decoration: BoxDecoration(
         color: c.inset,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(radius),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -576,8 +671,11 @@ class ExportStatBlock extends StatelessWidget {
             child: Text(label,
                 maxLines: 1,
                 style: TextStyle(
-                    fontSize: 22, fontWeight: FontWeight.w600, color: c.muted)),
+                    fontSize: labelSize,
+                    fontWeight: FontWeight.w600,
+                    color: c.muted)),
           ),
+          const SizedBox(height: 4),
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: centered ? Alignment.center : Alignment.centerLeft,
@@ -585,16 +683,28 @@ class ExportStatBlock extends StatelessWidget {
                 maxLines: 1,
                 style: TextStyle(
                     fontSize: valueSize,
+                    height: 1.15,
                     fontWeight: FontWeight.w800,
+                    fontFeatures: const [FontFeature.tabularFigures()],
                     color: valueColor ??
                         (signed == null
                             ? c.ink
                             : (signed ? c.positive : c.negative)))),
           ),
-          if (caption != null)
-            Text(caption!,
-                textAlign: centered ? TextAlign.center : TextAlign.start,
-                style: TextStyle(fontSize: 20, color: c.muted)),
+          if (caption != null) ...[
+            const SizedBox(height: 4),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: centered ? Alignment.center : Alignment.centerLeft,
+              child: Text(caption!,
+                  maxLines: 1,
+                  textAlign: centered ? TextAlign.center : TextAlign.start,
+                  style: TextStyle(
+                      fontSize: captionSize,
+                      color: c.muted,
+                      fontFeatures: const [FontFeature.tabularFigures()])),
+            ),
+          ],
         ],
       ),
     );
