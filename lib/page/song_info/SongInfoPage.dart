@@ -6,6 +6,7 @@ import '../../constant/AppLinks.dart';
 import '../../utils/ChartBpmInfo.dart';
 import '../../utils/RatingSegmentPreferences.dart';
 import '../../utils/SongDetailPreferences.dart';
+import '../../utils/SongVariantUtil.dart';
 import 'package:my_first_flutter_app/utils/ChartDifficulty.dart';
 import 'dart:async';
 import 'dart:io';
@@ -49,6 +50,8 @@ import 'package:my_first_flutter_app/utils/ImageEncodeUtil.dart';
 import 'package:my_first_flutter_app/utils/PhotoLibrary.dart';
 import '../Collection/CollectionInfoPage.dart';
 import '../ChartPlay/SongPvPage.dart';
+import '../../service/Media/SongMediaCache.dart';
+import '../../utils/NetworkTypeUtil.dart';
 import '../Portable/SongPlayPage.dart';
 import '../RankingList/SongRankingPage.dart';
 import 'package:my_first_flutter_app/entity/Favorite/FavoriteFolder.dart';
@@ -138,18 +141,25 @@ class SongInfoPage extends StatefulWidget {
   State<SongInfoPage> createState() => _SongInfoSwitcherState();
 }
 
-/// 在同一个路由里切换 ST / DX：页面状态不换，新歌的数据到了就地过渡，
+/// 在同一个路由里切换 ST / DX / UTAGE：页面状态不换，新歌的数据到了就地过渡，
 /// 返回键也直接回到进入歌曲详情前的页面。
 class _SongInfoSwitcherState extends State<SongInfoPage> {
   late String _songId = widget.songId;
   late int _levelIndex = widget.initialLevelIndex;
   late bool _isDefaultLevelIndex = widget.isDefaultLevelIndex;
 
-  void _switchTo(String songId, int levelIndex) {
+  void _switchTo(String songId, int? levelIndex) {
     setState(() {
       _songId = songId;
-      _levelIndex = levelIndex;
-      _isDefaultLevelIndex = false;
+      if (levelIndex == null ||
+          levelIndex < ChartDifficulty.basic ||
+          levelIndex > ChartDifficulty.reMaster) {
+        _levelIndex = ChartDifficulty.master;
+        _isDefaultLevelIndex = true;
+      } else {
+        _levelIndex = levelIndex;
+        _isDefaultLevelIndex = false;
+      }
     });
   }
 
@@ -168,7 +178,7 @@ class _SongInfoView extends StatefulWidget {
   final String songId;
   final int initialLevelIndex;
   final bool isDefaultLevelIndex;
-  final void Function(String songId, int levelIndex) onSwitchSong;
+  final void Function(String songId, int? levelIndex) onSwitchSong;
 
   const _SongInfoView({
     required this.songId,
@@ -320,8 +330,8 @@ class _SongInfoPageState extends State<_SongInfoView> {
   // 相关收藏品数量
   int _relatedCollectionsCount = 0;
 
-  // 另一种谱面的歌曲ID（如果存在）
-  String? _alternativeSongId;
+  // 同曲关联的其它谱面版本（ST / DX / UTAGE）
+  List<SongVariantOption> _relatedVariants = const [];
 
   // 评论相关状态
   List<CommentItem> _comments = [];

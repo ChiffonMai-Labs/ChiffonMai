@@ -1,6 +1,7 @@
 import 'package:my_first_flutter_app/l10n/AppMessages.dart';
 import 'package:my_first_flutter_app/l10n/LocalizationsExtension.dart';
 import 'dart:async';
+import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
@@ -11,8 +12,8 @@ import 'package:video_player/video_player.dart';
 import '../../api/ApiUrls.dart';
 import '../../constant/LoadingTipsConstant.dart';
 import '../../service/Portable/PortablePlayerController.dart';
-import '../../service/Media/PvVideoStream.dart';
 import '../../service/Media/SongMediaCache.dart';
+import '../../utils/AppTheme.dart';
 import '../../utils/NavigationPreferences.dart';
 import '../../widgets/AppDialogs.dart';
 import '../../widgets/AppHeader.dart';
@@ -22,7 +23,7 @@ import '../../utils/AppDesignTokens.dart';
 
 /// 歌曲 PV 播放页。
 ///
-/// 优先复用已有完整缓存，否则流式加载。无音轨的 PV 使用同曲音源。
+/// 优先复用已有完整缓存，否则直接下载完整 PV 后播放。无音轨的 PV 使用同曲音源。
 class SongPvPage extends StatefulWidget {
   const SongPvPage({
     super.key,
@@ -43,10 +44,8 @@ class _SongPvPageState extends State<SongPvPage> {
     'Referer': 'https://download.wmc.pub/',
   };
 
-  late final VideoPlayerController _controller;
-  late final Future<void> _initializeFuture;
-  late final Uri _videoUri;
-  bool _controllerCreated = false;
+  VideoPlayerController? _controller;
+  late Future<void> _initializeFuture;
   AudioPlayer? _audio;
   bool _audioReady = false;
   Duration? _audioDuration;
@@ -88,9 +87,10 @@ class _SongPvPageState extends State<SongPvPage> {
       ? _allOrientations
       : (_fullscreen ? _landscape : _portrait);
 
-  PvVideoStream? _videoStream;
-  Timer? _speedTimer;
-  double? _bytesPerSecond;
+  double? _downloadProgress;
+  double _downloadSpeed = 0;
+  String _downloadStage = '';
+  bool _downloading = false;
 
   Timer? _tipTimer;
   String _loadingTip = LoadingTipsConstant.getRandomLoadingTip();
@@ -98,7 +98,9 @@ class _SongPvPageState extends State<SongPvPage> {
 
   String get _loadingStatus => _usingLocalFile
       ? appL10n.flowReadingLocalVideo
-      : appL10n.flowBufferingVideo;
+      : (_downloadStage.isEmpty
+          ? appL10n.videoExportPvDownloading
+          : _downloadStage);
 
   bool _isSeeking = false;
   double _seekDragOffset = 0;
@@ -108,9 +110,6 @@ class _SongPvPageState extends State<SongPvPage> {
   @override
   void initState() {
     super.initState();
-    _videoUri = Uri.parse(
-      'https://download.wmc.pub/s/${widget.songId}/pv.mp4',
-    );
     _tipTimer = Timer.periodic(const Duration(seconds: 4), (_) {
       if (!mounted) return;
       setState(() {
@@ -118,11 +117,7 @@ class _SongPvPageState extends State<SongPvPage> {
         if (next.isNotEmpty) _loadingTip = next;
       });
     });
-    _initializeFuture = _initializeVideo().catchError((Object error) {
-      _speedTimer?.cancel();
-      _videoStream?.close();
-      throw error;
-    });
+    _initializeFuture = _initializeVideo();
   }
 
   @override
@@ -138,64 +133,88 @@ class _SongPvPageState extends State<SongPvPage> {
   }
 
   Future<void> _initializeVideo() async {
-    final file = await SongMediaCache.instance.existingPv(widget.songId);
-    if (!mounted) return;
-    _usingLocalFile = file != null;
-    var uri = _videoUri;
-    if (file == null) {
-      final stream = PvVideoStream(_videoUri, _videoHeaders);
-      _videoStream = stream;
-      try {
-        uri = await stream.open();
-        if (!mounted) return;
-        _startSpeedSampling(stream);
-      } catch (error) {
-        if (!mounted) return;
-        stream.close();
-        _videoStream = null;
-        debugPrint('[SongPV] 无法启动网速计量，直接加载视频: $error');
-      }
+    final previousController = _controller;
+    if (previousController != null) {
+      _releaseAudio();
+      _controller = null;
+      unawaited(previousController.dispose());
     }
-    // 不再启动整文件下载，远程视频的缓冲和拖动请求交给原生播放器。
-    _controller = file != null
-        ? VideoPlayerController.file(file)
-        : VideoPlayerController.networkUrl(uri,
-            httpHeaders: _videoStream == null ? _videoHeaders : const {});
-    _controllerCreated = true;
-    await _controller.initialize();
-    if (!mounted) return;
-    await _controller.setLooping(false);
-    if (!mounted) return;
+    final cached = await SongMediaCache.instance.existingPv(widget.songId);
+    if (!mounted || _leaving) return;
+    final File file;
+    if (cached != null) {
+      setState(() {
+        _usingLocalFile = true;
+        _downloading = false;
+        _downloadProgress = 1.0;
+        _downloadSpeed = 0;
+        _downloadStage = appL10n.flowReadingLocalVideo;
+      });
+      file = cached;
+    } else {
+      setState(() {
+        _usingLocalFile = false;
+        _downloading = true;
+        _downloadProgress = null;
+        _downloadSpeed = 0;
+        _downloadStage = appL10n.videoExportPvDownloading;
+      });
+      file = await SongMediaCache.instance.ensurePv(
+        widget.songId,
+        url: ApiUrls.wmcPvUrl(widget.songId),
+        headers: _videoHeaders,
+        onProgress: (progress, speed, status) {
+          if (!mounted || _leaving) return;
+          setState(() {
+            _downloadProgress = progress;
+            _downloadSpeed = speed;
+            _downloadStage = status;
+          });
+        },
+      );
+      if (!mounted || _leaving) return;
+      setState(() {
+        _usingLocalFile = true;
+        _downloading = false;
+        _downloadProgress = 1.0;
+        _downloadSpeed = 0;
+        _downloadStage = appL10n.flowReadingLocalVideo;
+      });
+    }
+    if (!mounted || _leaving) return;
+    final controller = VideoPlayerController.file(file);
+    _controller = controller;
+    await controller.initialize();
+    if (!mounted || _leaving) return;
+    await controller.setLooping(false);
+    if (!mounted || _leaving) return;
     final portable = PortablePlayerController();
     if (portable.isPlaying) await portable.togglePlayPause();
-    if (!mounted) return;
-    await _controller.play();
-    if (mounted && _controller.isAudioTrackSupportAvailable()) {
+    if (!mounted || _leaving) return;
+    await controller.play();
+    if (mounted && !_leaving && controller.isAudioTrackSupportAvailable()) {
       unawaited(_loadFallbackAudio());
     }
   }
 
-  void _startSpeedSampling(PvVideoStream stream) {
-    final clock = Stopwatch()..start();
-    var lastBytes = 0;
-    _speedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      final count = stream.receivedBytes;
-      final speed = (count - lastBytes) * 1000000 / clock.elapsedMicroseconds;
-      lastBytes = count;
-      clock.reset();
-      if (!mounted) return;
-      _bytesPerSecond = speed;
-      if (!_controllerCreated ||
-          !_controller.value.isInitialized ||
-          _controller.value.isBuffering) {
-        setState(() {});
-      }
+  void _retryInitialize() {
+    if (!mounted || _leaving) return;
+    setState(() {
+      _audioUnavailable = false;
+      _downloadProgress = null;
+      _downloadSpeed = 0;
+      _downloadStage = '';
+      _downloading = false;
+      _usingLocalFile = false;
+      _initializeFuture = _initializeVideo();
     });
   }
 
   Future<void> _loadFallbackAudio() async {
+    final controller = _controller;
+    if (controller == null) return;
     try {
-      if ((await _controller.getAudioTracks()).isNotEmpty || !mounted) return;
+      if ((await controller.getAudioTracks()).isNotEmpty || !mounted) return;
       try {
         _preferences = await SharedPreferences.getInstance();
         _audioDelayMs = (_preferences?.getInt(_delayKey) ?? 0)
@@ -227,9 +246,9 @@ class _SongPvPageState extends State<SongPvPage> {
       }
       if (!mounted) return;
       _audioDuration = await player.getDuration();
-      if (!mounted) return;
+      if (!mounted || !identical(_controller, controller)) return;
       setState(() => _audioReady = true);
-      _controller.addListener(_onVideoStateChanged);
+      controller.addListener(_onVideoStateChanged);
       _audioSyncTimer = Timer.periodic(
           const Duration(seconds: 1), (_) => unawaited(_syncAudio()));
       _onVideoStateChanged();
@@ -250,7 +269,9 @@ class _SongPvPageState extends State<SongPvPage> {
   }
 
   bool get _videoIsPlaying {
-    final video = _controller.value;
+    final controller = _controller;
+    if (controller == null) return false;
+    final video = controller.value;
     return video.isPlaying &&
         !video.isBuffering &&
         !video.isCompleted &&
@@ -259,9 +280,10 @@ class _SongPvPageState extends State<SongPvPage> {
   }
 
   void _onVideoStateChanged() {
-    if (!_audioReady) return;
+    final controller = _controller;
+    if (!_audioReady || controller == null) return;
     final shouldPlay = _videoIsPlaying &&
-        _controller.value.position.inMilliseconds >= _audioDelayMs;
+        controller.value.position.inMilliseconds >= _audioDelayMs;
     if (shouldPlay == _audioShouldPlay) return;
     _audioShouldPlay = shouldPlay;
     unawaited(_syncAudio());
@@ -270,7 +292,8 @@ class _SongPvPageState extends State<SongPvPage> {
   // 以视频为时钟。暂停、缓冲和跳转期间停止音频，播放中定期校正漂移。
   Future<void> _syncAudio() async {
     final player = _audio;
-    if (player == null) return;
+    final controller = _controller;
+    if (player == null || controller == null) return;
     _audioSyncPending = true;
     if (_syncingAudio) return;
     _syncingAudio = true;
@@ -287,7 +310,7 @@ class _SongPvPageState extends State<SongPvPage> {
             playing ? await player.getCurrentPosition() : null;
         if (!identical(_audio, player) || !_videoIsPlaying) continue;
         final videoPosition =
-            await _controller.position ?? _controller.value.position;
+            await controller.position ?? controller.value.position;
         if (!identical(_audio, player) || !_videoIsPlaying) continue;
         final position = videoPosition - Duration(milliseconds: _audioDelayMs);
         if (position.isNegative || (duration != null && position >= duration)) {
@@ -321,7 +344,7 @@ class _SongPvPageState extends State<SongPvPage> {
   void _releaseAudio() {
     _audioReady = false;
     _audioSyncTimer?.cancel();
-    _controller.removeListener(_onVideoStateChanged);
+    _controller?.removeListener(_onVideoStateChanged);
     final player = _audio;
     _audio = null;
     unawaited(player?.dispose());
@@ -330,13 +353,13 @@ class _SongPvPageState extends State<SongPvPage> {
   @override
   void dispose() {
     _tipTimer?.cancel();
-    _speedTimer?.cancel();
     _hideControlsTimer?.cancel();
-    _videoStream?.close();
 
-    if (_controllerCreated) {
+    final controller = _controller;
+    if (controller != null) {
       _releaseAudio();
-      unawaited(_controller.dispose());
+      _controller = null;
+      unawaited(controller.dispose());
     }
     if (!_leaving) {
       unawaited(SystemChrome.setPreferredOrientations(_defaultOrientations));
@@ -388,7 +411,7 @@ class _SongPvPageState extends State<SongPvPage> {
     _hideControlsTimer?.cancel();
     if (!_fullscreen) return;
     _hideControlsTimer = Timer(const Duration(seconds: 4), () {
-      if (mounted && _controller.value.isPlaying) {
+      if (mounted && (_controller?.value.isPlaying ?? false)) {
         setState(() => _playbackControlsVisible = false);
       }
     });
@@ -488,11 +511,10 @@ class _SongPvPageState extends State<SongPvPage> {
   String _signedDelay(int value) => '${value > 0 ? '+' : ''}$value ms';
 
   String? get _speedLabel {
-    final speed = _bytesPerSecond;
-    if (speed == null) return null;
-    return speed >= 1024 * 1024
-        ? '${(speed / (1024 * 1024)).toStringAsFixed(1)} MB/s'
-        : '${(speed / 1024).toStringAsFixed(0)} KB/s';
+    if (_downloadSpeed <= 0) return null;
+    return _downloadSpeed >= 1024 * 1024
+        ? '${(_downloadSpeed / (1024 * 1024)).toStringAsFixed(1)} MB/s'
+        : '${(_downloadSpeed / 1024).toStringAsFixed(0)} KB/s';
   }
 
   @override
@@ -526,19 +548,21 @@ class _SongPvPageState extends State<SongPvPage> {
             future: _initializeFuture,
             builder: (context, snapshot) {
               if (snapshot.hasError) return _errorView(context);
+              final controller = _controller;
               if (snapshot.connectionState != ConnectionState.done ||
-                  !_controller.value.isInitialized) {
+                  controller == null ||
+                  !controller.value.isInitialized) {
                 return _loadingView();
               }
-              return _playerView();
+              return _playerView(controller);
             },
           ),
         ));
   }
 
-  Widget _playerView() {
+  Widget _playerView(VideoPlayerController controller) {
     return ValueListenableBuilder<VideoPlayerValue>(
-      valueListenable: _controller,
+      valueListenable: controller,
       builder: (context, value, child) {
         final aspectRatio = value.aspectRatio > 0 ? value.aspectRatio : 16 / 9;
         final shownPosition = _seekPreviewPosition ?? value.position;
@@ -556,7 +580,7 @@ class _SongPvPageState extends State<SongPvPage> {
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
-                        VideoPlayer(_controller),
+                        VideoPlayer(controller),
                         if (value.isBuffering && !_isSeeking)
                           _bufferingOverlay(),
                         Positioned.fill(
@@ -599,19 +623,26 @@ class _SongPvPageState extends State<SongPvPage> {
                       right: 0,
                       bottom: 0,
                       child: SafeArea(
-                          top: false, child: _controls(value, shownPosition))),
+                          top: false,
+                          child: _controls(controller, value, shownPosition))),
                 ],
               ]),
             ),
             if (!_fullscreen)
-              SafeArea(top: false, child: _controls(value, shownPosition)),
+              SafeArea(
+                  top: false,
+                  child: _controls(controller, value, shownPosition)),
           ],
         );
       },
     );
   }
 
-  Widget _controls(VideoPlayerValue value, Duration shownPosition) {
+  Widget _controls(
+    VideoPlayerController controller,
+    VideoPlayerValue value,
+    Duration shownPosition,
+  ) {
     final duration = value.duration;
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
@@ -643,7 +674,7 @@ class _SongPvPageState extends State<SongPvPage> {
                       onHorizontalDragEnd: (details) =>
                           seek(details.localPosition.dx),
                       child: VideoProgressIndicator(
-                        _controller,
+                        controller,
                         allowScrubbing: false,
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         colors: const VideoProgressColors(
@@ -681,7 +712,7 @@ class _SongPvPageState extends State<SongPvPage> {
               ),
             ],
           ),
-          if (value.isBuffering) _bufferStatus(value),
+          if (value.isBuffering) _bufferStatus(),
           if (_audioUnavailable)
             Text(context.l10n.flowAudioIsTemporarilyUnavailable,
                 style: const TextStyle(color: Colors.white70, fontSize: 12)),
@@ -703,62 +734,108 @@ class _SongPvPageState extends State<SongPvPage> {
   }
 
   Widget _loadingView() {
-    return Center(child: _bufferingPanel(showTip: true));
-  }
-
-  Widget _bufferingOverlay() {
-    return IgnorePointer(
-      child: Center(child: _bufferingPanel()),
-    );
-  }
-
-  Widget _bufferingPanel({bool showTip = false}) {
+    final scheme = Theme.of(context).colorScheme;
     final speed = _speedLabel;
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        child: Container(
-          width: showTip ? 260 : 200,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            color: const Color(0xE6212121),
-            border: Border.all(
-              color: Theme.of(context).colorScheme.outlineVariant,
-            ),
-            borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
-          ),
+    final progressValue = _downloading ? _downloadProgress : null;
+    final percentText = _downloading && _downloadProgress != null
+        ? '${(_downloadProgress! * 100).round()}%'
+        : null;
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 340),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                _loadingStatus,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  borderRadius:
+                      BorderRadius.circular(AppDesignTokens.radiusLarge),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.14),
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: scheme.primary.withValues(alpha: 0.18),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            _downloading
+                                ? Icons.downloading_rounded
+                                : Icons.ondemand_video_rounded,
+                            size: 18,
+                            color: scheme.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            _loadingStatus,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w600,
+                              height: 1.3,
+                            ),
+                          ),
+                        ),
+                        if (percentText != null) ...[
+                          const SizedBox(width: 8),
+                          Text(
+                            percentText,
+                            style: AppTheme.number(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                              color: scheme.primary,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    SmoothLinearProgressIndicator(
+                      value: progressValue,
+                      color: scheme.primary,
+                      backgroundColor: Colors.white24,
+                      minHeight: 5,
+                    ),
+                    if (_downloading && speed != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        speed,
+                        textAlign: TextAlign.right,
+                        style: AppTheme.number(
+                          fontSize: 12,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
-              if (speed != null) ...[
-                const SizedBox(height: 4),
-                _speedText(speed),
-              ],
-              const SizedBox(height: 10),
-              const SizedBox(
-                width: 88,
-                child: SmoothLinearProgressIndicator(
-                  color: Colors.white,
-                  backgroundColor: Colors.white24,
-                  minHeight: 3,
-                ),
-              ),
-              if (showTip && _loadingTip.isNotEmpty) ...[
-                const SizedBox(height: 12),
+              if (_loadingTip.isNotEmpty) ...[
+                const SizedBox(height: 20),
                 Text(
                   _loadingTip,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  style: const TextStyle(
+                    color: Colors.white60,
+                    fontSize: 12,
+                    height: 1.5,
+                  ),
                 ),
               ],
             ],
@@ -768,30 +845,56 @@ class _SongPvPageState extends State<SongPvPage> {
     );
   }
 
-  Widget _speedText(String speed) => Text(
-        speed,
-        style: const TextStyle(
-          color: Colors.white70,
-          fontSize: 12,
-          fontFeatures: [FontFeature.tabularFigures()],
+  Widget _bufferingOverlay() {
+    final scheme = Theme.of(context).colorScheme;
+    return IgnorePointer(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Container(
+            width: 200,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: const Color(0xE6212121),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.16),
+              ),
+              borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _loadingStatus,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: 96,
+                  child: SmoothLinearProgressIndicator(
+                    color: scheme.primary,
+                    backgroundColor: Colors.white24,
+                    minHeight: 3,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-      );
+      ),
+    );
+  }
 
-  Widget _bufferStatus(VideoPlayerValue value) {
-    var bufferedAhead = Duration.zero;
-    for (final range in value.buffered) {
-      if (range.start <= value.position && range.end > value.position) {
-        bufferedAhead = range.end - value.position;
-        break;
-      }
-    }
+  Widget _bufferStatus() {
     return Align(
       alignment: Alignment.centerLeft,
       child: Text(
-        _usingLocalFile
-            ? _loadingStatus
-            : context.l10n.flowP0P1SBufferedAhead((_loadingStatus).toString(),
-                (bufferedAhead.inSeconds).toString()),
+        _loadingStatus,
         style: const TextStyle(color: Colors.white60, fontSize: 11),
       ),
     );
@@ -820,10 +923,12 @@ class _SongPvPageState extends State<SongPvPage> {
   }
 
   void _togglePlayback(bool isPlaying) {
+    final controller = _controller;
+    if (controller == null) return;
     if (isPlaying) {
-      unawaited(_controller.pause());
+      unawaited(controller.pause());
     } else {
-      unawaited(_controller.play());
+      unawaited(controller.play());
     }
     _scheduleHideControls();
   }
@@ -863,11 +968,12 @@ class _SongPvPageState extends State<SongPvPage> {
   }
 
   Future<void> _seekTo(Duration position) async {
-    if (_seekInProgress) return;
+    final controller = _controller;
+    if (_seekInProgress || controller == null) return;
     _seekInProgress = true;
     _onVideoStateChanged();
     try {
-      await _controller.seekTo(position);
+      await controller.seekTo(position);
     } catch (error) {
       debugPrint('[SongPV] 视频定位失败: $error');
     } finally {
@@ -896,13 +1002,29 @@ class _SongPvPageState extends State<SongPvPage> {
             Text(
               context.l10n.flowCouldNotLoadThePVCheckYour,
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white70),
+              style: const TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: _handleBack,
-              icon: const Icon(Icons.arrow_back),
-              label: Text(context.l10n.flowBackToSongDetails),
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _handleBack,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: BorderSide(color: Colors.white.withValues(alpha: 0.32)),
+                  ),
+                  icon: const Icon(Icons.arrow_back),
+                  label: Text(context.l10n.flowBackToSongDetails),
+                ),
+                FilledButton.icon(
+                  onPressed: _retryInitialize,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: Text(context.l10n.flowRetry),
+                ),
+              ],
             ),
           ],
         ),

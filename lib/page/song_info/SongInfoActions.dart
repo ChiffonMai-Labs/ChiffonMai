@@ -512,6 +512,47 @@ extension _SongInfoActions on _SongInfoPageState {
       }
       return;
     }
+    final checks = await Future.wait<Object?>([
+      SongMediaCache.instance.existingPv(widget.songId),
+      NetworkTypeUtil.isCellularNetwork(),
+    ]);
+    if (!mounted) return;
+    final cachedPv = checks[0];
+    final isCellular = checks[1]! as bool;
+    if (cachedPv == null && isCellular) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) {
+          final l10n = ctx.l10n;
+          final warningColor =
+              AppColors.warningOrange(Theme.of(ctx).brightness);
+          return AppAlertDialog(
+            icon: appDialogIconTile(Icons.warning_amber_rounded, warningColor),
+            title: Text(l10n.chartPlayCellularPvDialogTitle),
+            scrollable: true,
+            content: Text(
+              l10n.chartPlayCellularPvDialogBody,
+              style: TextStyle(
+                fontSize: 14,
+                height: 1.45,
+                color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: Text(l10n.featureCancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: Text(l10n.chartPlayCellularContinueDownload),
+              ),
+            ],
+          );
+        },
+      );
+      if (confirmed != true || !mounted) return;
+    }
     Navigator.push(
       context,
       MaterialPageRoute(

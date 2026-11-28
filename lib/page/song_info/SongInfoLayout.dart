@@ -76,53 +76,88 @@ extension _SongInfoLayout on _SongInfoPageState {
     );
   }
 
-  /// 「更多」操作面板：原按钮网格里不常用的几项。
+  /// 「更多」操作面板：以歌曲上下文头部 + 快捷四宫格 + 分组功能列表呈现。
   void _showMoreSongActions() {
     FocusManager.instance.primaryFocus?.unfocus();
+    final basicInfo = _songData?['basic_info'] as Map<String, dynamic>?;
+    final title = basicInfo?['title']?.toString().trim();
+    final artist = basicInfo?['artist']?.toString().trim() ?? '';
+    final dsList = _songData?['ds'] as List?;
+    final currentDs = (dsList != null &&
+            _currentDiffIndex >= 0 &&
+            _currentDiffIndex < dsList.length)
+        ? (dsList[_currentDiffIndex] as num?)?.toDouble()
+        : null;
+    final accentColor =
+        _getAccentColor(_currentDiffIndex, Theme.of(context).brightness);
+
     showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
       showDragHandle: true,
       backgroundColor: AppSurfaces.card(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppDesignTokens.radiusLarge),
+        ),
+      ),
       builder: (sheetContext) {
-        Widget item(IconData icon, String title, VoidCallback? onTap) {
-          return ListTile(
-            leading: Icon(icon),
-            title: Text(title),
-            enabled: onTap != null,
-            onTap: onTap == null
-                ? null
-                : () {
-                    Navigator.of(sheetContext).pop();
-                    onTap();
-                  },
-          );
-        }
-
+        final l10n = sheetContext.l10n;
         return _MoreSongActionsSheet(
-          actions: [
-            item(
-                Icons.ondemand_video_outlined,
-                sheetContext.l10n.songChartConfirmationBilibili,
-                _jumpToBilibili),
-            item(
-                Icons.play_circle_outline_rounded,
-                sheetContext.l10n.songChartPlaybackInApp,
-                _isLoading || _openingChartPlayback ? null : _playChartInApp),
-            item(Icons.leaderboard_outlined,
-                context.l10n.flowAchievementRanking2, _viewAchievementRanking),
-            item(Icons.emoji_events_outlined, context.l10n.flowDXScoreRanking2,
-                _viewDxScoreRanking),
-            item(
-                Icons.collections_bookmark_outlined,
-                context.l10n.flowRelatedCollectiblesP0(
-                    (_relatedCollectionsCount).toString()),
-                _viewRelatedCollectibles),
-            item(Icons.playlist_add_outlined, context.l10n.flowAddToPlayNext,
-                _isLoading ? null : _addToNextPlayQueue),
-            item(Icons.image_outlined, context.l10n.flowExportSongInformation,
-                _exportSongInfoToImage),
-            item(Icons.calculate_outlined, context.l10n.featureCalculators2,
-                _openCalculator),
+          songId: widget.songId,
+          title: (title != null && title.isNotEmpty) ? title : widget.songId,
+          artist: artist,
+          levelIndex: _currentDiffIndex,
+          ds: currentDs,
+          accentColor: accentColor,
+          quickActions: [
+            _SongSheetAction(
+              icon: Icons.play_circle_filled_rounded,
+              label: l10n.songChartPlaybackInApp,
+              highlighted: true,
+              onTap: _isLoading || _openingChartPlayback
+                  ? null
+                  : _playChartInApp,
+            ),
+            _SongSheetAction(
+              icon: Icons.ondemand_video_rounded,
+              label: l10n.songChartConfirmationBilibili,
+              onTap: _jumpToBilibili,
+            ),
+            _SongSheetAction(
+              icon: Icons.playlist_add_rounded,
+              label: l10n.flowAddToPlayNext,
+              onTap: _isLoading ? null : _addToNextPlayQueue,
+            ),
+            _SongSheetAction(
+              icon: Icons.image_outlined,
+              label: l10n.flowExportSongInformation,
+              onTap: _exportSongInfoToImage,
+            ),
+          ],
+          listActions: [
+            _SongSheetAction(
+              icon: Icons.leaderboard_rounded,
+              label: l10n.flowAchievementRanking2,
+              onTap: _viewAchievementRanking,
+            ),
+            _SongSheetAction(
+              icon: Icons.emoji_events_rounded,
+              label: l10n.flowDXScoreRanking2,
+              onTap: _viewDxScoreRanking,
+            ),
+            _SongSheetAction(
+              icon: Icons.collections_bookmark_rounded,
+              label: l10n.flowRelatedCollectibles,
+              badgeCount: _relatedCollectionsCount,
+              onTap: _viewRelatedCollectibles,
+            ),
+            _SongSheetAction(
+              icon: Icons.calculate_rounded,
+              label: l10n.featureCalculators2,
+              onTap: _openCalculator,
+            ),
           ],
         );
       },
@@ -448,9 +483,10 @@ extension _SongInfoLayout on _SongInfoPageState {
     );
   }
 
-  /// 类型标签（DX / ST / 宴）+ 曲目编号 + 另一种谱面的切换入口。
+  /// 类型标签（DX / ST / 宴）+ 曲目编号 + 关联谱面（ST / DX / UTAGE）切换入口。
   Widget _buildHeroTypeRow() {
-    final isUtage = widget.songId.length == 6;
+    final isUtage = ChartDifficulty.isUtageSong(widget.songId,
+        type: _songData!['type']?.toString());
     final type = _songData!['type'];
     final label =
         isUtage ? ChartDifficulty.utageLabel : (type == 'SD' ? 'ST' : '$type');
@@ -461,6 +497,66 @@ extension _SongInfoLayout on _SongInfoPageState {
         : type == 'SD'
             ? (dark ? const Color(0xFF8FC1FF) : const Color(0xFF1F5FA8))
             : (dark ? const Color(0xFFFFB877) : const Color(0xFFA34E00));
+
+    final otherRegulars = [
+      for (final item in _relatedVariants)
+        if (item.songId != widget.songId && item.kind != SongVariantKind.utage)
+          item,
+    ];
+    final utageVariants = [
+      for (final item in _relatedVariants)
+        if (item.kind == SongVariantKind.utage) item,
+    ];
+    final otherUtages = [
+      for (final item in utageVariants)
+        if (item.songId != widget.songId) item,
+    ];
+
+    Widget switchPill({
+      required String pillLabel,
+      required VoidCallback onTap,
+      IconData icon = Icons.swap_horiz_rounded,
+      bool trailingExpand = false,
+    }) =>
+        Material(
+          color: Colors.white.withValues(alpha: 0.18),
+          shape: const StadiumBorder(),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: _songSwitching ? null : onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _songSwitching
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 1.8, color: Colors.white),
+                        )
+                      : Icon(icon, size: 14, color: Colors.white),
+                  const SizedBox(width: 4),
+                  Text(
+                    pillLabel,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                  if (trailingExpand && !_songSwitching) ...[
+                    const SizedBox(width: 2),
+                    const Icon(Icons.expand_more_rounded,
+                        size: 14, color: Colors.white),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        );
+
     return Wrap(
       spacing: 8,
       runSpacing: 6,
@@ -489,46 +585,210 @@ extension _SongInfoLayout on _SongInfoPageState {
             color: Colors.white.withValues(alpha: 0.85),
           ),
         ),
-        // 如果存在另一种谱面，显示切换按钮
-        if (_alternativeSongId != null)
-          Material(
-            color: Colors.white.withValues(alpha: 0.18),
-            shape: const StadiumBorder(),
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              onTap: () => _switchSong(_alternativeSongId!, _currentDiffIndex),
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _songSwitching
-                        ? const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 1.8, color: Colors.white),
-                          )
-                        : const Icon(Icons.swap_horiz_rounded,
-                            size: 14, color: Colors.white),
-                    const SizedBox(width: 4),
-                    Text(
-                      type == 'SD'
-                          ? context.l10n.flowSwitchToDX
-                          : context.l10n.flowSwitchToST,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+        for (final target in otherRegulars)
+          switchPill(
+            pillLabel: target.kind == SongVariantKind.dx
+                ? context.l10n.flowSwitchToDX
+                : context.l10n.flowSwitchToST,
+            onTap: () => _switchSong(
+              target.songId,
+              levelIndex: isUtage ? null : _currentDiffIndex,
             ),
           ),
+        if (!isUtage && otherUtages.length == 1)
+          switchPill(
+            pillLabel: otherUtages.first.utageTag != null
+                ? '${context.l10n.flowSwitchToUtage} · [${otherUtages.first.utageTag}]'
+                : context.l10n.flowSwitchToUtage,
+            onTap: () => _switchSong(otherUtages.first.songId),
+          )
+        else if (otherUtages.isNotEmpty)
+          switchPill(
+            pillLabel: '${ChartDifficulty.utageLabel} (${utageVariants.length})',
+            icon: Icons.layers_rounded,
+            trailingExpand: true,
+            onTap: _showRelatedVariantsSheet,
+          ),
       ],
+    );
+  }
+
+  void _showRelatedVariantsSheet() {
+    if (_relatedVariants.isEmpty) return;
+    final currentId = widget.songId;
+    final currentIsUtage = ChartDifficulty.isUtageSong(currentId,
+        type: _songData?['type']?.toString());
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: AppSurfaces.card(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppDesignTokens.radiusLarge),
+        ),
+      ),
+      builder: (sheetContext) {
+        final scheme = Theme.of(sheetContext).colorScheme;
+        final brightness = scheme.brightness;
+        final l10n = sheetContext.l10n;
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.72,
+          ),
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              16,
+              0,
+              16,
+              16 + MediaQuery.paddingOf(sheetContext).bottom,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  l10n.flowSwitchChartVersion,
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: scheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: _relatedVariants.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (_, index) {
+                      final item = _relatedVariants[index];
+                      final isCurrent = item.songId == currentId;
+                      final badgeColors = switch (item.kind) {
+                        SongVariantKind.standard =>
+                          AppColors.syncBadge(brightness),
+                        SongVariantKind.dx =>
+                          AppColors.difficultyBadge(1, brightness),
+                        SongVariantKind.utage => (
+                            background: AppColors.utageBackground(
+                                brightness: brightness),
+                            foreground:
+                                AppColors.utageAccent(brightness: brightness),
+                          ),
+                      };
+                      return Material(
+                        color: isCurrent
+                            ? scheme.primaryContainer.withValues(alpha: 0.45)
+                            : AppSurfaces.inset(sheetContext),
+                        borderRadius: BorderRadius.circular(
+                            AppDesignTokens.radiusMedium),
+                        clipBehavior: Clip.antiAlias,
+                        child: InkWell(
+                          onTap: isCurrent
+                              ? null
+                              : () {
+                                  Navigator.of(sheetContext).pop();
+                                  final keepDiff = !currentIsUtage &&
+                                      item.kind != SongVariantKind.utage;
+                                  _switchSong(
+                                    item.songId,
+                                    levelIndex:
+                                        keepDiff ? _currentDiffIndex : null,
+                                  );
+                                },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(
+                                  AppDesignTokens.radiusMedium),
+                              border: Border.all(
+                                color: isCurrent
+                                    ? scheme.primary.withValues(alpha: 0.5)
+                                    : scheme.outlineVariant,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                AppBadge(
+                                  text: item.kindLabel,
+                                  background: badgeColors.background,
+                                  foreground: badgeColors.foreground,
+                                  fontSize: 11,
+                                ),
+                                if (item.utageTag != null) ...[
+                                  const SizedBox(width: 6),
+                                  AppBadge(
+                                    text: '[${item.utageTag}]',
+                                    background: AppSurfaces.card(sheetContext),
+                                    foreground: scheme.onSurface,
+                                    numeric: false,
+                                    centered: true,
+                                    fontSize: 11,
+                                  ),
+                                ],
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        item.title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w700,
+                                          color: scheme.onSurface,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        [
+                                          '#${item.songId}',
+                                          if (item.levelLabel.isNotEmpty)
+                                            item.levelLabel,
+                                          if (item.isBuddy) 'Buddy',
+                                        ].join(' · '),
+                                        style: AppTheme.number(
+                                          fontSize: 11.5,
+                                          color: scheme.onSurfaceVariant,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                if (isCurrent)
+                                  AppBadge(
+                                    text: l10n.flowCurrentChart,
+                                    background: scheme.primary,
+                                    foreground: scheme.onPrimary,
+                                    numeric: false,
+                                    centered: true,
+                                    fontSize: 11,
+                                  )
+                                else
+                                  Icon(
+                                    Icons.chevron_right_rounded,
+                                    size: 20,
+                                    color: scheme.onSurfaceVariant,
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -705,74 +965,76 @@ extension _SongInfoLayout on _SongInfoPageState {
             ),
           ],
           const SizedBox(height: 1),
-          AnimatedSize(
-            duration: sizeMotion,
-            curve: AppDesignTokens.emphasizedCurve,
-            alignment: Alignment.topCenter,
-            // 有成绩 ↔ 有成绩之间 Key 不变，数字才能从旧值滚到新值。
-            child: FadeSwitcher(
-              value: (userRecord != null, _awmcUtageLoading, _awmcUtageFailed),
-              alignment: AlignmentDirectional.topStart,
-              sizeFollowsCurrent: true,
-              child: switch (userRecord) {
-                final record? => _buildBestScoreBody(record),
-                null when _awmcUtageLoading =>
-                  Text(context.l10n.flowLoading2, style: muted),
-                null when _awmcUtageFailed => Row(
-                    children: [
-                      Expanded(
-                        child: Text(context.l10n.awmcChartUnavailable,
-                            style: muted),
-                      ),
-                      TextButton(
-                        onPressed: () => _refreshAwmcUtageScore(retry: true),
-                        child: Text(context.l10n.flowRetry),
-                      ),
-                    ],
-                  ),
-                null => Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // 难度名长短不一，放不下时整行缩小，避免末字单独换行。
-                            FittedBox(
-                              fit: BoxFit.scaleDown,
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                context.l10n.flowNoScoreForP0Yet(
-                                    (_getDiffLabel(_currentDiffIndex))
-                                        .toString()),
-                                maxLines: 1,
-                                style: const TextStyle(
-                                    fontSize: 15, fontWeight: FontWeight.w700),
+          ClipRect(
+            child: AnimatedSize(
+              duration: sizeMotion,
+              curve: AppDesignTokens.emphasizedCurve,
+              alignment: Alignment.topCenter,
+              // 有成绩 ↔ 有成绩之间 Key 不变，数字才能从旧值滚到新值。
+              child: FadeSwitcher(
+                value: (userRecord != null, _awmcUtageLoading, _awmcUtageFailed),
+                alignment: AlignmentDirectional.topStart,
+                sizeFollowsCurrent: true,
+                child: switch (userRecord) {
+                  final record? => _buildBestScoreBody(record),
+                  null when _awmcUtageLoading =>
+                    Text(context.l10n.flowLoading2, style: muted),
+                  null when _awmcUtageFailed => Row(
+                      children: [
+                        Expanded(
+                          child: Text(context.l10n.awmcChartUnavailable,
+                              style: muted),
+                        ),
+                        TextButton(
+                          onPressed: () => _refreshAwmcUtageScore(retry: true),
+                          child: Text(context.l10n.flowRetry),
+                        ),
+                      ],
+                    ),
+                  null => Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // 难度名长短不一，放不下时整行缩小，避免末字单独换行。
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  context.l10n.flowNoScoreForP0Yet(
+                                      (_getDiffLabel(_currentDiffIndex))
+                                          .toString()),
+                                  maxLines: 1,
+                                  style: const TextStyle(
+                                      fontSize: 15, fontWeight: FontWeight.w700),
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(context.l10n.flowPlayAndSyncToSeeYourScore,
-                                style: muted),
-                          ],
+                              const SizedBox(height: 2),
+                              Text(context.l10n.flowPlayAndSyncToSeeYourScore,
+                                  style: muted),
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      FilledButton(
-                        onPressed: _isLoading ? null : _addToNextPlayQueue,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppSurfaces.inset(context),
-                          foregroundColor: scheme.onSurface,
-                          minimumSize: const Size(0, 40),
-                          padding: const EdgeInsets.symmetric(horizontal: 14),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14)),
-                          textStyle: AppTheme.font(
-                              fontSize: 13, fontWeight: FontWeight.w600),
+                        const SizedBox(width: 12),
+                        FilledButton(
+                          onPressed: _isLoading ? null : _addToNextPlayQueue,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppSurfaces.inset(context),
+                            foregroundColor: scheme.onSurface,
+                            minimumSize: const Size(0, 40),
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14)),
+                            textStyle: AppTheme.font(
+                                fontSize: 13, fontWeight: FontWeight.w600),
+                          ),
+                          child: Text(context.l10n.flowAddToPlayNext),
                         ),
-                        child: Text(context.l10n.flowAddToPlayNext),
-                      ),
-                    ],
-                  ),
-              },
+                      ],
+                    ),
+                },
+              ),
             ),
           ),
           if (_best50OpportunityLoading || _best50OpportunityText != null)
@@ -2055,101 +2317,391 @@ extension _SongInfoLayout on _SongInfoPageState {
   }
 }
 
-class _MoreSongActionsSheet extends StatefulWidget {
-  const _MoreSongActionsSheet({required this.actions});
+class _SongSheetAction {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  final bool highlighted;
+  final int? badgeCount;
 
-  final List<Widget> actions;
-
-  @override
-  State<_MoreSongActionsSheet> createState() => _MoreSongActionsSheetState();
+  const _SongSheetAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.highlighted = false,
+    this.badgeCount,
+  });
 }
 
-class _MoreSongActionsSheetState extends State<_MoreSongActionsSheet> {
-  static const _hintHeight = 44.0;
-  final _scroll = ScrollController();
-  bool _hasOverflow = false;
-  bool _canScrollDown = false;
+class _MoreSongActionsSheet extends StatelessWidget {
+  const _MoreSongActionsSheet({
+    required this.songId,
+    required this.title,
+    required this.artist,
+    required this.levelIndex,
+    required this.ds,
+    required this.accentColor,
+    required this.quickActions,
+    required this.listActions,
+  });
 
-  @override
-  void dispose() {
-    _scroll.dispose();
-    super.dispose();
-  }
+  final String songId;
+  final String title;
+  final String artist;
+  final int levelIndex;
+  final double? ds;
+  final Color accentColor;
+  final List<_SongSheetAction> quickActions;
+  final List<_SongSheetAction> listActions;
 
-  void _updateHint(ScrollMetrics metrics) {
-    final hasOverflow =
-        metrics.maxScrollExtent > (_hasOverflow ? _hintHeight + 1 : 1);
-    final canScrollDown = metrics.extentAfter > 1;
-    if (_hasOverflow != hasOverflow || _canScrollDown != canScrollDown) {
-      setState(() {
-        _hasOverflow = hasOverflow;
-        _canScrollDown = canScrollDown;
-      });
-    }
-  }
-
-  void _scrollDown() {
-    if (!_scroll.hasClients) return;
-    final position = _scroll.position;
-    final target = position.pixels + position.viewportDimension * .75;
-    final next = target
-        .clamp(position.minScrollExtent, position.maxScrollExtent)
-        .toDouble();
-    if (MediaQuery.disableAnimationsOf(context)) {
-      _scroll.jumpTo(next);
-    } else {
-      _scroll.animateTo(next,
-          duration: const Duration(milliseconds: 240), curve: Curves.easeOut);
-    }
+  void _trigger(BuildContext context, VoidCallback? onTap) {
+    if (onTap == null) return;
+    HapticFeedback.selectionClick();
+    Navigator.of(context).pop();
+    onTap();
   }
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Flexible(
-            child: NotificationListener<ScrollMetricsNotification>(
-              onNotification: (notice) {
-                _updateHint(notice.metrics);
-                return false;
-              },
-              child: NotificationListener<ScrollNotification>(
-                onNotification: (notice) {
-                  _updateHint(notice.metrics);
-                  return false;
-                },
-                child: Scrollbar(
-                  controller: _scroll,
-                  thumbVisibility: true,
-                  child: ListView(
-                    controller: _scroll,
-                    shrinkWrap: true,
-                    padding: const EdgeInsets.only(bottom: 8, right: 8),
-                    children: widget.actions,
+    final scheme = Theme.of(context).colorScheme;
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.85;
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + bottomInset),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                ClipRRect(
+                  borderRadius:
+                      BorderRadius.circular(AppDesignTokens.radiusSmall),
+                  child: CoverUtil.buildCoverWidgetWithContext(
+                      context, songId, 46),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 15.5,
+                          fontWeight: FontWeight.w700,
+                          color: scheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          ChartDifficultyBadge(
+                            levelIndex: levelIndex,
+                            songId: songId,
+                            label: ds != null && ds! > 0
+                                ? '${ChartDifficulty.labelOf(levelIndex, isUtage: songId.length == 6)} ${ds!.toStringAsFixed(1)}'
+                                : ChartDifficulty.labelOf(levelIndex,
+                                    isUtage: songId.length == 6),
+                            fontSize: 10,
+                          ),
+                          if (artist.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                artist,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: scheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
                   ),
                 ),
+                IconButton(
+                  tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: Icon(Icons.close_rounded,
+                      size: 20, color: scheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            for (var i = 0; i < quickActions.length; i += 2) ...[
+              if (i > 0) const SizedBox(height: 10),
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: _buildQuickTile(context, quickActions[i]),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: i + 1 < quickActions.length
+                          ? _buildQuickTile(context, quickActions[i + 1])
+                          : const SizedBox.shrink(),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            Container(
+              decoration: BoxDecoration(
+                color: AppSurfaces.inset(context),
+                borderRadius:
+                    BorderRadius.circular(AppDesignTokens.radiusMedium),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final (index, action) in listActions.indexed) ...[
+                    if (index > 0)
+                      Divider(
+                        height: 1,
+                        indent: 48,
+                        color: scheme.outlineVariant,
+                      ),
+                    _buildListRow(context, action),
+                  ],
+                ],
               ),
             ),
-          ),
-          if (_hasOverflow)
-            // 滑到底后保留占位，避免视口高度改变导致提示反复出现。
-            SizedBox(
-              height: _hintHeight,
-              child: _canScrollDown
-                  ? TextButton.icon(
-                      onPressed: _scrollDown,
-                      icon: const Icon(Icons.keyboard_arrow_down_rounded),
-                      label: Text(context.l10n.songMoreActionsScroll),
-                    )
-                  : null,
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
+
+  Widget _buildQuickTile(BuildContext context, _SongSheetAction action) {
+    final scheme = Theme.of(context).colorScheme;
+    final enabled = action.onTap != null;
+    final tint = action.highlighted ? accentColor : scheme.primary;
+    final bgColor = action.highlighted
+        ? tint.withValues(alpha: 0.14)
+        : AppSurfaces.inset(context);
+    final iconBg = action.highlighted
+        ? tint
+        : tint.withValues(alpha: 0.12);
+    final iconFg = action.highlighted ? Colors.white : tint;
+
+    return Opacity(
+      opacity: enabled ? 1.0 : 0.45,
+      child: Material(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(AppDesignTokens.radiusMedium),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: enabled ? () => _trigger(context, action.onTap) : null,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            decoration: action.highlighted
+                ? BoxDecoration(
+                    borderRadius:
+                        BorderRadius.circular(AppDesignTokens.radiusMedium),
+                    border: Border.all(
+                      color: tint.withValues(alpha: 0.35),
+                      width: 1,
+                    ),
+                  )
+                : null,
+            child: Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: iconBg,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(action.icon, size: 18, color: iconFg),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    action.label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.2,
+                      fontWeight: action.highlighted
+                          ? FontWeight.w700
+                          : FontWeight.w600,
+                      color: scheme.onSurface,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildListRow(BuildContext context, _SongSheetAction action) {
+    final scheme = Theme.of(context).colorScheme;
+    final enabled = action.onTap != null;
+    final count = action.badgeCount;
+    return Opacity(
+      opacity: enabled ? 1.0 : 0.45,
+      child: InkWell(
+        onTap: enabled ? () => _trigger(context, action.onTap) : null,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          child: Row(
+            children: [
+              Icon(action.icon, size: 20, color: scheme.onSurfaceVariant),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  action.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: scheme.onSurface,
+                  ),
+                ),
+              ),
+              if (count != null && count > 0) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: scheme.primary.withValues(alpha: 0.12),
+                    borderRadius:
+                        BorderRadius.circular(AppDesignTokens.radiusPill),
+                  ),
+                  child: Text(
+                    '$count',
+                    style: AppTheme.number(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: scheme.primary,
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(width: 4),
+              Icon(Icons.chevron_right_rounded,
+                  size: 18, color: scheme.onSurfaceVariant),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 离线视觉调试入口：用真实样式构造「更多」抽屉界面。
+@visibleForTesting
+Widget buildMoreSongActionsSheetPreviewForTest(
+  BuildContext context, {
+  String songId = '1001',
+  String title = '系ぎて',
+  String artist = 'rintaro soma',
+  int levelIndex = 3,
+  double? ds = 14.7,
+  Color accentColor = const Color(0xFF9C27B0),
+  int relatedCollectionsCount = 3,
+}) {
+  final l10n = context.l10n;
+  final scheme = Theme.of(context).colorScheme;
+  return Container(
+    decoration: BoxDecoration(
+      color: AppSurfaces.card(context),
+      borderRadius: const BorderRadius.vertical(
+        top: Radius.circular(AppDesignTokens.radiusLarge),
+      ),
+    ),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(height: 12),
+        Container(
+          width: 32,
+          height: 4,
+          decoration: BoxDecoration(
+            color: scheme.onSurfaceVariant.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(height: 12),
+        _MoreSongActionsSheet(
+          songId: songId,
+          title: title,
+          artist: artist,
+          levelIndex: levelIndex,
+          ds: ds,
+          accentColor: accentColor,
+          quickActions: [
+            _SongSheetAction(
+              icon: Icons.play_circle_filled_rounded,
+              label: l10n.songChartPlaybackInApp,
+              highlighted: true,
+              onTap: () {},
+            ),
+            _SongSheetAction(
+              icon: Icons.ondemand_video_rounded,
+              label: l10n.songChartConfirmationBilibili,
+              onTap: () {},
+            ),
+            _SongSheetAction(
+              icon: Icons.playlist_add_rounded,
+              label: l10n.flowAddToPlayNext,
+              onTap: () {},
+            ),
+            _SongSheetAction(
+              icon: Icons.image_outlined,
+              label: l10n.flowExportSongInformation,
+              onTap: () {},
+            ),
+          ],
+          listActions: [
+            _SongSheetAction(
+              icon: Icons.leaderboard_rounded,
+              label: l10n.flowAchievementRanking2,
+              onTap: () {},
+            ),
+            _SongSheetAction(
+              icon: Icons.emoji_events_rounded,
+              label: l10n.flowDXScoreRanking2,
+              onTap: () {},
+            ),
+            _SongSheetAction(
+              icon: Icons.collections_bookmark_rounded,
+              label: l10n.flowRelatedCollectibles,
+              badgeCount: relatedCollectionsCount,
+              onTap: () {},
+            ),
+            _SongSheetAction(
+              icon: Icons.calculate_rounded,
+              label: l10n.featureCalculators2,
+              onTap: () {},
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
 }
 
 /// 专用于「上分潜力」说明文案的淡入淡出切换器：

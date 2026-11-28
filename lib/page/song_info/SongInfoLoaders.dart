@@ -95,16 +95,16 @@ extension _SongInfoLoaders on _SongInfoPageState {
     return generation != null && generation != _songGeneration;
   }
 
-  /// 在同一个页面里切换 ST / DX：先把新数据读好，旧内容留在屏幕上，
+  /// 在同一个页面里切换 ST / DX / UTAGE：先把新数据读好，旧内容留在屏幕上，
   /// 读好后同一帧换上，数字滚动、文字淡入，不会闪加载圈或黑屏。
-  Future<void> _switchSong(String songId, int levelIndex) async {
-    if (_songSwitching) return;
+  Future<void> _switchSong(String songId, {int? levelIndex}) async {
+    if (_songSwitching || songId == widget.songId) return;
     _update(() => _songSwitching = true);
     try {
       _preloadedSong = await SongInfoService()
           .loadData(songId, includeSupplementaryData: false);
     } catch (error) {
-      debugPrint('预读另一种谱面失败: $error');
+      debugPrint('预读关联谱面失败: $error');
       _preloadedSong = null;
     }
     if (!mounted || _difficultyRememberedOnPop) return;
@@ -167,7 +167,6 @@ extension _SongInfoLoaders on _SongInfoPageState {
     } else {
       _isLoading = true;
     }
-    _alternativeSongId = previousSongId;
     _maidataNoteCounts = {};
     _maidataBreakCounts = {};
     _maidataProtectionStats = {};
@@ -297,7 +296,7 @@ extension _SongInfoLoaders on _SongInfoPageState {
     final songTitle = _songData!['basic_info']['title'];
     final songType = _songData!['type'] ?? '';
     unawaited(_loadRelatedCollectionsCount(songTitle, songType));
-    unawaited(_checkAlternativeSong(songTitle, songType));
+    unawaited(_checkRelatedVariants(songTitle, songType));
     _loadUniInfo();
     _loadCnReleaseDate();
     unawaited(_loadCnUnlockInfo());
@@ -790,55 +789,27 @@ extension _SongInfoLoaders on _SongInfoPageState {
     }
   }
 
-  // 检测是否存在另一种谱面的歌曲
-  Future<void> _checkAlternativeSong(
+  // 检测同一曲目关联的全部 ST / DX / UTAGE 谱面版本
+  Future<void> _checkRelatedVariants(
       String songTitle, String currentType) async {
     try {
-      // 获取所有歌曲数据
       final songs = await MaimaiMusicDataManager().getCachedSongs();
       if (!mounted || _isStaleSongLoad) return;
       if (songs == null || songs.isEmpty) {
-        _updateCoalesced(() => _alternativeSongId = null);
+        _updateCoalesced(() => _relatedVariants = const []);
         return;
       }
 
-      // 确定要查找的另一种类型
-      String targetType = currentType == 'DX' ? 'SD' : 'DX';
-
-      // 查找同名但类型不同的歌曲
-      final alternativeSong = songs.firstWhere(
-        (song) =>
-            song.basicInfo.title == songTitle &&
-            song.type == targetType &&
-            song.id != widget.songId,
-        orElse: () => Song(
-          id: '',
-          title: '',
-          type: '',
-          ds: [],
-          level: [],
-          cids: [],
-          charts: [],
-          basicInfo: BasicInfo(
-            title: '',
-            artist: '',
-            genre: '',
-            bpm: 0,
-            releaseDate: '',
-            from: '',
-            isNew: false,
-          ),
-        ),
+      final variants = SongVariantUtil.resolveVariants(
+        songs,
+        currentSongId: widget.songId,
+        currentTitle: songTitle,
+        currentType: currentType,
       );
-
-      // 如果找到另一种谱面，设置其ID
-      _updateCoalesced(() {
-        _alternativeSongId =
-            alternativeSong.id.isNotEmpty ? alternativeSong.id : null;
-      });
+      _updateCoalesced(() => _relatedVariants = variants);
     } catch (e) {
-      debugPrint('检测另一种谱面时出错: $e');
-      _updateCoalesced(() => _alternativeSongId = null);
+      debugPrint('检测关联谱面时出错: $e');
+      _updateCoalesced(() => _relatedVariants = const []);
     }
   }
 
